@@ -63,7 +63,7 @@ function getStepBlocks(step) {
 function newBlock(kind) {
   const id = Math.random().toString(36).slice(2, 9);
   if (kind === "text") return { id, kind: "text", title: "", text: "" };
-  if (kind === "video") return { id, kind: "video", title: "", url: "", schedule: [] };
+  if (kind === "video") return { id, kind: "video", title: "", url: "", orient: "auto", schedule: [] };
   if (kind === "form") return { id, kind: "form", title: "" };
   if (kind === "special") return { id, kind: "special", title: "", specialName: "", reserveDate: "", tpl: "", buttonLabel: "" };
   if (kind === "link") return { id, kind: "link", title: "", url: "", label: "", sameTab: false };
@@ -829,7 +829,7 @@ function PublicSpace({ config, onAdmin }) {
       return (
         <>
           {blockTitle(b.title)}
-          {url ? <VideoBlock url={url} /> : <p style={{ fontSize: 15, color: `${PALETTE.cream}aa`, margin: 0 }}>Video a ap vini byento.</p>}
+          {url ? <VideoBlock url={url} orient={b.orient || "auto"} /> : <p style={{ fontSize: 15, color: `${PALETTE.cream}aa`, margin: 0 }}>Video a ap vini byento.</p>}
         </>
       );
     }
@@ -1054,7 +1054,7 @@ function SecretAdminTrigger({ onTrigger, holdMs = 10000 }) {
 }
 
 /* Montre video a dirèkteman, gwo nan ekran an (vètikal oswa orizontal) */
-function VideoBlock({ url }) {
+function VideoBlock({ url, orient = "auto" }) {
   const v = getVideoEmbed(url);
 
   // Pou "auto": vètikal sou telefòn, orizontal sou òdinatè
@@ -1078,17 +1078,17 @@ function VideoBlock({ url }) {
 
   if (!v) return null;
 
+  // 1) Chwa admin an genyen priyorite (orient). 2) Apresa sa getVideoEmbed di.
+  // 3) Otomatik: detekte oswa selon gwosè ekran.
   let portrait;
-  if (v.orientation === "portrait") portrait = true;
-  else if (v.orientation === "landscape") portrait = false;
-  else {
-    // "auto"
-    portrait = autoPortrait != null ? autoPortrait : isNarrow;
-  }
+  const choice = orient !== "auto" ? orient : v.orientation;
+  if (choice === "portrait") portrait = true;
+  else if (choice === "landscape") portrait = false;
+  else portrait = autoPortrait != null ? autoPortrait : isNarrow;
 
-  // Bwat ki bay video a yon bèl gwosè
+  // Bwat ki bay video a yon bèl gwosè, san depase ekran an
   const frameWrap = portrait
-    ? { width: "100%", maxWidth: 330, margin: "16px auto 0", aspectRatio: "9 / 16", borderRadius: 14, overflow: "hidden", border: `1px solid ${PALETTE.line}`, background: "#000" }
+    ? { width: "100%", maxWidth: "min(330px, 46vh)", margin: "16px auto 0", aspectRatio: "9 / 16", borderRadius: 14, overflow: "hidden", border: `1px solid ${PALETTE.line}`, background: "#000" }
     : { position: "relative", width: "100%", marginTop: 16, paddingBottom: "56.25%", borderRadius: 14, overflow: "hidden", border: `1px solid ${PALETTE.line}`, background: "#000" };
 
   const fill = { position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" };
@@ -1396,6 +1396,37 @@ function AdminSpace({ config, onSave, onExit }) {
                                   <input className="mt-input" placeholder="Tit — opsyonèl" value={b.title || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { title: e.target.value })} />
                                   <label style={{ ...labelStyle, marginTop: 10 }}>Videyo default (toujou, si okenn dat pa koresponn)</label>
                                   <input className="mt-input" placeholder="Lien video (YouTube, TikTok, Bunny, mp4)" value={b.url || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { url: e.target.value })} />
+                                  <label style={{ ...labelStyle, marginTop: 10 }}>Fòma videyo a</label>
+                                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                    {[
+                                      { k: "auto", lbl: "Otomatik" },
+                                      { k: "portrait", lbl: "Vètikal (TikTok)" },
+                                      { k: "landscape", lbl: "Orizontal" },
+                                    ].map((opt) => {
+                                      const cur = b.orient || "auto";
+                                      const on = cur === opt.k;
+                                      return (
+                                        <button
+                                          key={opt.k}
+                                          onClick={() => updateBlock(p.id, s.id, b.id, { orient: opt.k })}
+                                          style={{
+                                            flex: 1,
+                                            minWidth: 96,
+                                            padding: "8px 10px",
+                                            borderRadius: 9,
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                            border: on ? `1px solid ${PALETTE.magenta}` : `1px solid ${PALETTE.line}`,
+                                            background: on ? PALETTE.magenta : "transparent",
+                                            color: on ? "#fff" : `${PALETTE.cream}cc`,
+                                          }}
+                                        >
+                                          {opt.lbl}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                   <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${PALETTE.line}` }}>
                                     <label style={labelStyle}>Pwogram videyo pa dat</label>
                                     {(b.schedule || []).map((sl) => (
