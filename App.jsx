@@ -1053,11 +1053,35 @@ function SecretAdminTrigger({ onTrigger, holdMs = 10000 }) {
   );
 }
 
-/* Montre video a dirèkteman, gwo nan ekran an (vètikal oswa orizontal) */
+/* Konvèti yon chwa fòma an de chif (lajè, wotè) */
+function ratioWH(orient) {
+  switch (orient) {
+    case "9:16":
+    case "portrait":
+      return [9, 16];
+    case "1242:2208":
+      return [1242, 2208];
+    case "720:974":
+      return [720, 974];
+    case "3:4":
+      return [3, 4];
+    case "4:5":
+      return [4, 5];
+    case "1:1":
+      return [1, 1];
+    case "16:9":
+    case "landscape":
+      return [16, 9];
+    default:
+      return null; // "auto"
+  }
+}
+
+/* Montre video a dirèkteman, gwo nan ekran an, adapte ak nenpòt fòma */
 function VideoBlock({ url, orient = "auto" }) {
   const v = getVideoEmbed(url);
 
-  // Pou "auto": vètikal sou telefòn, orizontal sou òdinatè
+  // Pou "auto" san deteksyon: vètikal sou telefòn, orizontal sou òdinatè
   const [isNarrow, setIsNarrow] = useState(
     typeof window !== "undefined" ? window.innerWidth < 700 : false
   );
@@ -1067,37 +1091,55 @@ function VideoBlock({ url, orient = "auto" }) {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Pou fichye videyo dirèk: detekte vrè oryantasyon an apre l chaje
-  const [autoPortrait, setAutoPortrait] = useState(null);
+  // Pou fichye videyo dirèk (mp4): detekte vrè dimansyon yo apre l chaje
+  const [detected, setDetected] = useState(null);
   const onMeta = (e) => {
     const vid = e.target;
     if (vid && vid.videoWidth && vid.videoHeight) {
-      setAutoPortrait(vid.videoHeight > vid.videoWidth);
+      setDetected({ w: vid.videoWidth, h: vid.videoHeight });
     }
   };
 
   if (!v) return null;
 
-  // 1) Chwa admin an genyen priyorite (orient). 2) Apresa sa getVideoEmbed di.
-  // 3) Otomatik: detekte oswa selon gwosè ekran.
-  let portrait;
-  const choice = orient !== "auto" ? orient : v.orientation;
-  if (choice === "portrait") portrait = true;
-  else if (choice === "landscape") portrait = false;
-  else portrait = autoPortrait != null ? autoPortrait : isNarrow;
+  // Detèmine lajè/wotè bwat la:
+  // 1) Si nou detekte vrè dimansyon video a (mp4) → sèvi avè yo (pafè).
+  // 2) Sinon, chwa admin an (orient).
+  // 3) Sinon, sa getVideoEmbed di (TikTok=vètikal, YouTube=orizontal).
+  // 4) Sinon otomatik selon gwosè ekran.
+  let w, h;
+  if (detected) {
+    w = detected.w;
+    h = detected.h;
+  } else {
+    let r = ratioWH(orient);
+    if (!r) r = ratioWH(v.orientation);
+    if (!r) r = isNarrow ? [9, 16] : [16, 9];
+    [w, h] = r;
+  }
 
-  // Bwat ki bay video a yon bèl gwosè, san depase ekran an
-  const frameWrap = portrait
-    ? { width: "100%", maxWidth: "min(330px, 46vh)", margin: "16px auto 0", aspectRatio: "9 / 16", borderRadius: 14, overflow: "hidden", border: `1px solid ${PALETTE.line}`, background: "#000" }
-    : { position: "relative", width: "100%", marginTop: 16, paddingBottom: "56.25%", borderRadius: 14, overflow: "hidden", border: `1px solid ${PALETTE.line}`, background: "#000" };
+  const ratioNum = w / h;
+  const isPortrait = ratioNum < 1;
 
-  const fill = { position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" };
-  const fillPortrait = { width: "100%", height: "100%", border: "none", display: "block" };
+  // Bwat la: kenbe vrè fòma a, men pa janm depase lajè paj la ni 80% wotè ekran an
+  const frameWrap = {
+    position: "relative",
+    width: "100%",
+    maxWidth: isPortrait ? `min(380px, calc(80vh * ${ratioNum}))` : 760,
+    margin: "16px auto 0",
+    aspectRatio: `${w} / ${h}`,
+    borderRadius: 14,
+    overflow: "hidden",
+    border: `1px solid ${PALETTE.line}`,
+    background: "#000",
+  };
+
+  const fill = { position: "absolute", inset: 0, width: "100%", height: "100%", border: "none", objectFit: "contain", background: "#000" };
 
   if (v.type === "video") {
     return (
       <div style={frameWrap}>
-        <video controls playsInline onLoadedMetadata={onMeta} style={portrait ? fillPortrait : fill}>
+        <video controls playsInline onLoadedMetadata={onMeta} style={fill}>
           <source src={v.src} />
         </video>
       </div>
@@ -1112,7 +1154,7 @@ function VideoBlock({ url, orient = "auto" }) {
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
         allowFullScreen
         referrerPolicy="no-referrer-when-downgrade"
-        style={portrait ? fillPortrait : fill}
+        style={fill}
       />
     </div>
   );
@@ -1397,11 +1439,15 @@ function AdminSpace({ config, onSave, onExit }) {
                                   <label style={{ ...labelStyle, marginTop: 10 }}>Videyo default (toujou, si okenn dat pa koresponn)</label>
                                   <input className="mt-input" placeholder="Lien video (YouTube, TikTok, Bunny, mp4)" value={b.url || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { url: e.target.value })} />
                                   <label style={{ ...labelStyle, marginTop: 10 }}>Fòma videyo a</label>
-                                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                                     {[
                                       { k: "auto", lbl: "Otomatik" },
-                                      { k: "portrait", lbl: "Vètikal (TikTok)" },
-                                      { k: "landscape", lbl: "Orizontal" },
+                                      { k: "9:16", lbl: "Vètikal 9:16 (TikTok)" },
+                                      { k: "720:974", lbl: "720 × 974" },
+                                      { k: "3:4", lbl: "Vètikal 3:4" },
+                                      { k: "4:5", lbl: "Vètikal 4:5" },
+                                      { k: "1:1", lbl: "Kare 1:1" },
+                                      { k: "16:9", lbl: "Orizontal 16:9" },
                                     ].map((opt) => {
                                       const cur = b.orient || "auto";
                                       const on = cur === opt.k;
@@ -1410,9 +1456,7 @@ function AdminSpace({ config, onSave, onExit }) {
                                           key={opt.k}
                                           onClick={() => updateBlock(p.id, s.id, b.id, { orient: opt.k })}
                                           style={{
-                                            flex: 1,
-                                            minWidth: 96,
-                                            padding: "8px 10px",
+                                            padding: "7px 11px",
                                             borderRadius: 9,
                                             fontSize: 12,
                                             fontWeight: 600,
@@ -1427,6 +1471,9 @@ function AdminSpace({ config, onSave, onExit }) {
                                       );
                                     })}
                                   </div>
+                                  <p style={{ fontSize: 11, color: `${PALETTE.cream}77`, margin: "6px 0 0" }}>
+                                    Si se yon fichye mp4 dirèk, fòma a detekte otomatikman. Pou Bunny/YouTube, chwazi fòma a la.
+                                  </p>
                                   <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${PALETTE.line}` }}>
                                     <label style={labelStyle}>Pwogram videyo pa dat</label>
                                     {(b.schedule || []).map((sl) => (
