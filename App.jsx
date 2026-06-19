@@ -842,7 +842,7 @@ function PublicSpace({ config, onAdmin }) {
             target={b.sameTab ? "_self" : "_blank"}
             rel={b.sameTab ? undefined : "noopener noreferrer"}
             className="mt-btn"
-            style={{ ...goldBtn, display: "inline-block", textDecoration: "none", textAlign: "center" }}
+            style={{ ...goldBtn, display: "inline-block", textDecoration: "none", textAlign: "center", position: "relative", zIndex: 60 }}
           >
             {(b.label || "").trim() || "Klike isit la"}
           </a>
@@ -859,11 +859,11 @@ function PublicSpace({ config, onAdmin }) {
           <p style={{ fontSize: 16, lineHeight: 1.6, color: `${PALETTE.cream}e6`, margin: 0, whiteSpace: "pre-wrap" }}>
             {renderTemplate((b.tpl || "").trim() || DEFAULT_SPECIAL_TPL, sName || "special sa a", reserveTxt)}
           </p>
-          <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
-            <button className="mt-btn" onClick={() => respondSpecial(b, "Wi")} style={goldBtn}>
+          <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap", position: "relative", zIndex: 60 }}>
+            <button className="mt-btn" onClick={() => respondSpecial(b, "Wi")} style={{ ...goldBtn, position: "relative", zIndex: 60 }}>
               {(b.buttonLabel || "").trim() || "Wi, mwen enterese"}
             </button>
-            <button className="mt-btn" onClick={() => respondSpecial(b, "Pita")} style={ghostBtn}>Pita</button>
+            <button className="mt-btn" onClick={() => respondSpecial(b, "Pita")} style={{ ...ghostBtn, position: "relative", zIndex: 60 }}>Pita</button>
           </div>
           {answered && <p style={{ fontSize: 13, color: PALETTE.goldSoft, margin: "8px 0 0" }}>✓ {answered}</p>}
         </>
@@ -891,12 +891,12 @@ function PublicSpace({ config, onAdmin }) {
             onChange={(e) => setAnswers((a) => ({ ...a, [f.id]: e.target.value }))}
             onKeyDown={(e) => { if (e.key === "Enter" && !empty) formNext(); }}
           />
-          <div style={{ marginTop: 14 }}>
+          <div style={{ marginTop: 14, position: "relative", zIndex: 60 }}>
             <button
               className="mt-btn"
               onClick={formNext}
               disabled={empty}
-              style={{ ...goldBtn, width: "100%", opacity: empty ? 0.5 : 1, cursor: empty ? "not-allowed" : "pointer" }}
+              style={{ ...goldBtn, width: "100%", opacity: empty ? 0.5 : 1, cursor: empty ? "not-allowed" : "pointer", position: "relative", zIndex: 60 }}
             >
               {formIdx < formFields.length - 1 ? "Kontinye" : (isLast ? "Voye" : "Swivan")}
             </button>
@@ -908,7 +908,7 @@ function PublicSpace({ config, onAdmin }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px", position: "relative" }}>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px 150px", position: "relative" }}>
       <div aria-hidden style={{ position: "absolute", top: "-18%", left: "50%", transform: "translateX(-50%)", width: 520, height: 520, background: `radial-gradient(circle, ${PALETTE.blush}1f 0%, transparent 70%)`, pointerEvents: "none" }} />
 
       <div className="mt-fade" style={{ marginBottom: 34, zIndex: 1 }}>
@@ -973,11 +973,11 @@ function PublicSpace({ config, onAdmin }) {
 
           {/* Navigasyon */}
           {screens.length > 0 && (
-            <div style={{ display: "flex", gap: 10, marginTop: 18, justifyContent: "space-between" }}>
+            <div style={{ display: "flex", gap: 10, marginTop: 18, justifyContent: "space-between", position: "relative", zIndex: 60 }}>
               <button
                 className="mt-btn"
                 onClick={screenIndex > 0 ? () => setScreenIndex((i) => i - 1) : reset}
-                style={ghostBtn}
+                style={{ ...ghostBtn, position: "relative", zIndex: 60 }}
               >
                 {screenIndex > 0 ? "Anvan" : "Tounen"}
               </button>
@@ -986,7 +986,7 @@ function PublicSpace({ config, onAdmin }) {
                 <button
                   className="mt-btn"
                   onClick={advance}
-                  style={goldBtn}
+                  style={{ ...goldBtn, position: "relative", zIndex: 60 }}
                 >
                   {btnLabel}
                 </button>
@@ -1037,10 +1037,10 @@ function SecretAdminTrigger({ onTrigger, holdMs = 10000 }) {
       aria-hidden="true"
       style={{
         position: "fixed",
-        bottom: 16,   // pi ba nan kwen an
+        bottom: 0,   // nan kwen anba dwat la
         right: 0,
-        width: 140,
-        height: 140,
+        width: 110,
+        height: 110,
         zIndex: 50,
         background: "transparent",
         touchAction: "none",
