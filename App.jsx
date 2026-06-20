@@ -146,16 +146,17 @@ function specialVideoStart(screens, b) {
 }
 
 /* Modèl tèks default pou yon etap Special.
-   {special}=non special, {dat}=dat rezèvasyon, {dat5}=5 jou apre dat video pwograme a, {non}=non vizitè a */
-const DEFAULT_SPECIAL_TPL = "Felisitasyon {non} ! Nou resevwa enfòmasyon pèsonèl ou yo. Pou w ka gen plis chans pami 10 premye moun yo, kouri vin rezève plas ou anvan {dat5}.";
+   {special}=non special, {dat}=dat rezèvasyon, {dat10}=10 jou apre dat video pwograme a, {non}=non vizitè a */
+const DEFAULT_SPECIAL_TPL = "Felisitasyon {non} ! Nou resevwa enfòmasyon pèsonèl ou yo. Pou w ka gen plis chans pami 10 premye moun yo, kouri vin rezève plas ou anvan {dat10}.";
 
-/* Ranplase {special} {dat} {dat5} {non} nan yon modèl pa tèks ki an gra */
+/* Ranplase {special} {dat} {dat10} {dat5} {non} nan yon modèl pa tèks ki an gra.
+   {dat10} ak {dat5} toulède bay menm dat la (10 jou apre dat video a). */
 function renderTemplate(tpl, vars) {
   const v = vars || {};
-  const parts = String(tpl || "").split(/(\{special\}|\{dat5\}|\{dat\}|\{non\})/g);
+  const parts = String(tpl || "").split(/(\{special\}|\{dat10\}|\{dat5\}|\{dat\}|\{non\})/g);
   return parts.map((part, i) => {
     if (part === "{special}") return <strong key={i} style={{ color: PALETTE.goldSoft }}>{v.special || ""}</strong>;
-    if (part === "{dat5}") return <strong key={i} style={{ color: PALETTE.goldSoft }}>{v.dat5 || ""}</strong>;
+    if (part === "{dat10}" || part === "{dat5}") return <strong key={i} style={{ color: PALETTE.goldSoft }}>{v.dat10 || ""}</strong>;
     if (part === "{dat}") return <strong key={i} style={{ color: PALETTE.goldSoft }}>{v.dat || ""}</strong>;
     if (part === "{non}") return <strong key={i} style={{ color: PALETTE.goldSoft }}>{v.non || ""}</strong>;
     return <React.Fragment key={i}>{part}</React.Fragment>;
@@ -798,13 +799,13 @@ function PublicSpace({ config, onAdmin }) {
     const bl = getStepBlocks(screens[i]);
     for (const b of bl) {
       if (b.kind === "special" && b.banner) {
-        const dat5 = formatHtDate(addDays(specialVideoStart(screens, b), 5));
+        const dat10 = formatHtDate(addDays(specialVideoStart(screens, b), 10));
         announcements.push({
           id: b.id + "-" + i,
           node: renderTemplate((b.tpl || "").trim() || DEFAULT_SPECIAL_TPL, {
             special: (b.specialName || "").trim() || "special sa a",
             dat: formatHtDate(b.reserveDate),
-            dat5,
+            dat10,
             non: firstNameGlobal,
           }),
         });
@@ -812,9 +813,12 @@ function PublicSpace({ config, onAdmin }) {
     }
   }
 
-  // Reyajiste fòmilè a chak fwa nou chanje ekran
+  // Reyajiste fòmilè a chak fwa nou chanje ekran + remonte anlè paj la (pou video a parèt)
   useEffect(() => {
     setFormIdx(0);
+    if (typeof window !== "undefined") {
+      try { window.scrollTo({ top: 0, behavior: "auto" }); } catch (e) { window.scrollTo(0, 0); }
+    }
   }, [screenIndex, selected]);
 
   const choose = (p) => {
@@ -938,7 +942,7 @@ function PublicSpace({ config, onAdmin }) {
       if (b.banner) return null; // anons yo parèt anlè paj la, pa anndan blòk la
       const sName = (b.specialName || "").trim();
       const reserveTxt = formatHtDate(b.reserveDate);
-      const dat5Txt = formatHtDate(addDays(specialVideoStart(screens, b), 5));
+      const dat10Txt = formatHtDate(addDays(specialVideoStart(screens, b), 10));
       const nameField = formFields.find((f) => f.fieldType === "text") || formFields[0];
       const firstName = nameField ? ((answers[nameField.id] || "").trim().split(/\s+/)[0] || "") : "";
       const answered = (answers[b.id] || "").trim();
@@ -946,7 +950,7 @@ function PublicSpace({ config, onAdmin }) {
         <>
           {blockTitle(b.title)}
           <p style={{ fontSize: 16, lineHeight: 1.6, color: `${PALETTE.cream}e6`, margin: 0, whiteSpace: "pre-wrap" }}>
-            {renderTemplate((b.tpl || "").trim() || DEFAULT_SPECIAL_TPL, { special: sName || "special sa a", dat: reserveTxt, dat5: dat5Txt, non: firstName })}
+            {renderTemplate((b.tpl || "").trim() || DEFAULT_SPECIAL_TPL, { special: sName || "special sa a", dat: reserveTxt, dat10: dat10Txt, non: firstName })}
           </p>
           <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap", position: "relative", zIndex: 60 }}>
             <button className="mt-btn" onClick={() => respondSpecial(b, "Wi")} style={{ ...goldBtn, position: "relative", zIndex: 60 }}>
@@ -971,11 +975,10 @@ function PublicSpace({ config, onAdmin }) {
           <p style={{ fontSize: 12, color: `${PALETTE.cream}77`, margin: "0 0 8px" }}>
             Kesyon {formIdx + 1} / {formFields.length}
           </p>
-          <label style={{ display: "block", fontSize: 15, color: `${PALETTE.cream}cc`, marginBottom: 8 }}>{f.label}</label>
+          <label style={{ display: "block", fontSize: 17.5, fontWeight: 700, color: PALETTE.cream, marginBottom: 10, lineHeight: 1.35 }}>{f.label}</label>
           <input
             className="mt-input"
             {...inputProps(f.fieldType)}
-            autoFocus
             value={val}
             onChange={(e) => setAnswers((a) => ({ ...a, [f.id]: e.target.value }))}
             onKeyDown={(e) => { if (e.key === "Enter" && !empty) formNext(); }}
@@ -1030,18 +1033,18 @@ function PublicSpace({ config, onAdmin }) {
       ) : (
         <div className="mt-fade" style={{ width: "100%", maxWidth: 460, zIndex: 1 }}>
           {announcements.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ position: "sticky", top: 0, zIndex: 40, marginBottom: 16, paddingTop: 8, paddingBottom: 10, background: PALETTE.bgTop, borderRadius: 14, boxShadow: `0 10px 14px -8px ${PALETTE.bgTop}` }}>
               {announcements.map((a) => (
                 <div
                   key={a.id}
                   className="mt-rise"
                   style={{
-                    marginBottom: 10,
+                    marginBottom: 8,
                     padding: "14px 16px",
                     borderRadius: 14,
                     border: `1px solid ${PALETTE.gold}`,
-                    background: `linear-gradient(135deg, rgba(224,165,10,.16), rgba(194,35,142,.12))`,
-                    boxShadow: "0 6px 20px rgba(0,0,0,.18)",
+                    background: `linear-gradient(135deg, rgba(224,165,10,.18), rgba(194,35,142,.14)), #FFFFFF`,
+                    boxShadow: "0 8px 22px rgba(142,44,154,.20)",
                   }}
                 >
                   <div style={{ fontSize: 10, letterSpacing: "2px", textTransform: "uppercase", color: PALETTE.gold, fontWeight: 700, marginBottom: 6 }}>
@@ -1646,10 +1649,10 @@ function AdminSpace({ config, onSave, onExit }) {
                                       <strong>{"{non}"}</strong> = non vizitè a<br />
                                       <strong>{"{special}"}</strong> = sou kisa special la ye<br />
                                       <strong>{"{dat}"}</strong> = jou pou rezève (sa ou chwazi anwo a)<br />
-                                      <strong>{"{dat5}"}</strong> = 5 jou apre dat komansman video pwograme ki ap jwe a
+                                      <strong>{"{dat10}"}</strong> = 10 jou apre dat komansman video pwograme ki ap jwe a
                                     </div>
                                   </div>
-                                  <label style={{ ...labelStyle, marginTop: 12 }}>Ki etap video pwograme a ye? (pou {"{dat5}"})</label>
+                                  <label style={{ ...labelStyle, marginTop: 12 }}>Ki etap video pwograme a ye? (pou {"{dat10}"})</label>
                                   <select
                                     className="mt-input"
                                     style={{ maxWidth: 280, colorScheme: "light" }}
@@ -1662,7 +1665,7 @@ function AdminSpace({ config, onSave, onExit }) {
                                     ))}
                                   </select>
                                   <div style={{ fontSize: 12, color: `${PALETTE.cream}99`, marginTop: 4, lineHeight: 1.6 }}>
-                                    Chwazi etap kote video pwograme a ye. Konsa lè video etap sa a chanje, <strong>{"{dat5}"}</strong> ap toujou kalkile apati dat video sa a (5 jou apre).
+                                    Chwazi etap kote video pwograme a ye. Konsa lè video etap sa a chanje, <strong>{"{dat10}"}</strong> ap toujou kalkile apati dat video sa a (10 jou apre).
                                   </div>
                                   <input className="mt-input" style={{ marginTop: 10 }} placeholder="Tèks bouton 'Wi' — opsyonèl (egz: Wi, mwen enterese)" value={b.buttonLabel || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { buttonLabel: e.target.value })} />
                                   <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 12, cursor: "pointer" }}>
@@ -1679,7 +1682,7 @@ function AdminSpace({ config, onSave, onExit }) {
                                   <div style={{ marginTop: 10, padding: 12, border: `1px solid ${PALETTE.line}`, borderRadius: 9, background: "rgba(194,35,142,.04)" }}>
                                     <div style={{ fontSize: 11, color: PALETTE.gold, letterSpacing: "1px", marginBottom: 6 }}>APÈSI</div>
                                     <p style={{ fontSize: 14, color: `${PALETTE.cream}e6`, margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-                                      {renderTemplate((b.tpl || "").trim() || DEFAULT_SPECIAL_TPL, { special: b.specialName || "…", dat: formatHtDate(b.reserveDate) || "…", dat5: "(5 jou apre dat video a)", non: "(non vizitè a)" })}
+                                      {renderTemplate((b.tpl || "").trim() || DEFAULT_SPECIAL_TPL, { special: b.specialName || "…", dat: formatHtDate(b.reserveDate) || "…", dat10: "(10 jou apre dat video a)", non: "(non vizitè a)" })}
                                     </p>
                                   </div>
                                 </>
