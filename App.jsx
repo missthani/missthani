@@ -54,7 +54,7 @@ function getStepBlocks(step) {
     out.push({ id: step.id + "-s", kind: "special", title: step.title || "", specialName: step.specialName || "", reserveDate: step.reserveDate || "", tpl: step.tpl || "", buttonLabel: step.buttonLabel || "", banner: step.banner || false, videoStep: step.videoStep || "" });
   } else {
     if (step.title || step.body) out.push({ id: step.id + "-t", kind: "text", title: step.title || "", text: step.body || "" });
-    if (step.linkUrl) out.push({ id: step.id + "-l", kind: "link", title: "", url: step.linkUrl, label: step.linkLabel || "", sameTab: !!step.linkSameTab });
+    if (step.linkUrl) out.push({ id: step.id + "-l", kind: "link", title: "", url: step.linkUrl, label: step.linkLabel || "", sameTab: !!step.linkSameTab, linkMode: "extern", targetProgram: "", targetStep: "" });
   }
   return out;
 }
@@ -66,7 +66,7 @@ function newBlock(kind) {
   if (kind === "video") return { id, kind: "video", title: "", url: "", orient: "auto", schedule: [] };
   if (kind === "form") return { id, kind: "form", title: "" };
   if (kind === "special") return { id, kind: "special", title: "", specialName: "", reserveDate: "", tpl: "", buttonLabel: "", banner: false, videoStep: "" };
-  if (kind === "link") return { id, kind: "link", title: "", url: "", label: "", sameTab: false };
+  if (kind === "link") return { id, kind: "link", title: "", url: "", label: "", sameTab: false, linkMode: "extern", targetProgram: "", targetStep: "" };
   return { id, kind: "text", title: "", text: "" };
 }
 
@@ -762,6 +762,7 @@ function PublicSpace({ config, onAdmin }) {
   const [selected, setSelected] = useState(null); // pwogram chwazi
   const [screenIndex, setScreenIndex] = useState(0);
   const [formIdx, setFormIdx] = useState(0); // kesyon fòmilè aktyèl la (youn apre lòt)
+  const [formDone, setFormDone] = useState(false); // vizitè a fin ranpli fòmilè a yon fwa
   const [answers, setAnswers] = useState({}); // repons fòmilè yo (pa stepId)
   const sessionRef = useRef(null); // idantifyan sesyon vizitè a
 
@@ -828,6 +829,7 @@ function PublicSpace({ config, onAdmin }) {
     setSelected(p);
     setScreenIndex(0);
     setFormIdx(0);
+    setFormDone(false);
     setAnswers({});
     sessionRef.current = uid() + Date.now().toString(36);
   };
@@ -835,6 +837,7 @@ function PublicSpace({ config, onAdmin }) {
     setSelected(null);
     setScreenIndex(0);
     setFormIdx(0);
+    setFormDone(false);
     setAnswers({});
     setRevealed(programs.length); // pa bezwen retann reparèt la
   };
@@ -880,6 +883,7 @@ function PublicSpace({ config, onAdmin }) {
     if (formIdx < formFields.length - 1) {
       setFormIdx((i) => i + 1);
     } else {
+      setFormDone(true);
       persistProspect(answers);
       goNext();
     }
@@ -926,12 +930,26 @@ function PublicSpace({ config, onAdmin }) {
       );
     }
     if (b.kind === "link") {
+      const isIntern = b.linkMode === "intern";
       const openTheLink = () => {
+        if (isIntern) {
+          if (!b.targetProgram) { reset(); return; } // tounen sou paj chwazi pwogram nan
+          const prog = programs.find((pp) => pp.id === b.targetProgram);
+          if (prog) {
+            setSelected(prog);
+            const st = parseInt(b.targetStep, 10);
+            setScreenIndex(st && st >= 1 ? st - 1 : 0);
+            setFormIdx(0);
+            if (typeof window !== "undefined") { try { window.scrollTo({ top: 0, behavior: "auto" }); } catch (e) { window.scrollTo(0, 0); } }
+          }
+          return;
+        }
         const u = normalizeLink(b.url);
         if (!u) return;
         if (b.sameTab) window.location.href = u;
         else window.open(u, "_blank", "noopener,noreferrer");
       };
+      const disabledLink = isIntern ? false : !(b.url || "").trim();
       return (
         <>
           {blockTitle(b.title)}
@@ -939,8 +957,9 @@ function PublicSpace({ config, onAdmin }) {
             type="button"
             className="mt-btn"
             onClick={openTheLink}
-            disabled={!(b.url || "").trim()}
-            style={{ ...goldBtn, width: "100%", textAlign: "center", cursor: "pointer", position: "relative", zIndex: 60 }}
+            onMouseDown={(e) => { if (!disabledLink) e.preventDefault(); }}
+            disabled={disabledLink}
+            style={{ ...goldBtn, width: "100%", textAlign: "center", cursor: disabledLink ? "not-allowed" : "pointer", opacity: disabledLink ? 0.5 : 1, position: "relative", zIndex: 60 }}
           >
             {(b.label || "").trim() || "Klike isit la"}
           </button>
@@ -975,6 +994,30 @@ function PublicSpace({ config, onAdmin }) {
       if (formFields.length === 0) {
         return <p style={{ fontSize: 14, color: `${PALETTE.cream}99`, margin: 0 }}>Pa gen kesyon fòmilè ankò.</p>;
       }
+      // Si vizitè a deja ranpli fòmilè a epi li tounen sou paj sa a:
+      // montre yon mesaj olye fòmilè a, ak yon bouton Swivan pou kontinye.
+      if (formDone && formComplete) {
+        return (
+          <>
+            {blockTitle(b.title)}
+            <div style={{ padding: "14px 16px", borderRadius: 12, border: `1px solid ${PALETTE.gold}`, background: "rgba(224,165,10,.10)" }}>
+              <p style={{ fontSize: 15.5, color: PALETTE.cream, margin: 0, lineHeight: 1.5 }}>
+                ✓ Ou deja ranpli fòmilè sa a. Ou ka kontinye.
+              </p>
+            </div>
+            <div style={{ marginTop: 14, position: "relative", zIndex: 60 }}>
+              <button
+                className="mt-btn"
+                onClick={goNext}
+                onMouseDown={(e) => e.preventDefault()}
+                style={{ ...goldBtn, width: "100%", position: "relative", zIndex: 60 }}
+              >
+                {isLast ? "Voye" : "Swivan"}
+              </button>
+            </div>
+          </>
+        );
+      }
       const f = formFields[Math.min(formIdx, formFields.length - 1)];
       const val = answers[f.id] || "";
       const empty = !val.trim();
@@ -996,6 +1039,7 @@ function PublicSpace({ config, onAdmin }) {
             <button
               className="mt-btn"
               onClick={formNext}
+              onMouseDown={(e) => { if (!empty) e.preventDefault(); }}
               disabled={empty}
               style={{ ...goldBtn, width: "100%", opacity: empty ? 0.5 : 1, cursor: empty ? "not-allowed" : "pointer", position: "relative", zIndex: 60 }}
             >
@@ -1700,12 +1744,48 @@ function AdminSpace({ config, onSave, onExit }) {
                               {b.kind === "link" && (
                                 <>
                                   <input className="mt-input" placeholder="Tit — opsyonèl" value={b.title || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { title: e.target.value })} />
-                                  <input className="mt-input" style={{ marginTop: 8 }} placeholder="Lyen (egz: https://wa.me/509XXXXXXXX)" value={b.url || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { url: e.target.value })} />
-                                  <input className="mt-input" style={{ marginTop: 8 }} placeholder="Tèks bouton an (egz: Kontakte nou sou WhatsApp)" value={b.label || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { label: e.target.value })} />
                                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                                    <button onClick={() => updateBlock(p.id, s.id, b.id, { sameTab: false })} style={toggleBtn(!b.sameTab)}>Lòt onglè</button>
-                                    <button onClick={() => updateBlock(p.id, s.id, b.id, { sameTab: true })} style={toggleBtn(!!b.sameTab)}>Menm paj</button>
+                                    <button onClick={() => updateBlock(p.id, s.id, b.id, { linkMode: "extern" })} style={toggleBtn((b.linkMode || "extern") === "extern")}>Lien deyò (URL)</button>
+                                    <button onClick={() => updateBlock(p.id, s.id, b.id, { linkMode: "intern" })} style={toggleBtn(b.linkMode === "intern")}>Anndan app la (paj)</button>
                                   </div>
+
+                                  {(b.linkMode || "extern") === "extern" ? (
+                                    <>
+                                      <input className="mt-input" style={{ marginTop: 8 }} placeholder="Lyen (egz: https://wa.me/509XXXXXXXX)" value={b.url || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { url: e.target.value })} />
+                                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                                        <button onClick={() => updateBlock(p.id, s.id, b.id, { sameTab: false })} style={toggleBtn(!b.sameTab)}>Lòt onglè</button>
+                                        <button onClick={() => updateBlock(p.id, s.id, b.id, { sameTab: true })} style={toggleBtn(!!b.sameTab)}>Menm paj</button>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <label style={{ ...labelStyle, marginTop: 10 }}>Sou ki paj pou voye moun nan?</label>
+                                      <select
+                                        className="mt-input"
+                                        style={{ colorScheme: "light" }}
+                                        value={b.targetProgram ? `${b.targetProgram}::${b.targetStep || 1}` : ""}
+                                        onChange={(e) => {
+                                          const v = e.target.value;
+                                          if (!v) { updateBlock(p.id, s.id, b.id, { targetProgram: "", targetStep: "" }); }
+                                          else { const ix = v.indexOf("::"); updateBlock(p.id, s.id, b.id, { targetProgram: v.slice(0, ix), targetStep: v.slice(ix + 2) }); }
+                                        }}
+                                      >
+                                        <option value="">Kòmansman (paj chwazi pwogram nan)</option>
+                                        {draft.programs.map((pp) =>
+                                          (pp.steps || []).map((stp, si) => (
+                                            <option key={pp.id + "::" + (si + 1)} value={`${pp.id}::${si + 1}`}>
+                                              {pp.label} — Etap {si + 1}
+                                            </option>
+                                          ))
+                                        )}
+                                      </select>
+                                      <div style={{ fontSize: 12, color: `${PALETTE.cream}99`, marginTop: 4, lineHeight: 1.6 }}>
+                                        Lè vizitè a klike bouton an, l ap ale dirèkteman sou paj sa a anndan app la.
+                                      </div>
+                                    </>
+                                  )}
+
+                                  <input className="mt-input" style={{ marginTop: 8 }} placeholder="Tèks bouton an (egz: Kontakte nou, oswa Kontinye)" value={b.label || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { label: e.target.value })} />
                                 </>
                               )}
                             </div>
