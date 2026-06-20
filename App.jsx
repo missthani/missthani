@@ -51,7 +51,7 @@ function getStepBlocks(step) {
     if (step.title || step.body) out.push({ id: step.id + "-t", kind: "text", title: step.title || "", text: step.body || "" });
     out.push({ id: step.id + "-f", kind: "form", title: "" });
   } else if (t === "special") {
-    out.push({ id: step.id + "-s", kind: "special", title: step.title || "", specialName: step.specialName || "", reserveDate: step.reserveDate || "", tpl: step.tpl || "", buttonLabel: step.buttonLabel || "", banner: step.banner || false });
+    out.push({ id: step.id + "-s", kind: "special", title: step.title || "", specialName: step.specialName || "", reserveDate: step.reserveDate || "", tpl: step.tpl || "", buttonLabel: step.buttonLabel || "", banner: step.banner || false, videoStep: step.videoStep || "" });
   } else {
     if (step.title || step.body) out.push({ id: step.id + "-t", kind: "text", title: step.title || "", text: step.body || "" });
     if (step.linkUrl) out.push({ id: step.id + "-l", kind: "link", title: "", url: step.linkUrl, label: step.linkLabel || "", sameTab: !!step.linkSameTab });
@@ -65,7 +65,7 @@ function newBlock(kind) {
   if (kind === "text") return { id, kind: "text", title: "", text: "" };
   if (kind === "video") return { id, kind: "video", title: "", url: "", orient: "auto", schedule: [] };
   if (kind === "form") return { id, kind: "form", title: "" };
-  if (kind === "special") return { id, kind: "special", title: "", specialName: "", reserveDate: "", tpl: "", buttonLabel: "", banner: false };
+  if (kind === "special") return { id, kind: "special", title: "", specialName: "", reserveDate: "", tpl: "", buttonLabel: "", banner: false, videoStep: "" };
   if (kind === "link") return { id, kind: "link", title: "", url: "", label: "", sameTab: false };
   return { id, kind: "text", title: "", text: "" };
 }
@@ -123,6 +123,26 @@ function activeVideoStartAll(screens) {
     if (st) return st;
   }
   return "";
+}
+
+/* Jwenn dat video pwograme yon ETAP espesifik (1 = premye etap). 
+   Si etap la pa egziste oswa pa gen video aktif, li retounen "". */
+function activeVideoStartForStep(screens, stepNum) {
+  const n = parseInt(stepNum, 10);
+  if (!n || n < 1) return "";
+  const sc = (screens || [])[n - 1];
+  if (!sc) return "";
+  return activeVideoStart(getStepBlocks(sc));
+}
+
+/* Chwazi bon dat la pou yon blòk special: si li atache ak yon etap espesifik, pran dat etap sa a;
+   sinon, pran nenpòt video aktif nan tout pwogram nan. */
+function specialVideoStart(screens, b) {
+  if (b && b.videoStep) {
+    const st = activeVideoStartForStep(screens, b.videoStep);
+    if (st) return st;
+  }
+  return activeVideoStartAll(screens);
 }
 
 /* Modèl tèks default pou yon etap Special.
@@ -778,7 +798,7 @@ function PublicSpace({ config, onAdmin }) {
     const bl = getStepBlocks(screens[i]);
     for (const b of bl) {
       if (b.kind === "special" && b.banner) {
-        const dat5 = formatHtDate(addDays(activeVideoStartAll(screens), 5));
+        const dat5 = formatHtDate(addDays(specialVideoStart(screens, b), 5));
         announcements.push({
           id: b.id + "-" + i,
           node: renderTemplate((b.tpl || "").trim() || DEFAULT_SPECIAL_TPL, {
@@ -918,7 +938,7 @@ function PublicSpace({ config, onAdmin }) {
       if (b.banner) return null; // anons yo parèt anlè paj la, pa anndan blòk la
       const sName = (b.specialName || "").trim();
       const reserveTxt = formatHtDate(b.reserveDate);
-      const dat5Txt = formatHtDate(addDays(activeVideoStart(blocks), 5));
+      const dat5Txt = formatHtDate(addDays(specialVideoStart(screens, b), 5));
       const nameField = formFields.find((f) => f.fieldType === "text") || formFields[0];
       const firstName = nameField ? ((answers[nameField.id] || "").trim().split(/\s+/)[0] || "") : "";
       const answered = (answers[b.id] || "").trim();
@@ -1628,6 +1648,21 @@ function AdminSpace({ config, onSave, onExit }) {
                                       <strong>{"{dat}"}</strong> = jou pou rezève (sa ou chwazi anwo a)<br />
                                       <strong>{"{dat5}"}</strong> = 5 jou apre dat komansman video pwograme ki ap jwe a
                                     </div>
+                                  </div>
+                                  <label style={{ ...labelStyle, marginTop: 12 }}>Ki etap video pwograme a ye? (pou {"{dat5}"})</label>
+                                  <select
+                                    className="mt-input"
+                                    style={{ maxWidth: 280, colorScheme: "light" }}
+                                    value={b.videoStep || ""}
+                                    onChange={(e) => updateBlock(p.id, s.id, b.id, { videoStep: e.target.value })}
+                                  >
+                                    <option value="">Otomatik (nenpòt video aktif)</option>
+                                    {(p.steps || []).map((stp, si) => (
+                                      <option key={stp.id} value={String(si + 1)}>Etap {si + 1}</option>
+                                    ))}
+                                  </select>
+                                  <div style={{ fontSize: 12, color: `${PALETTE.cream}99`, marginTop: 4, lineHeight: 1.6 }}>
+                                    Chwazi etap kote video pwograme a ye. Konsa lè video etap sa a chanje, <strong>{"{dat5}"}</strong> ap toujou kalkile apati dat video sa a (5 jou apre).
                                   </div>
                                   <input className="mt-input" style={{ marginTop: 10 }} placeholder="Tèks bouton 'Wi' — opsyonèl (egz: Wi, mwen enterese)" value={b.buttonLabel || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { buttonLabel: e.target.value })} />
                                   <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 12, cursor: "pointer" }}>
