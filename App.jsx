@@ -757,17 +757,50 @@ function Brand({ small }) {
 }
 
 /* ===================== ESPAS PIBLIK ===================== */
-function PublicSpace({ config, onAdmin }) {
-  const [revealed, setRevealed] = useState(0);
-  const [selected, setSelected] = useState(null); // pwogram chwazi
-  const [screenIndex, setScreenIndex] = useState(0);
-  const [formIdx, setFormIdx] = useState(0); // kesyon fòmilè aktyèl la (youn apre lòt)
-  const [formDone, setFormDone] = useState(false); // vizitè a fin ranpli fòmilè a yon fwa
-  const [answers, setAnswers] = useState({}); // repons fòmilè yo (pa stepId)
-  const sessionRef = useRef(null); // idantifyan sesyon vizitè a
+/* Kenbe pwogrè vizitè a nan telefòn li (pou si li fèmen paj la epi li tounen) */
+const VISIT_KEY = "missthani_visit_v1";
+function loadVisit() {
+  try {
+    if (typeof localStorage === "undefined") return null;
+    const r = localStorage.getItem(VISIT_KEY);
+    return r ? JSON.parse(r) : null;
+  } catch (e) { return null; }
+}
+function saveVisit(data) {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(VISIT_KEY, JSON.stringify(data));
+  } catch (e) {}
+}
 
+function PublicSpace({ config, onAdmin }) {
   const programs = config.programs || [];
+  // Li pwogrè ki te anrejistre a (yon sèl fwa, lè paj la louvri)
+  const saved0 = useMemo(() => loadVisit(), []);
+
+  const [revealed, setRevealed] = useState(() => (saved0 && saved0.selectedId ? programs.length : 0));
+  const [selected, setSelected] = useState(() => {
+    const id = saved0 && saved0.selectedId;
+    return id ? (programs.find((p) => p.id === id) || null) : null;
+  }); // pwogram chwazi
+  const [screenIndex, setScreenIndex] = useState(() => (saved0 && saved0.screenIndex) || 0);
+  const [formIdx, setFormIdx] = useState(0); // kesyon fòmilè aktyèl la (youn apre lòt)
+  const [formDone, setFormDone] = useState(() => !!(saved0 && saved0.formDone)); // vizitè a fin ranpli fòmilè a yon fwa
+  const [answers, setAnswers] = useState(() => (saved0 && saved0.answers) || {}); // repons fòmilè yo (pa stepId)
+  const sessionRef = useRef((saved0 && saved0.sessionId) || null); // idantifyan sesyon vizitè a
+
   const delayMs = Math.max(0, (config.revealDelay ?? 3)) * 1000;
+
+  // Anrejistre pwogrè a chak fwa li chanje
+  useEffect(() => {
+    saveVisit({
+      selectedId: selected ? selected.id : "",
+      screenIndex,
+      formDone,
+      answers,
+      sessionId: sessionRef.current,
+    });
+  }, [selected, screenIndex, formDone, answers]);
 
   useEffect(() => {
     if (selected) return;
@@ -829,17 +862,27 @@ function PublicSpace({ config, onAdmin }) {
     setSelected(p);
     setScreenIndex(0);
     setFormIdx(0);
-    setFormDone(false);
-    setAnswers({});
-    sessionRef.current = uid() + Date.now().toString(36);
+    // Pa efase repons yo: si vizitè a deja ranpli fòmilè a, l ap rete ranpli.
+    if (!sessionRef.current) sessionRef.current = uid() + Date.now().toString(36);
   };
   const reset = () => {
     setSelected(null);
     setScreenIndex(0);
     setFormIdx(0);
+    // Pa efase answers/formDone: konsa lè vizitè a tounen l ap toujou rekonèt li.
+    setRevealed(programs.length); // pa bezwen retann reparèt la
+  };
+
+  // Rekòmanse nèt (efase tout pwogrè a) — pou yon nouvo vizitè
+  const startOver = () => {
+    setSelected(null);
+    setScreenIndex(0);
+    setFormIdx(0);
     setFormDone(false);
     setAnswers({});
-    setRevealed(programs.length); // pa bezwen retann reparèt la
+    sessionRef.current = uid() + Date.now().toString(36);
+    setRevealed(programs.length);
+    saveVisit({ selectedId: "", screenIndex: 0, formDone: false, answers: {}, sessionId: sessionRef.current });
   };
 
   // Anrejistre prospè a (repons fòmilè pataje yo + special ki gen valè)
@@ -868,7 +911,7 @@ function PublicSpace({ config, onAdmin }) {
   };
 
   const goNext = () => {
-    if (isLast) reset();
+    if (isLast) startOver();
     else { setScreenIndex((i) => i + 1); setFormIdx(0); }
   };
 
