@@ -18,6 +18,10 @@ import { supabase } from "./supabaseClient";
 
 const ADMIN_PASSWORD = "missthani2026"; // <-- chanje sa pou modpas pa w
 
+// Modpas pou paj /formulaire (lis prospè yo sèlman — ou ka bay resepsyon an aksè sa a).
+// Ou ka mete menm bagay ak ADMIN_PASSWORD si ou vle.
+const PROSPECTS_PASSWORD = "prospect2026"; // <-- chanje sa pou modpas pa w
+
 const PALETTE = {
   bgTop: "#FFFFFF",
   bgBottom: "#FBEDF5",
@@ -667,6 +671,9 @@ export default function MissThaniApp() {
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Èske nou sou paj /formulaire la? (lyen separe pou lis prospè yo)
+  const isFormulaire = typeof window !== "undefined" && /^\/formulaire\/?$/i.test(window.location.pathname || "");
+
   // Chaje konfigirasyon an o depa
   useEffect(() => {
     let active = true;
@@ -733,6 +740,8 @@ export default function MissThaniApp() {
         <Centered>
           <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p>
         </Centered>
+      ) : isFormulaire ? (
+        <ProspectsGate />
       ) : view === "admin" ? (
         <AdminSpace
           config={config}
@@ -1925,6 +1934,59 @@ function AdminSpace({ config, onSave, onExit }) {
 }
 
 /* ===================== PAJ NOUVO PROSPECT ===================== */
+/* Paj /formulaire — modpas pou wè lis prospè yo dirèkteman (san antre nan admin) */
+function ProspectsGate() {
+  const [authed, setAuthed] = useState(false);
+  const [pwd, setPwd] = useState("");
+  const [err, setErr] = useState("");
+
+  const tryLogin = () => {
+    if (pwd === PROSPECTS_PASSWORD) { setAuthed(true); setErr(""); }
+    else setErr("Modpas la pa kòrèk.");
+  };
+
+  if (!authed) {
+    return (
+      <Centered>
+        <div className="mt-fade" style={{ width: "100%", maxWidth: 360, padding: "0 20px" }}>
+          <div style={{ marginBottom: 28 }}>
+            <Brand small />
+          </div>
+          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 500, textAlign: "center", margin: "0 0 18px" }}>
+            Lis Prospè yo
+          </h1>
+          <input
+            className="mt-input"
+            type="password"
+            placeholder="Modpas"
+            value={pwd}
+            onChange={(e) => setPwd(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && tryLogin()}
+            autoFocus
+          />
+          {err && <p style={{ color: PALETTE.danger, fontSize: 13, margin: "10px 0 0" }}>{err}</p>}
+          <button className="mt-btn" onClick={tryLogin} style={{ ...goldBtn, width: "100%", marginTop: 14 }}>
+            Antre
+          </button>
+          <a href="/" style={{ ...ghostBtn, width: "100%", marginTop: 10, display: "block", textAlign: "center", textDecoration: "none" }}>
+            Tounen sou sit la
+          </a>
+        </div>
+      </Centered>
+    );
+  }
+
+  return (
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px 60px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600 }}>Nouvo Prospè</div>
+        <a href="/" style={{ ...ghostBtn, textDecoration: "none" }}>Tounen sou sit la</a>
+      </div>
+      <ProspectsView />
+    </div>
+  );
+}
+
 function ProspectsView() {
   const [items, setItems] = useState(null); // null = ap chaje
   const [busy, setBusy] = useState(false);
