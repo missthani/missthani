@@ -792,13 +792,16 @@ function PublicSpace({ config, onAdmin }) {
   const nameFieldG = formFields.find((f) => f.fieldType === "text") || formFields[0];
   const firstNameGlobal = nameFieldG ? ((answers[nameFieldG.id] || "").trim().split(/\s+/)[0] || "") : "";
 
-  // Anons: chak special ki make "anons" sou paj aktyèl la oswa nenpòt paj anvan li,
-  // rete parèt anlè tout paj ki rete yo.
+  // Èske vizitè a fin ranpli fòmilè a? (tout chan yo gen yon repons)
+  const formComplete = formFields.length === 0 || formFields.every((f) => (answers[f.id] || "").trim());
+
+  // Anons: chak special ki make "anons", men SÈLMAN apre fòmilè a fin ranpli.
+  // Yon fwa li parèt, li rete sou tout paj ki rete yo.
   const announcements = [];
   for (let i = 0; i <= screenIndex && i < screens.length; i++) {
     const bl = getStepBlocks(screens[i]);
     for (const b of bl) {
-      if (b.kind === "special" && b.banner) {
+      if (b.kind === "special" && b.banner && formComplete) {
         const dat10 = formatHtDate(addDays(specialVideoStart(screens, b), 10));
         announcements.push({
           id: b.id + "-" + i,
@@ -923,18 +926,24 @@ function PublicSpace({ config, onAdmin }) {
       );
     }
     if (b.kind === "link") {
+      const openTheLink = () => {
+        const u = normalizeLink(b.url);
+        if (!u) return;
+        if (b.sameTab) window.location.href = u;
+        else window.open(u, "_blank", "noopener,noreferrer");
+      };
       return (
         <>
           {blockTitle(b.title)}
-          <a
-            href={normalizeLink(b.url)}
-            target={b.sameTab ? "_self" : "_blank"}
-            rel={b.sameTab ? undefined : "noopener noreferrer"}
+          <button
+            type="button"
             className="mt-btn"
-            style={{ ...goldBtn, display: "inline-block", textDecoration: "none", textAlign: "center", position: "relative", zIndex: 60 }}
+            onClick={openTheLink}
+            disabled={!(b.url || "").trim()}
+            style={{ ...goldBtn, width: "100%", textAlign: "center", cursor: "pointer", position: "relative", zIndex: 60 }}
           >
             {(b.label || "").trim() || "Klike isit la"}
-          </a>
+          </button>
         </>
       );
     }
@@ -975,7 +984,7 @@ function PublicSpace({ config, onAdmin }) {
           <p style={{ fontSize: 12, color: `${PALETTE.cream}77`, margin: "0 0 8px" }}>
             Kesyon {formIdx + 1} / {formFields.length}
           </p>
-          <label style={{ display: "block", fontSize: 17.5, fontWeight: 700, color: PALETTE.cream, marginBottom: 10, lineHeight: 1.35 }}>{f.label}</label>
+          <label style={{ display: "block", fontSize: 19.5, fontWeight: 700, color: PALETTE.cream, marginBottom: 10, lineHeight: 1.35 }}>{f.label}</label>
           <input
             className="mt-input"
             {...inputProps(f.fieldType)}
