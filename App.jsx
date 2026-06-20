@@ -241,6 +241,34 @@ function normalizeLink(url) {
   return "https://" + u;
 }
 
+/* Verifye yon nimewo telefòn Ayiti.
+   Estanda Ayiti: 8 chif, premye chif la se 2 (liy fiks), 3 (Digicel) oswa 4 (Natcom).
+   Aksepte ak oswa san kòd peyi 509 (oswa +509 / 00509). */
+function validateHaitiPhone(raw) {
+  let d = String(raw || "").replace(/\D/g, ""); // kenbe chif yo sèlman
+  if (d.startsWith("00")) d = d.slice(2);        // retire prefiks entènasyonal 00
+  if (d.length === 11 && d.startsWith("509")) d = d.slice(3); // retire kòd peyi 509
+  const ok = /^[234]\d{7}$/.test(d);
+  return { ok, local: d, e164: ok ? "509" + d : "" };
+}
+
+/* Tcheke nan Supabase si yon nimewo telefòn deja enskri (anpeche resoumèt). */
+async function phoneAlreadyUsed(localPhone) {
+  if (!localPhone) return false;
+  try {
+    const list = await loadProspects();
+    for (const p of list) {
+      for (const a of (p.answers || [])) {
+        const v = validateHaitiPhone(a.answer);
+        if (v.ok && v.local === localPhone) return true;
+      }
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
 const DEFAULT_FORM_FIELDS = [
   { id: uid(), label: "Non konplè", fieldType: "text" },
   { id: uid(), label: "Nimewo telefòn", fieldType: "tel" },
@@ -785,6 +813,8 @@ function PublicSpace({ config, onAdmin }) {
   }); // pwogram chwazi
   const [screenIndex, setScreenIndex] = useState(() => (saved0 && saved0.screenIndex) || 0);
   const [formIdx, setFormIdx] = useState(0); // kesyon fòmilè aktyèl la (youn apre lòt)
+  const [formError, setFormError] = useState(""); // mesaj erè fòmilè (nimewo pa bon, deja enskri…)
+  const [checking, setChecking] = useState(false); // n ap tcheke nan Supabase
   const [formDone, setFormDone] = useState(() => !!(saved0 && saved0.formDone)); // vizitè a fin ranpli fòmilè a yon fwa
   const [answers, setAnswers] = useState(() => (saved0 && saved0.answers) || {}); // repons fòmilè yo (pa stepId)
   const sessionRef = useRef((saved0 && saved0.sessionId) || null); // idantifyan sesyon vizitè a
@@ -853,6 +883,7 @@ function PublicSpace({ config, onAdmin }) {
   // Reyajiste fòmilè a chak fwa nou chanje ekran + remonte anlè paj la (pou video a parèt)
   useEffect(() => {
     setFormIdx(0);
+    setFormError("");
     if (typeof window !== "undefined") {
       try { window.scrollTo({ top: 0, behavior: "auto" }); } catch (e) { window.scrollTo(0, 0); }
     }
@@ -871,18 +902,6 @@ function PublicSpace({ config, onAdmin }) {
     setFormIdx(0);
     // Pa efase answers/formDone: konsa lè vizitè a tounen l ap toujou rekonèt li.
     setRevealed(programs.length); // pa bezwen retann reparèt la
-  };
-
-  // Rekòmanse nèt (efase tout pwogrè a) — pou yon nouvo vizitè
-  const startOver = () => {
-    setSelected(null);
-    setScreenIndex(0);
-    setFormIdx(0);
-    setFormDone(false);
-    setAnswers({});
-    sessionRef.current = uid() + Date.now().toString(36);
-    setRevealed(programs.length);
-    saveVisit({ selectedId: "", screenIndex: 0, formDone: false, answers: {}, sessionId: sessionRef.current });
   };
 
   // Anrejistre prospè a (repons fòmilè pataje yo + special ki gen valè)
@@ -911,7 +930,7 @@ function PublicSpace({ config, onAdmin }) {
   };
 
   const goNext = () => {
-    if (isLast) startOver();
+    if (isLast) reset();
     else { setScreenIndex((i) => i + 1); setFormIdx(0); }
   };
 
@@ -922,14 +941,42 @@ function PublicSpace({ config, onAdmin }) {
   };
 
   // Fòmilè youn-apre-lòt: pase nan kesyon kap vini an, oswa fini
-  const formNext = () => {
+  const formNext = async () => {
+    const cur = formFields[Math.min(formIdx, formFields.length - 1)];
+    const curVal = (answers[cur && cur.id] || "").trim();
+
+    // Validasyon nimewo telefòn Ayiti
+    if (cur && cur.fieldType === "tel") {
+      const v = validateHaitiPhone(curVal);
+      if (!v.ok) {
+        setFormError("Tanpri mete yon nimewo Ayiti ki valab — 8 chif ki kòmanse ak 2, 3 oswa 4 (egz: 34 12 34 56).");
+        return;
+      }
+    }
+    setFormError("");
+
     if (formIdx < formFields.length - 1) {
       setFormIdx((i) => i + 1);
-    } else {
-      setFormDone(true);
-      persistProspect(answers);
-      goNext();
+      return;
     }
+
+    // Dènye kesyon an — tcheke si nimewo a deja enskri anvan nou soumèt
+    const telField = formFields.find((f) => f.fieldType === "tel");
+    const telNorm = telField ? validateHaitiPhone(answers[telField.id] || "") : { ok: false };
+    if (telField && telNorm.ok) {
+      setChecking(true);
+      const used = await phoneAlreadyUsed(telNorm.local);
+      setChecking(false);
+      if (used) {
+        setFormError("Nimewo sa a deja enskri. Ou pa ka enskri de fwa ak menm nimewo telefòn nan.");
+        setFormDone(true); // bloke: yo deja nan lis la, pa kreye yon doub
+        return;
+      }
+    }
+
+    setFormDone(true);
+    persistProspect(answers);
+    goNext();
   };
 
   // Repons sou yon blòk Special
@@ -1037,15 +1084,16 @@ function PublicSpace({ config, onAdmin }) {
       if (formFields.length === 0) {
         return <p style={{ fontSize: 14, color: `${PALETTE.cream}99`, margin: 0 }}>Pa gen kesyon fòmilè ankò.</p>;
       }
-      // Si vizitè a deja ranpli fòmilè a epi li tounen sou paj sa a:
+      // Si vizitè a deja soumèt fòmilè a (oswa nimewo a deja enskri):
       // montre yon mesaj olye fòmilè a, ak yon bouton Swivan pou kontinye.
       if (formDone && formComplete) {
+        const doneMsg = formError || "✓ Ou deja ranpli fòmilè sa a. Ou ka kontinye.";
         return (
           <>
             {blockTitle(b.title)}
             <div style={{ padding: "14px 16px", borderRadius: 12, border: `1px solid ${PALETTE.gold}`, background: "rgba(224,165,10,.10)" }}>
               <p style={{ fontSize: 15.5, color: PALETTE.cream, margin: 0, lineHeight: 1.5 }}>
-                ✓ Ou deja ranpli fòmilè sa a. Ou ka kontinye.
+                {doneMsg}
               </p>
             </div>
             <div style={{ marginTop: 14, position: "relative", zIndex: 60 }}>
@@ -1064,6 +1112,7 @@ function PublicSpace({ config, onAdmin }) {
       const f = formFields[Math.min(formIdx, formFields.length - 1)];
       const val = answers[f.id] || "";
       const empty = !val.trim();
+      const isLastQ = formIdx >= formFields.length - 1;
       return (
         <>
           {blockTitle(b.title)}
@@ -1075,18 +1124,21 @@ function PublicSpace({ config, onAdmin }) {
             className="mt-input"
             {...inputProps(f.fieldType)}
             value={val}
-            onChange={(e) => setAnswers((a) => ({ ...a, [f.id]: e.target.value }))}
-            onKeyDown={(e) => { if (e.key === "Enter" && !empty) formNext(); }}
+            onChange={(e) => { setAnswers((a) => ({ ...a, [f.id]: e.target.value })); if (formError) setFormError(""); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !empty && !checking) formNext(); }}
           />
+          {formError && (
+            <p style={{ fontSize: 13.5, color: "#ff6b6b", margin: "8px 2px 0", lineHeight: 1.5 }}>{formError}</p>
+          )}
           <div style={{ marginTop: 14, position: "relative", zIndex: 60 }}>
             <button
               className="mt-btn"
               onClick={formNext}
-              onMouseDown={(e) => { if (!empty) e.preventDefault(); }}
-              disabled={empty}
-              style={{ ...goldBtn, width: "100%", opacity: empty ? 0.5 : 1, cursor: empty ? "not-allowed" : "pointer", position: "relative", zIndex: 60 }}
+              onMouseDown={(e) => { if (!empty && !checking) e.preventDefault(); }}
+              disabled={empty || checking}
+              style={{ ...goldBtn, width: "100%", opacity: (empty || checking) ? 0.6 : 1, cursor: (empty || checking) ? "not-allowed" : "pointer", position: "relative", zIndex: 60 }}
             >
-              {formIdx < formFields.length - 1 ? "Kontinye" : (isLast ? "Voye" : "Swivan")}
+              {checking ? "N ap verifye…" : (isLastQ ? (isLast ? "Voye" : "Swivan") : "Kontinye")}
             </button>
           </div>
         </>
