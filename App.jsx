@@ -149,6 +149,27 @@ function specialVideoStart(screens, b) {
   return activeVideoStartAll(screens);
 }
 
+/* Chèche premye video pwograme ki aktif nan tout pwogram yo (pou mesaj swivi yo) */
+function anyActiveVideoStart(programs) {
+  for (const p of programs || []) {
+    const st = activeVideoStartAll(p.steps || []);
+    if (st) return st;
+  }
+  return "";
+}
+
+/* Mesaj swivi (follow-up) — {non}=non vizitè a, {dat10}=10 jou apre dat video pwograme a */
+const FOLLOWUP_TPL = {
+  done: "Nou te kontan pale avèk ou {non} ! Sonje vin rezève plas ou anvan {dat10}.",
+  noanswer: "Nou eseye rele w {non}, men nimewo ou a sone san repons. Tanpri verifye si w te resevwa apèl nou, e pa bliye vin rezève plas ou anvan {dat10}.",
+  wrong: "Bonjou {non}. Nimewo ou te ban nou an pa fonksyone, nou pa rive jwenn ou. Tanpri ban nou yon lòt nimewo nou ka rele w.",
+};
+const FOLLOWUP_LABELS = {
+  done: "Suivi fèt",
+  noanswer: "Sone san repons",
+  wrong: "Pa sone ditou (nimewo pa bon)",
+};
+
 /* Modèl tèks default pou yon etap Special.
    {special}=non special, {dat}=dat rezèvasyon, {dat10}=10 jou apre dat video pwograme a, {non}=non vizitè a */
 const DEFAULT_SPECIAL_TPL = "Felisitasyon {non} ! Nou resevwa enfòmasyon pèsonèl ou yo. Pou w ka gen plis chans pami 10 premye moun yo, kouri vin rezève plas ou anvan {dat10}.";
@@ -339,6 +360,7 @@ async function loadProspects() {
       id: r.id,
       program: r.program,
       answers: r.answers || [],
+      followup: r.followup || "",
       updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : 0,
     }));
   } catch (e) {
@@ -349,6 +371,59 @@ async function loadProspects() {
 async function deleteProspect(id) {
   try {
     const { error } = await supabase.from("prospects").delete().eq("id", id);
+    return !error;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* Estati swivi (follow-up) pou yon prospè: "" | "done" | "noanswer" | "wrong" */
+async function setProspectFollowup(id, status) {
+  if (!id) return false;
+  try {
+    const { error } = await supabase.from("prospects").update({ followup: status }).eq("id", id);
+    return !error;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* Chèche yon sèl prospè pa idantifyan li (pou vizitè a tcheke pwòp estati swivi li) */
+async function loadProspectById(id) {
+  if (!id) return null;
+  try {
+    const { data, error } = await supabase.from("prospects").select("*").eq("id", id).maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return {
+      id: data.id,
+      program: data.program,
+      answers: data.answers || [],
+      followup: data.followup || "",
+      updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : 0,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+/* Mete yon nouvo nimewo telefòn pou yon prospè (lè ansyen an pa t bon) epi efase estati swivi a */
+async function updateProspectPhone(id, newPhone) {
+  if (!id) return false;
+  try {
+    const rec = await loadProspectById(id);
+    if (!rec) return false;
+    const newVal = String(newPhone || "").trim();
+    let replaced = false;
+    const answers = (rec.answers || []).map((a) => {
+      const v = validateHaitiPhone(a.answer);
+      if (!replaced && v.ok) { replaced = true; return { ...a, answer: newVal }; }
+      return a;
+    });
+    const { error } = await supabase
+      .from("prospects")
+      .update({ answers, followup: "", updated_at: new Date().toISOString() })
+      .eq("id", id);
     return !error;
   } catch (e) {
     return false;
@@ -828,7 +903,25 @@ function PublicSpace({ config, onAdmin }) {
   const [answers, setAnswers] = useState(() => (saved0 && saved0.answers) || {}); // repons fòmilè yo (pa stepId)
   const sessionRef = useRef((saved0 && saved0.sessionId) || null); // idantifyan sesyon vizitè a
 
+  // Estati swivi pèsonèl vizitè a (admin nan mete l) + modifikasyon nimewo
+  const [myFollowup, setMyFollowup] = useState("");
+  const [editPhone, setEditPhone] = useState(false);
+  const [newPhone, setNewPhone] = useState("");
+  const [phoneErr, setPhoneErr] = useState("");
+  const [savingPhone, setSavingPhone] = useState(false);
+
   const delayMs = Math.max(0, (config.revealDelay ?? 3)) * 1000;
+
+  // Lè paj la louvri, tcheke si admin nan mete yon estati swivi pou vizitè sa a
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!sessionRef.current) return;
+      const rec = await loadProspectById(sessionRef.current);
+      if (active && rec) setMyFollowup(rec.followup || "");
+    })();
+    return () => { active = false; };
+  }, []);
 
   // Anrejistre pwogrè a chak fwa li chanje
   useEffect(() => {
@@ -888,6 +981,70 @@ function PublicSpace({ config, onAdmin }) {
       }
     }
   }
+
+  // Mesaj swivi pèsonèl (admin nan mete l nan paj prospè yo) — parèt anlè paj la
+  const followupDat10 = formatHtDate(addDays(anyActiveVideoStart(programs), 10));
+  const followupText = (myFollowup && FOLLOWUP_TPL[myFollowup])
+    ? renderTemplate(FOLLOWUP_TPL[myFollowup], { non: firstNameGlobal || "", dat10: followupDat10, dat: "", special: "" })
+    : "";
+
+  const saveNewPhone = async () => {
+    const v = validateHaitiPhone(newPhone);
+    if (!v.ok) { setPhoneErr("Mete yon nimewo Ayiti ki valab — 8 chif ki kòmanse ak 2, 3 oswa 4."); return; }
+    setSavingPhone(true);
+    const ok = await updateProspectPhone(sessionRef.current, newPhone.trim());
+    setSavingPhone(false);
+    if (!ok) { setPhoneErr("Gen yon erè. Tanpri eseye ankò."); return; }
+    const telField = formFields.find((f) => f.fieldType === "tel");
+    if (telField) setAnswers((a) => ({ ...a, [telField.id]: newPhone.trim() }));
+    setMyFollowup("");
+    setEditPhone(false);
+    setNewPhone("");
+    setPhoneErr("");
+  };
+
+  const followupBanner = followupText ? (
+    <div style={{ width: "100%", maxWidth: 460, margin: "0 auto 22px", zIndex: 2 }}>
+      <div style={{ padding: "16px 18px", borderRadius: 16, border: `1.5px solid ${PALETTE.gold}`, background: `linear-gradient(135deg, ${PALETTE.gold}22, ${PALETTE.blush}1f)` }}>
+        <div style={{ fontSize: 11, letterSpacing: "2px", textTransform: "uppercase", color: PALETTE.goldSoft, fontWeight: 700, marginBottom: 8 }}>★ Mesaj pou ou</div>
+        <p style={{ fontSize: 15.5, lineHeight: 1.6, color: PALETTE.cream, margin: 0, whiteSpace: "pre-wrap" }}>{followupText}</p>
+        {myFollowup === "wrong" && (
+          <div style={{ marginTop: 14 }}>
+            {!editPhone ? (
+              <button className="mt-btn" onClick={() => { setEditPhone(true); setPhoneErr(""); }} style={{ ...goldBtn, width: "100%" }}>
+                Modifye nimewo m
+              </button>
+            ) : (
+              <div>
+                <input
+                  className="mt-input"
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="Nouvo nimewo telefòn"
+                  value={newPhone}
+                  onChange={(e) => { setNewPhone(e.target.value); if (phoneErr) setPhoneErr(""); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && newPhone.trim() && !savingPhone) saveNewPhone(); }}
+                />
+                {phoneErr && <p style={{ fontSize: 13.5, color: "#ff6b6b", margin: "8px 2px 0", lineHeight: 1.5 }}>{phoneErr}</p>}
+                <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                  <button
+                    className="mt-btn"
+                    onClick={saveNewPhone}
+                    onMouseDown={(e) => { if (newPhone.trim() && !savingPhone) e.preventDefault(); }}
+                    disabled={savingPhone || !newPhone.trim()}
+                    style={{ ...goldBtn, flex: 1, opacity: (savingPhone || !newPhone.trim()) ? 0.6 : 1 }}
+                  >
+                    {savingPhone ? "N ap voye…" : "Anrejistre"}
+                  </button>
+                  <button className="mt-btn" onClick={() => { setEditPhone(false); setNewPhone(""); setPhoneErr(""); }} style={{ ...ghostBtn }}>Anile</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  ) : null;
 
   // Reyajiste fòmilè a chak fwa nou chanje ekran + remonte anlè paj la (pou video a parèt)
   useEffect(() => {
@@ -1159,6 +1316,8 @@ function PublicSpace({ config, onAdmin }) {
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px 150px", position: "relative" }}>
       <div aria-hidden style={{ position: "absolute", top: "-18%", left: "50%", transform: "translateX(-50%)", width: 520, height: 520, background: `radial-gradient(circle, ${PALETTE.blush}1f 0%, transparent 70%)`, pointerEvents: "none" }} />
+
+      {followupBanner}
 
       <div className="mt-fade" style={{ marginBottom: 34, zIndex: 1 }}>
         <Brand />
@@ -2008,6 +2167,12 @@ function ProspectsView() {
     setItems((prev) => (prev || []).filter((p) => p.id !== id));
   };
 
+  // Mete estati swivi (follow-up) pou yon prospè
+  const setSwivi = async (id, status) => {
+    setItems((prev) => (prev || []).map((p) => (p.id === id ? { ...p, followup: status } : p)));
+    await setProspectFollowup(id, status);
+  };
+
   const fmtDate = (ts) => {
     if (!ts) return "";
     try {
@@ -2156,6 +2321,7 @@ function ProspectsView() {
                 {qCols.map((q) => (
                   <th key={q} style={thDark}>{q}</th>
                 ))}
+                <th style={{ ...thDark, width: 150 }}>Swivi</th>
                 <th style={{ ...thDark, width: 40 }}></th>
               </tr>
             </thead>
@@ -2168,6 +2334,18 @@ function ProspectsView() {
                   {qCols.map((q) => (
                     <td key={q} style={tdDark}>{answerFor(p, q)}</td>
                   ))}
+                  <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
+                    <select
+                      value={p.followup || ""}
+                      onChange={(e) => setSwivi(p.id, e.target.value)}
+                      style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.followup ? "#FBE9F4" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 145 }}
+                    >
+                      <option value="">Swivi…</option>
+                      <option value="done">Suivi fèt</option>
+                      <option value="noanswer">Sone san repons</option>
+                      <option value="wrong">Pa sone ditou</option>
+                    </select>
+                  </td>
                   <td style={{ ...tdDark, textAlign: "center" }}>
                     <button onClick={() => remove(p.id)} style={miniDanger} aria-label="Efase prospè">✕</button>
                   </td>
