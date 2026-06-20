@@ -1711,11 +1711,12 @@ function AdminSpace({ config, onSave, onExit }) {
       return copy;
     });
 
-  /* ---- ajan yo pou etikèt yo ---- */
-  const updateAgents = (fn) => setDraft((d) => ({ ...d, agents: fn(d.agents || []) }));
-  const addAgent = () => updateAgents((arr) => [...arr, { id: uid(), name: "" }]);
-  const updateAgent = (aid, name) => updateAgents((arr) => arr.map((a) => (a.id === aid ? { ...a, name } : a)));
-  const removeAgent = (aid) => updateAgents((arr) => arr.filter((a) => a.id !== aid));
+  /* ---- etikèt yo (admin nan kreye yo nan paj prospè a) ---- */
+  const saveAgents = async (list) => {
+    const nd = { ...draft, agents: list };
+    setDraft(nd);
+    await onSave(nd);
+  };
 
   /* ---- login ekran ---- */
   if (!authed) {
@@ -1770,7 +1771,7 @@ function AdminSpace({ config, onSave, onExit }) {
       </div>
 
       {adminTab === "prospects" ? (
-        <ProspectsView agents={draft.agents || []} canEditEtiquette={true} />
+        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} />
       ) : (
         <>
       {/* Paramèt jeneral */}
@@ -1815,24 +1816,6 @@ function AdminSpace({ config, onSave, onExit }) {
           </div>
         ))}
         <button onClick={addFormField} style={{ ...ghostBtn, width: "100%" }}>+ Ajoute yon kesyon fòmilè</button>
-      </Section>
-
-      {/* Ajan yo pou etikèt yo */}
-      <Section title="Etikèt — Non Ajan yo">
-        <p style={{ fontSize: 13, color: `${PALETTE.cream}99`, margin: "0 0 14px" }}>
-          Ajoute non ajan yo isit la. Nan paj prospè yo, w ap ka mete youn nan non sa yo kòm <strong>etikèt</strong> sou chak prospè. Se sèlman isit la (bò admin nan) ou ka ajoute oswa chanje non ajan yo.
-        </p>
-        {(draft.agents || []).length === 0 ? (
-          <p style={{ fontSize: 13, color: `${PALETTE.cream}77`, margin: "0 0 12px" }}>Poko gen okenn ajan. Ajoute youn anba a.</p>
-        ) : (
-          (draft.agents || []).map((a) => (
-            <div key={a.id} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <input className="mt-input" placeholder="Non ajan an" value={a.name} onChange={(e) => updateAgent(a.id, e.target.value)} />
-              <button onClick={() => removeAgent(a.id)} style={{ ...miniDanger, alignSelf: "center" }} aria-label="Efase ajan">✕</button>
-            </div>
-          ))
-        )}
-        <button onClick={addAgent} style={{ ...ghostBtn, width: "100%", marginTop: 4 }}>+ Ajoute yon ajan</button>
       </Section>
 
       {/* Pwogram yo */}
@@ -2179,19 +2162,39 @@ function ProspectsGate({ config }) {
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600 }}>Nouvo Prospè</div>
         <a href="/" style={{ ...ghostBtn, textDecoration: "none" }}>Tounen sou sit la</a>
       </div>
-      <ProspectsView agents={(config && config.agents) || []} canEditEtiquette={false} />
+      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} />
     </div>
   );
 }
 
-function ProspectsView({ agents = [], canEditEtiquette = false }) {
+function ProspectsView({ agents = [], isAdmin = false, onSaveAgents }) {
   const [items, setItems] = useState(null); // null = ap chaje
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState("list"); // "list" | "pdf"
   const [tab, setTab] = useState("prospects"); // "prospects" | "students"
+  const [creatingEtq, setCreatingEtq] = useState(false); // chan kreye etikèt la louvri
+  const [newEtq, setNewEtq] = useState("");
 
-  // Non ajan yo ki valab (pou meni etikèt la)
-  const agentNames = (agents || []).map((a) => (typeof a === "string" ? a : (a && a.name) || "")).map((s) => s.trim()).filter(Boolean);
+  // Non etikèt yo (san doub)
+  const agentNames = [...new Set(
+    (agents || [])
+      .map((a) => (typeof a === "string" ? a : (a && a.name) || ""))
+      .map((s) => s.trim())
+      .filter(Boolean)
+  )];
+
+  // Kreye / efase yon etikèt (admin sèlman)
+  const createEtiquette = async () => {
+    const name = newEtq.trim();
+    if (!name || !onSaveAgents) { setCreatingEtq(false); setNewEtq(""); return; }
+    if (!agentNames.includes(name)) await onSaveAgents([...agentNames, name]);
+    setNewEtq("");
+    setCreatingEtq(false);
+  };
+  const removeEtiquetteName = async (name) => {
+    if (!onSaveAgents) return;
+    await onSaveAgents(agentNames.filter((n) => n !== name));
+  };
 
   // Lis ki montre selon tab la: Etidyan = sa ki make "Vini", Prospè = lòt yo
   const viewItems = useMemo(() => {
@@ -2359,6 +2362,39 @@ function ProspectsView({ agents = [], canEditEtiquette = false }) {
         </button>
       </div>
 
+      {/* Kreye etikèt yo (admin sèlman) */}
+      {isAdmin && (
+        <div style={{ marginBottom: 16, padding: "12px 14px", border: `1px solid ${PALETTE.line}`, borderRadius: 12, background: "rgba(123,45,142,.05)" }}>
+          {!creatingEtq ? (
+            <button onClick={() => setCreatingEtq(true)} style={goldBtn}>+ Kreye étiquette</button>
+          ) : (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <input
+                className="mt-input"
+                style={{ maxWidth: 240 }}
+                placeholder="Non etikèt la (egz: Marie)"
+                value={newEtq}
+                onChange={(e) => setNewEtq(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && newEtq.trim()) createEtiquette(); }}
+                autoFocus
+              />
+              <button onClick={createEtiquette} disabled={!newEtq.trim()} style={{ ...goldBtn, opacity: newEtq.trim() ? 1 : 0.6 }}>Anrejistre</button>
+              <button onClick={() => { setCreatingEtq(false); setNewEtq(""); }} style={ghostBtn}>Anile</button>
+            </div>
+          )}
+          {agentNames.length > 0 && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+              {agentNames.map((n) => (
+                <span key={n} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 999, background: "#EEE3F7", color: "#3A0E33", fontSize: 13 }}>
+                  {n}
+                  <button onClick={() => removeEtiquetteName(n)} aria-label="Efase etikèt" style={{ border: "none", background: "transparent", color: "#7B2D8E", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: 0 }}>✕</button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
         <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, margin: 0 }}>
           {isStudents ? "Nouvo Etidyan" : "Nouvo Prospè"} {viewItems ? `(${viewItems.length})` : ""}
@@ -2395,11 +2431,11 @@ function ProspectsView({ agents = [], canEditEtiquette = false }) {
                 <th style={{ ...thDark, width: 36 }}>#</th>
                 <th style={thDark}>Programme</th>
                 <th style={thDark}>Dat</th>
+                <th style={{ ...thDark, width: 150 }}>Swivi</th>
+                <th style={{ ...thDark, width: 150 }}>Etikèt</th>
                 {qCols.map((q) => (
                   <th key={q} style={thDark}>{q}</th>
                 ))}
-                <th style={{ ...thDark, width: 150 }}>Swivi</th>
-                <th style={{ ...thDark, width: 150 }}>Etikèt</th>
                 <th style={{ ...thDark, width: 40 }}></th>
               </tr>
             </thead>
@@ -2409,9 +2445,6 @@ function ProspectsView({ agents = [], canEditEtiquette = false }) {
                   <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 700 }}>{idx + 1}</td>
                   <td style={{ ...tdDark, color: PALETTE.goldSoft, fontWeight: 600, whiteSpace: "nowrap" }}>{p.program || "-"}</td>
                   <td style={{ ...tdDark, color: `${PALETTE.cream}88`, whiteSpace: "nowrap" }}>{shortDate(p.updatedAt)}</td>
-                  {qCols.map((q) => (
-                    <td key={q} style={tdDark}>{answerFor(p, q)}</td>
-                  ))}
                   <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
                     <select
                       value={p.followup || ""}
@@ -2426,7 +2459,7 @@ function ProspectsView({ agents = [], canEditEtiquette = false }) {
                     </select>
                   </td>
                   <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
-                    {canEditEtiquette ? (
+                    {(isAdmin || !p.etiquette) ? (
                       <select
                         value={p.etiquette || ""}
                         onChange={(e) => setEtiquette(p.id, e.target.value)}
@@ -2441,11 +2474,14 @@ function ProspectsView({ agents = [], canEditEtiquette = false }) {
                         )}
                       </select>
                     ) : (
-                      <span style={{ fontSize: 13, color: p.etiquette ? "#7B2D8E" : `${PALETTE.cream}66`, fontWeight: p.etiquette ? 600 : 400 }}>
-                        {p.etiquette || "—"}
+                      <span style={{ fontSize: 13, color: "#7B2D8E", fontWeight: 600 }}>
+                        {p.etiquette}
                       </span>
                     )}
                   </td>
+                  {qCols.map((q) => (
+                    <td key={q} style={tdDark}>{answerFor(p, q)}</td>
+                  ))}
                   <td style={{ ...tdDark, textAlign: "center" }}>
                     <button onClick={() => remove(p.id)} style={miniDanger} aria-label="Efase prospè">✕</button>
                   </td>
