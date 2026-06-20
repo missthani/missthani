@@ -304,6 +304,7 @@ const DEFAULT_CONFIG = {
   question: "A ki programme ou enterese?",
   revealDelay: 3, // segond ant chak opsyon
   formFields: DEFAULT_FORM_FIELDS, // kesyon fòmilè ki pataje pou tout programme
+  agents: [], // non ajan yo pou etikèt yo (admin nan jere lis sa a)
   programs: [
     { id: uid(), label: "Onglerie", steps: [] },
     { id: uid(), label: "Tresse", steps: [] },
@@ -361,6 +362,7 @@ async function loadProspects() {
       program: r.program,
       answers: r.answers || [],
       followup: r.followup || "",
+      etiquette: r.etiquette || "",
       updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : 0,
     }));
   } catch (e) {
@@ -377,11 +379,22 @@ async function deleteProspect(id) {
   }
 }
 
-/* Estati swivi (follow-up) pou yon prospè: "" | "done" | "noanswer" | "wrong" */
+/* Estati swivi (follow-up) pou yon prospè: "" | "done" | "noanswer" | "wrong" | "vini" */
 async function setProspectFollowup(id, status) {
   if (!id) return false;
   try {
     const { error } = await supabase.from("prospects").update({ followup: status }).eq("id", id);
+    return !error;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* Etikèt: non ajan ki responsab prospè a (admin nan mete l) */
+async function setProspectEtiquette(id, name) {
+  if (!id) return false;
+  try {
+    const { error } = await supabase.from("prospects").update({ etiquette: name }).eq("id", id);
     return !error;
   } catch (e) {
     return false;
@@ -400,6 +413,7 @@ async function loadProspectById(id) {
       program: data.program,
       answers: data.answers || [],
       followup: data.followup || "",
+      etiquette: data.etiquette || "",
       updatedAt: data.updated_at ? new Date(data.updated_at).getTime() : 0,
     };
   } catch (e) {
@@ -816,7 +830,7 @@ export default function MissThaniApp() {
           <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p>
         </Centered>
       ) : isFormulaire ? (
-        <ProspectsGate />
+        <ProspectsGate config={config} />
       ) : view === "admin" ? (
         <AdminSpace
           config={config}
@@ -1697,6 +1711,12 @@ function AdminSpace({ config, onSave, onExit }) {
       return copy;
     });
 
+  /* ---- ajan yo pou etikèt yo ---- */
+  const updateAgents = (fn) => setDraft((d) => ({ ...d, agents: fn(d.agents || []) }));
+  const addAgent = () => updateAgents((arr) => [...arr, { id: uid(), name: "" }]);
+  const updateAgent = (aid, name) => updateAgents((arr) => arr.map((a) => (a.id === aid ? { ...a, name } : a)));
+  const removeAgent = (aid) => updateAgents((arr) => arr.filter((a) => a.id !== aid));
+
   /* ---- login ekran ---- */
   if (!authed) {
     return (
@@ -1750,7 +1770,7 @@ function AdminSpace({ config, onSave, onExit }) {
       </div>
 
       {adminTab === "prospects" ? (
-        <ProspectsView />
+        <ProspectsView agents={draft.agents || []} canEditEtiquette={true} />
       ) : (
         <>
       {/* Paramèt jeneral */}
@@ -1795,6 +1815,24 @@ function AdminSpace({ config, onSave, onExit }) {
           </div>
         ))}
         <button onClick={addFormField} style={{ ...ghostBtn, width: "100%" }}>+ Ajoute yon kesyon fòmilè</button>
+      </Section>
+
+      {/* Ajan yo pou etikèt yo */}
+      <Section title="Etikèt — Non Ajan yo">
+        <p style={{ fontSize: 13, color: `${PALETTE.cream}99`, margin: "0 0 14px" }}>
+          Ajoute non ajan yo isit la. Nan paj prospè yo, w ap ka mete youn nan non sa yo kòm <strong>etikèt</strong> sou chak prospè. Se sèlman isit la (bò admin nan) ou ka ajoute oswa chanje non ajan yo.
+        </p>
+        {(draft.agents || []).length === 0 ? (
+          <p style={{ fontSize: 13, color: `${PALETTE.cream}77`, margin: "0 0 12px" }}>Poko gen okenn ajan. Ajoute youn anba a.</p>
+        ) : (
+          (draft.agents || []).map((a) => (
+            <div key={a.id} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <input className="mt-input" placeholder="Non ajan an" value={a.name} onChange={(e) => updateAgent(a.id, e.target.value)} />
+              <button onClick={() => removeAgent(a.id)} style={{ ...miniDanger, alignSelf: "center" }} aria-label="Efase ajan">✕</button>
+            </div>
+          ))
+        )}
+        <button onClick={addAgent} style={{ ...ghostBtn, width: "100%", marginTop: 4 }}>+ Ajoute yon ajan</button>
       </Section>
 
       {/* Pwogram yo */}
@@ -2094,7 +2132,7 @@ function AdminSpace({ config, onSave, onExit }) {
 
 /* ===================== PAJ NOUVO PROSPECT ===================== */
 /* Paj /formulaire — modpas pou wè lis prospè yo dirèkteman (san antre nan admin) */
-function ProspectsGate() {
+function ProspectsGate({ config }) {
   const [authed, setAuthed] = useState(false);
   const [pwd, setPwd] = useState("");
   const [err, setErr] = useState("");
@@ -2141,16 +2179,19 @@ function ProspectsGate() {
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600 }}>Nouvo Prospè</div>
         <a href="/" style={{ ...ghostBtn, textDecoration: "none" }}>Tounen sou sit la</a>
       </div>
-      <ProspectsView />
+      <ProspectsView agents={(config && config.agents) || []} canEditEtiquette={false} />
     </div>
   );
 }
 
-function ProspectsView() {
+function ProspectsView({ agents = [], canEditEtiquette = false }) {
   const [items, setItems] = useState(null); // null = ap chaje
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState("list"); // "list" | "pdf"
   const [tab, setTab] = useState("prospects"); // "prospects" | "students"
+
+  // Non ajan yo ki valab (pou meni etikèt la)
+  const agentNames = (agents || []).map((a) => (typeof a === "string" ? a : (a && a.name) || "")).map((s) => s.trim()).filter(Boolean);
 
   // Lis ki montre selon tab la: Etidyan = sa ki make "Vini", Prospè = lòt yo
   const viewItems = useMemo(() => {
@@ -2181,6 +2222,12 @@ function ProspectsView() {
   const setSwivi = async (id, status) => {
     setItems((prev) => (prev || []).map((p) => (p.id === id ? { ...p, followup: status } : p)));
     await setProspectFollowup(id, status);
+  };
+
+  // Mete etikèt (non ajan) pou yon prospè
+  const setEtiquette = async (id, name) => {
+    setItems((prev) => (prev || []).map((p) => (p.id === id ? { ...p, etiquette: name } : p)));
+    await setProspectEtiquette(id, name);
   };
 
   const fmtDate = (ts) => {
@@ -2352,6 +2399,7 @@ function ProspectsView() {
                   <th key={q} style={thDark}>{q}</th>
                 ))}
                 <th style={{ ...thDark, width: 150 }}>Swivi</th>
+                <th style={{ ...thDark, width: 150 }}>Etikèt</th>
                 <th style={{ ...thDark, width: 40 }}></th>
               </tr>
             </thead>
@@ -2376,6 +2424,27 @@ function ProspectsView() {
                       <option value="wrong">Pa sone ditou</option>
                       <option value="vini">Vini (nouvo etidyan)</option>
                     </select>
+                  </td>
+                  <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
+                    {canEditEtiquette ? (
+                      <select
+                        value={p.etiquette || ""}
+                        onChange={(e) => setEtiquette(p.id, e.target.value)}
+                        style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.etiquette ? "#EEE3F7" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 150 }}
+                      >
+                        <option value="">Ajoute etikèt…</option>
+                        {agentNames.map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                        {p.etiquette && !agentNames.includes(p.etiquette) && (
+                          <option value={p.etiquette}>{p.etiquette}</option>
+                        )}
+                      </select>
+                    ) : (
+                      <span style={{ fontSize: 13, color: p.etiquette ? "#7B2D8E" : `${PALETTE.cream}66`, fontWeight: p.etiquette ? 600 : 400 }}>
+                        {p.etiquette || "—"}
+                      </span>
+                    )}
                   </td>
                   <td style={{ ...tdDark, textAlign: "center" }}>
                     <button onClick={() => remove(p.id)} style={miniDanger} aria-label="Efase prospè">✕</button>
