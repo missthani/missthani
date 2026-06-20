@@ -2150,6 +2150,16 @@ function ProspectsView() {
   const [items, setItems] = useState(null); // null = ap chaje
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState("list"); // "list" | "pdf"
+  const [tab, setTab] = useState("prospects"); // "prospects" | "students"
+
+  // Lis ki montre selon tab la: Etidyan = sa ki make "Vini", Prospè = lòt yo
+  const viewItems = useMemo(() => {
+    if (!items) return null;
+    return tab === "students"
+      ? items.filter((p) => p.followup === "vini")
+      : items.filter((p) => p.followup !== "vini");
+  }, [items, tab]);
+  const isStudents = tab === "students";
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -2190,14 +2200,14 @@ function ProspectsView() {
   // Kolòn yo: # | Programme | Dat | yon kolòn pou chak kesyon
   const qCols = useMemo(() => {
     const out = [];
-    (items || []).forEach((p) =>
+    (viewItems || []).forEach((p) =>
       (p.answers || []).forEach((a) => {
         const q = (a.question || "").trim();
         if (q && !out.includes(q)) out.push(q);
       })
     );
     return out;
-  }, [items]);
+  }, [viewItems]);
 
   const answerFor = (p, q) => {
     const f = (p.answers || []).find((a) => (a.question || "").trim() === q);
@@ -2208,9 +2218,9 @@ function ProspectsView() {
   const ROWS_PER_PAGE = 20;
   const pages = useMemo(() => {
     const out = [];
-    for (let i = 0; i < (items || []).length; i += ROWS_PER_PAGE) out.push((items || []).slice(i, i + ROWS_PER_PAGE));
+    for (let i = 0; i < (viewItems || []).length; i += ROWS_PER_PAGE) out.push((viewItems || []).slice(i, i + ROWS_PER_PAGE));
     return out;
-  }, [items]);
+  }, [viewItems]);
 
   const th = { textAlign: "left", padding: "6px 6px", fontSize: 10, color: "#1d1620", borderBottom: "1.5px solid #C2238E", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".3px" };
   const td = { textAlign: "left", padding: "7px 6px", fontSize: 11, color: "#1d1620", borderBottom: "0.5px solid #e7ddd2", verticalAlign: "top", wordBreak: "break-word" };
@@ -2221,12 +2231,12 @@ function ProspectsView() {
       <div>
         <div className="no-print" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, margin: 0 }}>
-            Vèsyon PDF — {(items || []).length} prospè
+            Vèsyon PDF — {(viewItems || []).length} {isStudents ? "etidyan" : "prospè"}
           </h2>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button onClick={() => setMode("list")} style={ghostBtn}>Tounen</button>
-            <button onClick={() => openProspectsPdf(items || [], fmtDate)} style={ghostBtn}>Wè PDF la</button>
-            <button onClick={() => downloadProspectsPdf(items || [], fmtDate)} style={goldBtn}>Telechaje PDF</button>
+            <button onClick={() => openProspectsPdf(viewItems || [], fmtDate)} style={ghostBtn}>Wè PDF la</button>
+            <button onClick={() => downloadProspectsPdf(viewItems || [], fmtDate)} style={goldBtn}>Telechaje PDF</button>
           </div>
         </div>
         <p className="no-print" style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: "0 0 18px" }}>
@@ -2243,7 +2253,7 @@ function ProspectsView() {
           ) : (
             pages.map((pg, i) => (
               <div className="pdf-page" key={i}>
-                {i === 0 && <PdfHeader count={(items || []).length} />}
+                {i === 0 && <PdfHeader count={(viewItems || []).length} />}
                 <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                   <thead>
                     <tr>
@@ -2286,15 +2296,31 @@ function ProspectsView() {
   /* ---------- LIS NÒMAL ---------- */
   return (
     <div>
+      {/* Bouton pou chanje ant Nouvo Prospè ak Nouvo Etidyan */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        <button
+          onClick={() => { setTab("prospects"); setMode("list"); }}
+          style={tab === "prospects" ? goldBtn : ghostBtn}
+        >
+          Nouvo Prospè
+        </button>
+        <button
+          onClick={() => { setTab("students"); setMode("list"); }}
+          style={tab === "students" ? goldBtn : ghostBtn}
+        >
+          Nouvo Etidyan
+        </button>
+      </div>
+
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
         <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, margin: 0 }}>
-          Nouvo Prospect {items ? `(${items.length})` : ""}
+          {isStudents ? "Nouvo Etidyan" : "Nouvo Prospè"} {viewItems ? `(${viewItems.length})` : ""}
         </h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={refresh} style={ghostBtn} disabled={busy}>{busy ? "Ap chaje…" : "Aktyalize"}</button>
-          {items && items.length > 0 && (
+          {viewItems && viewItems.length > 0 && (
             <>
-              <button onClick={() => downloadProspectsCsv(items || [], qCols, fmtDate)} style={ghostBtn}>Telechaje CSV (Excel)</button>
+              <button onClick={() => downloadProspectsCsv(viewItems || [], qCols, fmtDate)} style={ghostBtn}>Telechaje CSV (Excel)</button>
               <button onClick={() => setMode("pdf")} style={goldBtn}>Vèsyon PDF</button>
             </>
           )}
@@ -2303,11 +2329,15 @@ function ProspectsView() {
 
       {items === null ? (
         <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p>
-      ) : items.length === 0 ? (
+      ) : viewItems.length === 0 ? (
         <div style={{ textAlign: "center", padding: "40px 20px", border: `1px solid ${PALETTE.line}`, borderRadius: 16, background: "rgba(194,35,142,.04)" }}>
-          <p style={{ fontSize: 16, color: `${PALETTE.cream}cc`, margin: 0 }}>Poko gen okenn prospè.</p>
+          <p style={{ fontSize: 16, color: `${PALETTE.cream}cc`, margin: 0 }}>
+            {isStudents ? "Poko gen okenn etidyan." : "Poko gen okenn prospè."}
+          </p>
           <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: "8px 0 0" }}>
-            Lè yon moun reponn yon etap Fòmilè sou paj piblik la, l ap parèt isit la.
+            {isStudents
+              ? "Lè ou make yon prospè \"Vini\" nan lis swivi a, l ap parèt isit la."
+              : "Lè yon moun reponn yon etap Fòmilè sou paj piblik la, l ap parèt isit la."}
           </p>
         </div>
       ) : (
@@ -2326,7 +2356,7 @@ function ProspectsView() {
               </tr>
             </thead>
             <tbody>
-              {items.map((p, idx) => (
+              {viewItems.map((p, idx) => (
                 <tr key={p.id}>
                   <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 700 }}>{idx + 1}</td>
                   <td style={{ ...tdDark, color: PALETTE.goldSoft, fontWeight: 600, whiteSpace: "nowrap" }}>{p.program || "-"}</td>
@@ -2338,12 +2368,13 @@ function ProspectsView() {
                     <select
                       value={p.followup || ""}
                       onChange={(e) => setSwivi(p.id, e.target.value)}
-                      style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.followup ? "#FBE9F4" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 145 }}
+                      style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.followup ? "#FBE9F4" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 150 }}
                     >
                       <option value="">Swivi…</option>
                       <option value="done">Suivi fèt</option>
                       <option value="noanswer">Sone san repons</option>
                       <option value="wrong">Pa sone ditou</option>
+                      <option value="vini">Vini (nouvo etidyan)</option>
                     </select>
                   </td>
                   <td style={{ ...tdDark, textAlign: "center" }}>
