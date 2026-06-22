@@ -1630,6 +1630,8 @@ function AdminSpace({ config, onSave, onExit }) {
   const [savedAt, setSavedAt] = useState(null);
   const [openId, setOpenId] = useState(config.programs?.[0]?.id || null);
   const [adminTab, setAdminTab] = useState("editor"); // "editor" | "prospects"
+  const [collapsed, setCollapsed] = useState({}); // blòk ki pliye yo (pa id)
+  const toggleCollapse = (bid) => setCollapsed((c) => ({ ...c, [bid]: !c[bid] }));
 
   const tryLogin = () => {
     if (pwd === ADMIN_PASSWORD) {
@@ -1881,10 +1883,13 @@ function AdminSpace({ config, onSave, onExit }) {
 
                           {blocks.map((b, bi) => (
                             <div key={b.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 9, padding: 12, marginBottom: 10, background: "rgba(194,35,142,.04)" }}>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                                <span style={{ fontSize: 11, color: PALETTE.goldSoft, letterSpacing: "1px", fontWeight: 700 }}>
-                                  {({ text: "TÈKS", video: "VIDEYO", form: "FÒMILÈ", special: "SPECIAL", link: "LYEN" })[b.kind]}
-                                </span>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: collapsed[b.id] ? 0 : 8 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <button onClick={() => toggleCollapse(b.id)} style={miniBtn(false)} aria-label="Pliye oswa depliye blòk la">{collapsed[b.id] ? "▸" : "▾"}</button>
+                                  <span style={{ fontSize: 11, color: PALETTE.goldSoft, letterSpacing: "1px", fontWeight: 700 }}>
+                                    {({ text: "TÈKS", video: "VIDEYO", form: "FÒMILÈ", special: "SPECIAL", link: "LYEN" })[b.kind]}
+                                  </span>
+                                </div>
                                 <div style={{ display: "flex", gap: 6 }}>
                                   <button onClick={() => moveBlock(p.id, s.id, bi, -1)} disabled={bi === 0} style={miniBtn(bi === 0)}>↑</button>
                                   <button onClick={() => moveBlock(p.id, s.id, bi, 1)} disabled={bi === blocks.length - 1} style={miniBtn(bi === blocks.length - 1)}>↓</button>
@@ -1892,14 +1897,14 @@ function AdminSpace({ config, onSave, onExit }) {
                                 </div>
                               </div>
 
-                              {b.kind === "text" && (
+                              {!collapsed[b.id] && b.kind === "text" && (
                                 <>
                                   <input className="mt-input" placeholder="Tit — opsyonèl" value={b.title || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { title: e.target.value })} />
                                   <textarea className="mt-input" style={{ marginTop: 8 }} placeholder="Tèks / mesaj moun nan ap wè…" value={b.text || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { text: e.target.value })} />
                                 </>
                               )}
 
-                              {b.kind === "video" && (
+                              {!collapsed[b.id] && b.kind === "video" && (
                                 <>
                                   <input className="mt-input" placeholder="Tit — opsyonèl" value={b.title || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { title: e.target.value })} />
                                   <label style={{ ...labelStyle, marginTop: 10 }}>Videyo default (toujou, si okenn dat pa koresponn)</label>
@@ -1963,7 +1968,7 @@ function AdminSpace({ config, onSave, onExit }) {
                                 </>
                               )}
 
-                              {b.kind === "form" && (
+                              {!collapsed[b.id] && b.kind === "form" && (
                                 <div style={{ padding: 12, border: `1px dashed ${PALETTE.lineStrong}`, borderRadius: 9, background: "rgba(194,35,142,.04)" }}>
                                   <div style={{ fontSize: 11, color: PALETTE.goldSoft, letterSpacing: "1px", marginBottom: 8 }}>KESYON KI AP MONTE YOUN APRE LÒT</div>
                                   {(draft.formFields || []).length === 0 ? (
@@ -1983,7 +1988,7 @@ function AdminSpace({ config, onSave, onExit }) {
                                 </div>
                               )}
 
-                              {b.kind === "special" && (
+                              {!collapsed[b.id] && b.kind === "special" && (
                                 <>
                                   <input className="mt-input" placeholder="Tit — opsyonèl" value={b.title || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { title: e.target.value })} />
                                   <label style={{ ...labelStyle, marginTop: 10 }}>Sou kisa special la ye?</label>
@@ -2037,7 +2042,7 @@ function AdminSpace({ config, onSave, onExit }) {
                                 </>
                               )}
 
-                              {b.kind === "link" && (
+                              {!collapsed[b.id] && b.kind === "link" && (
                                 <>
                                   <input className="mt-input" placeholder="Tit — opsyonèl" value={b.title || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { title: e.target.value })} />
                                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
