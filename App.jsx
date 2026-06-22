@@ -383,8 +383,9 @@ async function deleteProspect(id) {
 async function setProspectFollowup(id, status) {
   if (!id) return false;
   try {
-    const { error } = await supabase.from("prospects").update({ followup: status }).eq("id", id);
-    return !error;
+    const { data, error } = await supabase.from("prospects").update({ followup: status }).eq("id", id).select();
+    if (error) return false;
+    return (data || []).length > 0; // 0 ranje = RLS bloke oswa id pa jwenn
   } catch (e) {
     return false;
   }
@@ -394,8 +395,9 @@ async function setProspectFollowup(id, status) {
 async function setProspectEtiquette(id, name) {
   if (!id) return false;
   try {
-    const { error } = await supabase.from("prospects").update({ etiquette: name }).eq("id", id);
-    return !error;
+    const { data, error } = await supabase.from("prospects").update({ etiquette: name }).eq("id", id).select();
+    if (error) return false;
+    return (data || []).length > 0;
   } catch (e) {
     return false;
   }
@@ -1070,11 +1072,21 @@ function PublicSpace({ config, onAdmin }) {
   }, [screenIndex, selected]);
 
   const choose = (p) => {
+    // Chak pwogram endepandan: si w chwazi yon LÒT pwogram, kòmanse yon fòmilè fre
+    // ak yon nouvo sesyon (konsa enfo yon pwogram pa antre nan yon lòt).
+    const switching = !selected || selected.id !== p.id;
     setSelected(p);
     setScreenIndex(0);
     setFormIdx(0);
-    // Pa efase repons yo: si vizitè a deja ranpli fòmilè a, l ap rete ranpli.
-    if (!sessionRef.current) sessionRef.current = uid() + Date.now().toString(36);
+    if (switching) {
+      setAnswers({});
+      setFormDone(false);
+      setFormError("");
+      setMyFollowup("");
+      sessionRef.current = uid() + Date.now().toString(36);
+    } else if (!sessionRef.current) {
+      sessionRef.current = uid() + Date.now().toString(36);
+    }
   };
   const reset = () => {
     setSelected(null);
@@ -1362,7 +1374,7 @@ function PublicSpace({ config, onAdmin }) {
         </div>
       ) : (
         <div className="mt-fade" style={{ width: "100%", maxWidth: 460, zIndex: 1 }}>
-          {announcements.length > 0 && (
+          {announcements.length > 0 && !followupText && (
             <div style={{ position: "sticky", top: 0, zIndex: 40, marginBottom: 16, paddingTop: 8, paddingBottom: 10, background: PALETTE.bgTop, borderRadius: 14, boxShadow: `0 10px 14px -8px ${PALETTE.bgTop}` }}>
               {announcements.map((a) => (
                 <div
@@ -2174,6 +2186,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents }) {
   const [tab, setTab] = useState("prospects"); // "prospects" | "students"
   const [creatingEtq, setCreatingEtq] = useState(false); // chan kreye etikèt la louvri
   const [newEtq, setNewEtq] = useState("");
+  const [saveErr, setSaveErr] = useState(""); // mesaj erè si anrejistreman echwe
 
   // Non etikèt yo (san doub)
   const agentNames = [...new Set(
@@ -2223,14 +2236,18 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents }) {
 
   // Mete estati swivi (follow-up) pou yon prospè
   const setSwivi = async (id, status) => {
+    setSaveErr("");
     setItems((prev) => (prev || []).map((p) => (p.id === id ? { ...p, followup: status } : p)));
-    await setProspectFollowup(id, status);
+    const ok = await setProspectFollowup(id, status);
+    if (!ok) { setSaveErr("Pa rive anrejistre swivi a nan baz done a. Tcheke kolòn `followup` ak règ RLS yo nan Supabase."); refresh(); }
   };
 
   // Mete etikèt (non ajan) pou yon prospè
   const setEtiquette = async (id, name) => {
+    setSaveErr("");
     setItems((prev) => (prev || []).map((p) => (p.id === id ? { ...p, etiquette: name } : p)));
-    await setProspectEtiquette(id, name);
+    const ok = await setProspectEtiquette(id, name);
+    if (!ok) { setSaveErr("Pa rive anrejistre etikèt la nan baz done a. Tcheke kolòn `etiquette` ak règ RLS yo nan Supabase."); refresh(); }
   };
 
   const fmtDate = (ts) => {
@@ -2361,6 +2378,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents }) {
           Nouvo Etidyan
         </button>
       </div>
+
+      {saveErr && (
+        <div style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 12, border: "1px solid #ff6b6b", background: "rgba(255,107,107,.08)" }}>
+          <p style={{ margin: 0, fontSize: 13.5, color: "#ff6b6b", lineHeight: 1.5 }}>{saveErr}</p>
+        </div>
+      )}
 
       {/* Kreye etikèt yo (admin sèlman) */}
       {isAdmin && (
