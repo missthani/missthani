@@ -1628,7 +1628,11 @@ function AdminSpace({ config, onSave, onExit }) {
   // kopi travay la (n ap anrejistre lè admin klike)
   const [draft, setDraft] = useState(() => JSON.parse(JSON.stringify(config)));
   const [savedAt, setSavedAt] = useState(null);
-  const [openId, setOpenId] = useState(config.programs?.[0]?.id || null);
+  const [openProgs, setOpenProgs] = useState(() => {
+    const first = config.programs?.[0]?.id;
+    return first ? { [first]: true } : {};
+  }); // pwogram ki louvri yo (plizyè ka louvri alafwa)
+  const toggleProg = (pid) => setOpenProgs((o) => ({ ...o, [pid]: !o[pid] }));
   const [adminTab, setAdminTab] = useState("editor"); // "editor" | "prospects"
   const [collapsed, setCollapsed] = useState({}); // blòk ki pliye yo (pa id)
   const toggleCollapse = (bid) => setCollapsed((c) => ({ ...c, [bid]: !c[bid] }));
@@ -1652,8 +1656,11 @@ function AdminSpace({ config, onSave, onExit }) {
   const updateProgram = (pid, patch) =>
     setDraft((d) => ({ ...d, programs: d.programs.map((p) => (p.id === pid ? { ...p, ...patch } : p)) }));
 
-  const addProgram = () =>
-    setDraft((d) => ({ ...d, programs: [...d.programs, { id: uid(), label: "Nouvo programme", steps: [] }] }));
+  const addProgram = () => {
+    const np = { id: uid(), label: "Nouvo programme", steps: [] };
+    setDraft((d) => ({ ...d, programs: [...d.programs, np] }));
+    setOpenProgs((o) => ({ ...o, [np.id]: true })); // louvri nouvo pwogram nan otomatikman
+  };
 
   const removeProgram = (pid) =>
     setDraft((d) => ({ ...d, programs: d.programs.filter((p) => p.id !== pid) }));
@@ -1839,16 +1846,19 @@ function AdminSpace({ config, onSave, onExit }) {
         </p>
 
         {draft.programs.map((p) => {
-          const open = openId === p.id;
+          const open = !!openProgs[p.id];
           return (
             <div key={p.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
               <button
-                onClick={() => setOpenId(open ? null : p.id)}
+                onClick={() => toggleProg(p.id)}
                 style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: open ? "rgba(194,35,142,.07)" : "transparent", border: "none", color: PALETTE.cream, cursor: "pointer", fontSize: 16, fontWeight: 500, textAlign: "left" }}
               >
-                <span>{p.label || "San non"}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ color: PALETTE.gold, fontSize: 13 }}>{open ? "▾" : "▸"}</span>
+                  {p.label || "San non"}
+                </span>
                 <span style={{ fontSize: 12, color: PALETTE.gold }}>
-                  {(p.steps || []).length} etap {open ? "▲" : "▼"}
+                  {(p.steps || []).length} etap
                 </span>
               </button>
 
@@ -2540,11 +2550,20 @@ function PdfHeader({ count }) {
   );
 }
 
-function Section({ title, children }) {
+function Section({ title, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div style={{ marginBottom: 26, padding: 18, border: `1px solid ${PALETTE.line}`, borderRadius: 16, background: "rgba(194,35,142,.04)" }}>
-      <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 19, fontWeight: 600, margin: "0 0 14px" }}>{title}</h2>
-      {children}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Pliye oswa depliye seksyon an"
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "transparent", border: "none", color: "inherit", cursor: "pointer", padding: 0, margin: open ? "0 0 14px" : "0", textAlign: "left" }}
+      >
+        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 19, fontWeight: 600, margin: 0 }}>{title}</h2>
+        <span style={{ fontSize: 16, color: PALETTE.goldSoft, marginLeft: 12 }}>{open ? "▾" : "▸"}</span>
+      </button>
+      {open && children}
     </div>
   );
 }
