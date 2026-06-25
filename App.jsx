@@ -1848,7 +1848,7 @@ function AdminSpace({ config, onSave, onExit }) {
       </div>
 
       {adminTab === "prospects" ? (
-        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} />
+        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} />
       ) : adminTab === "stats" ? (
         <StatsView />
       ) : (
@@ -2247,7 +2247,7 @@ function ProspectsGate({ config }) {
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600 }}>Nouvo Prospè</div>
         <a href="/" style={{ ...ghostBtn, textDecoration: "none" }}>Tounen sou sit la</a>
       </div>
-      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} />
+      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} programs={(config && config.programs) || []} />
     </div>
   );
 }
@@ -2346,7 +2346,7 @@ function StatsView() {
   );
 }
 
-function ProspectsView({ agents = [], isAdmin = false, onSaveAgents }) {
+function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [] }) {
   const [items, setItems] = useState(null); // null = ap chaje
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState("list"); // "list" | "pdf"
@@ -2431,12 +2431,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents }) {
     catch (e) { return ""; }
   };
 
-  // Dat limit rezèvasyon (10 jou apre enskripsyon)
+  // Dat rezèvasyon: MENM dat ki nan mesaj la — dat video pwograme a + 10 jou
   const resaDate = (p) => {
-    const ts = prospectReserveTs(p);
-    if (!ts) return "—";
-    try { return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }); }
-    catch (e) { return "—"; }
+    const prog = (programs || []).find((pp) => pp.label === p.program);
+    const start = prog ? activeVideoStartAll(prog.steps || []) : "";
+    const d = addDays(start, 10);
+    return d ? formatHtDate(d) : "—";
   };
 
   // Kolòn yo: # | Programme | Dat | yon kolòn pou chak kesyon
