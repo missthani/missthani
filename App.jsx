@@ -2456,6 +2456,29 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     return f ? f.answer || "" : "";
   };
 
+  // Afiche yon repons; si se yon nimewo Ayiti valab, mete yon bouton WhatsApp bò kote l
+  const renderAnswer = (p, q) => {
+    const val = answerFor(p, q);
+    const v = validateHaitiPhone(val);
+    if (v.ok) {
+      return (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
+          <span>{val}</span>
+          <a
+            href={`https://wa.me/${v.e164}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`Ekri ${val} sou WhatsApp`}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, background: "#25D366", color: "#fff", textDecoration: "none", fontSize: 11, fontWeight: 700 }}
+          >
+            WhatsApp
+          </a>
+        </span>
+      );
+    }
+    return val;
+  };
+
   // Separe an paj pou apèsi a (20 ranje pa paj)
   const ROWS_PER_PAGE = 20;
   const pages = useMemo(() => {
@@ -2680,7 +2703,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                     )}
                   </td>
                   {qCols.map((q) => (
-                    <td key={q} style={tdDark}>{answerFor(p, q)}</td>
+                    <td key={q} style={tdDark}>{renderAnswer(p, q)}</td>
                   ))}
                   <td style={{ ...tdDark, textAlign: "center" }}>
                     <button onClick={() => remove(p.id)} style={miniDanger} aria-label="Efase prospè">✕</button>
