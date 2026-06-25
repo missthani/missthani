@@ -93,6 +93,21 @@ function formatHtDate(s) {
   return `${days[dt.getDay()]} ${d} ${months[m - 1]} ${y}`;
 }
 
+/* Dat enskripsyon yon prospè: dat la sòti nan id sesyon an (uid 7 karaktè + Date.now() an base36) */
+function prospectCreatedTs(p) {
+  try {
+    const tail = String((p && p.id) || "").slice(7);
+    const ts = parseInt(tail, 36);
+    if (ts && ts > 1600000000000 && ts < 4000000000000) return ts;
+  } catch (e) {}
+  return (p && p.updatedAt) || 0;
+}
+/* Dat limit rezèvasyon: 10 jou apre enskripsyon an */
+function prospectReserveTs(p) {
+  const c = prospectCreatedTs(p);
+  return c ? c + 10 * 86400000 : 0;
+}
+
 /* Ajoute kèk jou sou yon dat (YYYY-MM-DD) */
 function addDays(dateStr, days) {
   if (!dateStr) return "";
@@ -376,6 +391,32 @@ async function deleteProspect(id) {
     return !error;
   } catch (e) {
     return false;
+  }
+}
+
+/* ===== Estatistik vizit yo ===== */
+/* Anrejistre yon evènman: type = "visit" (yon moun louvri app la) | "page" (yon paj vizite) */
+async function logEvent(type, label, session) {
+  try {
+    await supabase.from("events").insert({ type, label: label || "", session: session || "" });
+  } catch (e) {}
+}
+async function loadEvents(limit = 5000) {
+  try {
+    const { data, error } = await supabase
+      .from("events")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return (data || []).map((r) => ({
+      type: r.type,
+      label: r.label || "",
+      session: r.session || "",
+      at: r.created_at ? new Date(r.created_at).getTime() : 0,
+    }));
+  } catch (e) {
+    return [];
   }
 }
 
@@ -938,6 +979,23 @@ function PublicSpace({ config, onAdmin }) {
     })();
     return () => { active = false; };
   }, []);
+
+  // Konte vizit yo: yon sèl fwa pa jou pa telefòn (pou "konbyen moun pa jou")
+  useEffect(() => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const key = "missthani_visitlog";
+      if (localStorage.getItem(key) !== today) {
+        logEvent("visit", "", sessionRef.current || "");
+        localStorage.setItem(key, today);
+      }
+    } catch (e) {}
+  }, []);
+
+  // Konte paj ki vizite yo (chak fwa yon moun rive sou yon nouvo paj nan yon pwogram)
+  useEffect(() => {
+    if (selected) logEvent("page", `${selected.label} — Etap ${screenIndex + 1}`, sessionRef.current || "");
+  }, [selected, screenIndex]);
 
   // Anrejistre pwogrè a chak fwa li chanje
   useEffect(() => {
@@ -1781,11 +1839,9 @@ function AdminSpace({ config, onSave, onExit }) {
           <div style={{ fontSize: 12, color: PALETTE.gold, letterSpacing: "1px" }}>Miss Thani — Make-Up &amp; Lace Club</div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {adminTab === "prospects" ? (
-            <button onClick={() => setAdminTab("editor")} style={ghostBtn}>Editè</button>
-          ) : (
-            <button onClick={() => setAdminTab("prospects")} style={goldBtn}>Nouvo Prospect</button>
-          )}
+          <button onClick={() => setAdminTab("editor")} style={adminTab === "editor" ? goldBtn : ghostBtn}>Editè</button>
+          <button onClick={() => setAdminTab("prospects")} style={adminTab === "prospects" ? goldBtn : ghostBtn}>Nouvo Prospect</button>
+          <button onClick={() => setAdminTab("stats")} style={adminTab === "stats" ? goldBtn : ghostBtn}>Estatistik</button>
           <button onClick={onExit} style={ghostBtn}>Wè paj piblik</button>
           <button onClick={() => setAuthed(false)} style={ghostBtn}>Sòti</button>
         </div>
@@ -1793,6 +1849,8 @@ function AdminSpace({ config, onSave, onExit }) {
 
       {adminTab === "prospects" ? (
         <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} />
+      ) : adminTab === "stats" ? (
+        <StatsView />
       ) : (
         <>
       {/* Paramèt jeneral */}
@@ -2194,6 +2252,100 @@ function ProspectsGate({ config }) {
   );
 }
 
+/* Estatistik vizit yo (admin) */
+function StatsView() {
+  const [events, setEvents] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    setBusy(true);
+    setEvents(await loadEvents());
+    setBusy(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const visitsByDay = useMemo(() => {
+    const m = {};
+    (events || []).filter((e) => e.type === "visit").forEach((e) => {
+      const iso = e.at ? new Date(e.at).toISOString().slice(0, 10) : "?";
+      m[iso] = (m[iso] || 0) + 1;
+    });
+    return Object.entries(m).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [events]);
+
+  const pageViews = useMemo(() => {
+    const m = {};
+    (events || []).filter((e) => e.type === "page").forEach((e) => {
+      const lbl = e.label || "—";
+      m[lbl] = (m[lbl] || 0) + 1;
+    });
+    return Object.entries(m).sort((a, b) => b[1] - a[1]);
+  }, [events]);
+
+  const totalVisits = (events || []).filter((e) => e.type === "visit").length;
+  const maxDay = Math.max(1, ...visitsByDay.map((d) => d[1]));
+  const maxPage = Math.max(1, ...pageViews.map((d) => d[1]));
+
+  const fmtIso = (iso) => {
+    try { return new Date(iso + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }); }
+    catch (e) { return iso; }
+  };
+
+  const bar = (n, max, grad) => (
+    <div style={{ flex: 1, background: "rgba(123,45,142,.10)", borderRadius: 6, overflow: "hidden" }}>
+      <div style={{ width: `${(n / max) * 100}%`, minWidth: 26, background: grad, color: "#fff", fontSize: 12, fontWeight: 700, padding: "3px 8px", borderRadius: 6, textAlign: "right", boxSizing: "border-box" }}>{n}</div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, gap: 10, flexWrap: "wrap" }}>
+        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, margin: 0 }}>Estatistik vizit yo</h2>
+        <button onClick={load} style={ghostBtn} disabled={busy}>{busy ? "Ap chaje…" : "Aktyalize"}</button>
+      </div>
+
+      {events === null ? (
+        <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p>
+      ) : (
+        <>
+          <div style={{ marginBottom: 24, padding: "14px 18px", border: `1px solid ${PALETTE.line}`, borderRadius: 14, background: "rgba(194,35,142,.05)", display: "inline-block", minWidth: 160 }}>
+            <div style={{ fontSize: 13, color: `${PALETTE.cream}aa` }}>Total vizit</div>
+            <div style={{ fontSize: 32, fontWeight: 700, color: PALETTE.gold }}>{totalVisits}</div>
+          </div>
+
+          <h3 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 12px" }}>Konbyen moun pa jou</h3>
+          {visitsByDay.length === 0 ? (
+            <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: "0 0 24px" }}>Poko gen done vizit. (L ap kòmanse konte apre w deplwaye.)</p>
+          ) : (
+            <div style={{ marginBottom: 28 }}>
+              {visitsByDay.map(([iso, n]) => (
+                <div key={iso} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <div style={{ width: 150, fontSize: 13, color: `${PALETTE.cream}cc`, whiteSpace: "nowrap" }}>{fmtIso(iso)}</div>
+                  {bar(n, maxDay, `linear-gradient(90deg, ${PALETTE.goldSoft}, ${PALETTE.blush})`)}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <h3 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 12px" }}>Paj ki pi vizite yo</h3>
+          {pageViews.length === 0 ? (
+            <p style={{ fontSize: 13, color: `${PALETTE.cream}88` }}>Poko gen done paj.</p>
+          ) : (
+            <div>
+              {pageViews.map(([lbl, n]) => (
+                <div key={lbl} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <div style={{ width: 200, fontSize: 13, color: `${PALETTE.cream}cc` }}>{lbl}</div>
+                  {bar(n, maxPage, `linear-gradient(90deg, #7B2D8E, ${PALETTE.goldSoft})`)}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function ProspectsView({ agents = [], isAdmin = false, onSaveAgents }) {
   const [items, setItems] = useState(null); // null = ap chaje
   const [busy, setBusy] = useState(false);
@@ -2277,6 +2429,14 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents }) {
   const shortDate = (ts) => {
     try { return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" }); }
     catch (e) { return ""; }
+  };
+
+  // Dat limit rezèvasyon (10 jou apre enskripsyon)
+  const resaDate = (p) => {
+    const ts = prospectReserveTs(p);
+    if (!ts) return "—";
+    try { return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }); }
+    catch (e) { return "—"; }
   };
 
   // Kolòn yo: # | Programme | Dat | yon kolòn pou chak kesyon
@@ -2469,6 +2629,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents }) {
                 <th style={{ ...thDark, width: 36 }}>#</th>
                 <th style={thDark}>Programme</th>
                 <th style={thDark}>Dat</th>
+                <th style={{ ...thDark, whiteSpace: "nowrap" }}>Réservation</th>
                 <th style={{ ...thDark, width: 150 }}>Swivi</th>
                 <th style={{ ...thDark, width: 150 }}>Etikèt</th>
                 {qCols.map((q) => (
@@ -2483,6 +2644,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents }) {
                   <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 700 }}>{idx + 1}</td>
                   <td style={{ ...tdDark, color: PALETTE.goldSoft, fontWeight: 600, whiteSpace: "nowrap" }}>{p.program || "-"}</td>
                   <td style={{ ...tdDark, color: `${PALETTE.cream}88`, whiteSpace: "nowrap" }}>{shortDate(p.updatedAt)}</td>
+                  <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 600, whiteSpace: "nowrap" }}>{resaDate(p)}</td>
                   <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
                     <select
                       value={p.followup || ""}
