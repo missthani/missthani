@@ -185,6 +185,9 @@ const FOLLOWUP_LABELS = {
   wrong: "Pa sone ditou (nimewo pa bon)",
 };
 
+/* Modèl default mesaj WhatsApp la — {non}=non konplè, {program}=pwogram, {dat}=dat rezèvasyon */
+const DEFAULT_WA_TEMPLATE = "*Miss Thani Make-up & Lace Club*\n\nBonjou {non}\n\nNou resevwa pre-enskripsyon ou te fè pou programme {program}.\n\nMwen prè pou m akonpaye w plis e ede w valide enskripsyon an ak espesyal rediksyon an. Paske ou ta sipoze reserve avan {dat} pou w ka pami moun k ap nan espesyal yo.\n\nÈske ou gen kesyon?";
+
 /* Modèl tèks default pou yon etap Special.
    {special}=non special, {dat}=dat rezèvasyon, {dat10}=10 jou apre dat video pwograme a, {non}=non vizitè a */
 const DEFAULT_SPECIAL_TPL = "Felisitasyon {non} ! Nou resevwa enfòmasyon pèsonèl ou yo. Pou w ka gen plis chans pami 10 premye moun yo, kouri vin rezève plas ou anvan {dat10}.";
@@ -293,11 +296,13 @@ function validateHaitiPhone(raw) {
 }
 
 /* Tcheke nan Supabase si yon nimewo telefòn deja enskri (anpeche resoumèt). */
-async function phoneAlreadyUsed(localPhone) {
+async function phoneAlreadyUsed(localPhone, campaignTs = 0) {
   if (!localPhone) return false;
   try {
     const list = await loadProspects();
     for (const p of list) {
+      // Si nimewo a te enskri AVAN kanpay video aktyèl la, inyore l (yon nouvo kanpay = yon nouvo chans)
+      if (campaignTs && prospectCreatedTs(p) < campaignTs) continue;
       for (const a of (p.answers || [])) {
         const v = validateHaitiPhone(a.answer);
         if (v.ok && v.local === localPhone) return true;
@@ -320,6 +325,8 @@ const DEFAULT_CONFIG = {
   revealDelay: 3, // segond ant chak opsyon
   formFields: DEFAULT_FORM_FIELDS, // kesyon fòmilè ki pataje pou tout programme
   agents: [], // non ajan yo pou etikèt yo (admin nan jere lis sa a)
+  waMessages: [], // modèl mesaj WhatsApp yo (admin nan jere)
+  activeWaMessage: "", // id modèl ki aktif la
   programs: [
     { id: uid(), label: "Onglerie", steps: [] },
     { id: uid(), label: "Tresse", steps: [] },
@@ -957,6 +964,7 @@ function PublicSpace({ config, onAdmin }) {
   const [formError, setFormError] = useState(""); // mesaj erè fòmilè (nimewo pa bon, deja enskri…)
   const [checking, setChecking] = useState(false); // n ap tcheke nan Supabase
   const [formDone, setFormDone] = useState(() => !!(saved0 && saved0.formDone)); // vizitè a fin ranpli fòmilè a yon fwa
+  const [submittedCampaign, setSubmittedCampaign] = useState(() => (saved0 && saved0.submittedCampaign) || ""); // ki kanpay video li te soumèt anba l
   const [answers, setAnswers] = useState(() => (saved0 && saved0.answers) || {}); // repons fòmilè yo (pa stepId)
   const sessionRef = useRef((saved0 && saved0.sessionId) || null); // idantifyan sesyon vizitè a
 
@@ -1003,10 +1011,11 @@ function PublicSpace({ config, onAdmin }) {
       selectedId: selected ? selected.id : "",
       screenIndex,
       formDone,
+      submittedCampaign,
       answers,
       sessionId: sessionRef.current,
     });
-  }, [selected, screenIndex, formDone, answers]);
+  }, [selected, screenIndex, formDone, submittedCampaign, answers]);
 
   useEffect(() => {
     if (selected) return;
@@ -1034,6 +1043,11 @@ function PublicSpace({ config, onAdmin }) {
 
   // Èske vizitè a fin ranpli fòmilè a? (tout chan yo gen yon repons)
   const formComplete = formFields.length === 0 || formFields.every((f) => (answers[f.id] || "").trim());
+
+  // Kanpay video aktyèl la pou pwogram sa a (dat video pwograme a). Si li chanje, vizitè a ka re-soumèt.
+  const currentCampaign = selected ? activeVideoStartAll(selected.steps || []) : "";
+  // Fòmilè a "bloke" sèlman si li soumèt anba MENM kanpay la (oswa si pa gen kanpay video, lock pèmanan)
+  const formLocked = formDone && (!currentCampaign || submittedCampaign === currentCampaign);
 
   // Anons: chak special ki make "anons", men SÈLMAN apre fòmilè a fin ranpli.
   // Yon fwa li parèt, li rete sou tout paj ki rete yo.
@@ -1213,18 +1227,26 @@ function PublicSpace({ config, onAdmin }) {
     // Dènye kesyon an — tcheke si nimewo a deja enskri anvan nou soumèt
     const telField = formFields.find((f) => f.fieldType === "tel");
     const telNorm = telField ? validateHaitiPhone(answers[telField.id] || "") : { ok: false };
+    const campaignTs = currentCampaign ? new Date(currentCampaign + "T00:00:00").getTime() : 0;
     if (telField && telNorm.ok) {
       setChecking(true);
-      const used = await phoneAlreadyUsed(telNorm.local);
+      const used = await phoneAlreadyUsed(telNorm.local, campaignTs);
       setChecking(false);
       if (used) {
         setFormError("Nimewo sa a deja enskri. Ou pa ka enskri de fwa ak menm nimewo telefòn nan.");
         setFormDone(true); // bloke: yo deja nan lis la, pa kreye yon doub
+        setSubmittedCampaign(currentCampaign);
         return;
       }
     }
 
+    // Si se yon NOUVO kanpay video (li te deja soumèt anba yon lòt kanpay),
+    // kreye yon nouvo sesyon pou yon nouvo enskripsyon ak bon dat la
+    const isNewCampaign = formDone && submittedCampaign && currentCampaign && submittedCampaign !== currentCampaign;
+    if (isNewCampaign) sessionRef.current = uid() + Date.now().toString(36);
+
     setFormDone(true);
+    setSubmittedCampaign(currentCampaign);
     persistProspect(answers);
     goNext();
   };
@@ -1336,7 +1358,7 @@ function PublicSpace({ config, onAdmin }) {
       }
       // Si vizitè a deja soumèt fòmilè a (oswa nimewo a deja enskri):
       // montre yon mesaj olye fòmilè a, ak yon bouton Swivan pou kontinye.
-      if (formDone && formComplete) {
+      if (formLocked && formComplete) {
         const doneMsg = formError || "✓ Ou deja ranpli fòmilè sa a. Ou ka kontinye.";
         return (
           <>
@@ -1797,6 +1819,12 @@ function AdminSpace({ config, onSave, onExit }) {
     await onSave(nd);
   };
 
+  const saveWaMessages = async (list, activeId) => {
+    const nd = { ...draft, waMessages: list, activeWaMessage: activeId };
+    setDraft(nd);
+    await onSave(nd);
+  };
+
   /* ---- login ekran ---- */
   if (!authed) {
     return (
@@ -1848,7 +1876,7 @@ function AdminSpace({ config, onSave, onExit }) {
       </div>
 
       {adminTab === "prospects" ? (
-        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} />
+        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} />
       ) : adminTab === "stats" ? (
         <StatsView />
       ) : (
@@ -2247,7 +2275,7 @@ function ProspectsGate({ config }) {
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600 }}>Nouvo Prospè</div>
         <a href="/" style={{ ...ghostBtn, textDecoration: "none" }}>Tounen sou sit la</a>
       </div>
-      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} programs={(config && config.programs) || []} />
+      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} programs={(config && config.programs) || []} waMessages={(config && config.waMessages) || []} activeWaMessage={(config && config.activeWaMessage) || ""} />
     </div>
   );
 }
@@ -2346,7 +2374,7 @@ function StatsView() {
   );
 }
 
-function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [] }) {
+function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages }) {
   const [items, setItems] = useState(null); // null = ap chaje
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState("list"); // "list" | "pdf"
@@ -2354,6 +2382,29 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [creatingEtq, setCreatingEtq] = useState(false); // chan kreye etikèt la louvri
   const [newEtq, setNewEtq] = useState("");
   const [saveErr, setSaveErr] = useState(""); // mesaj erè si anrejistreman echwe
+  const [msgPanel, setMsgPanel] = useState(false); // panèl modèl mesaj WhatsApp louvri
+  const [msgDraft, setMsgDraft] = useState(waMessages || []);
+  const [activeDraft, setActiveDraft] = useState(activeWaMessage || "");
+  const [msgSaved, setMsgSaved] = useState(false);
+  useEffect(() => { setMsgDraft(waMessages || []); }, [waMessages]);
+  useEffect(() => { setActiveDraft(activeWaMessage || ""); }, [activeWaMessage]);
+
+  const addMsg = () => {
+    const id = "wa" + Math.random().toString(36).slice(2, 8);
+    setMsgDraft((l) => [...(l || []), { id, name: "Nouvo modèl", text: DEFAULT_WA_TEMPLATE }]);
+    setActiveDraft((a) => a || id);
+  };
+  const updateMsg = (id, patch) =>
+    setMsgDraft((l) => (l || []).map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  const removeMsg = (id) => {
+    setMsgDraft((l) => (l || []).filter((m) => m.id !== id));
+    setActiveDraft((a) => (a === id ? "" : a));
+  };
+  const saveMsgs = () => {
+    if (onSaveWaMessages) onSaveWaMessages(msgDraft, activeDraft);
+    setMsgSaved(true);
+    setTimeout(() => setMsgSaved(false), 2000);
+  };
 
   // Non etikèt yo (san doub)
   const agentNames = [...new Set(
@@ -2475,38 +2526,28 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     return { priorityCols: [nameCol, phoneCol, addrCol].filter(Boolean), restCols: rest };
   }, [qCols, viewItems]);
 
-  // Premye non moun nan (premye repons ki pa yon telefòn ni yon imèl)
+  // Non konplè moun nan (premye repons ki pa yon telefòn ni yon imèl)
   const prospectName = (p) => {
     for (const a of (p.answers || [])) {
       const val = (a.answer || "").trim();
       if (!val) continue;
       if (validateHaitiPhone(val).ok) continue;
       if (/\S+@\S+\.\S+/.test(val)) continue;
-      return val.split(/\s+/)[0];
+      return val;
     }
     return "";
   };
 
   // Mesaj WhatsApp ki ranpli otomatikman
   const waMessage = (p) => {
-    const name = prospectName(p);
-    const program = p.program || "";
     const resa = resaDate(p);
-    const hasDate = resa && resa !== "—";
-    const reservLine = hasDate
-      ? `Mwen prè pou m akonpaye w plis e ede w valide enskripsyon an ak espesyal rediksyon an. Paske ou ta sipoze reserve avan ${resa} pou w ka pami moun k ap nan espesyal yo.`
-      : `Mwen prè pou m akonpaye w plis e ede w valide enskripsyon an ak espesyal rediksyon an. Plas yo limite, donk reserve pi vit posib pou w ka pami moun k ap nan espesyal yo.`;
-    return [
-      "*Miss Thani Make-up & Lace Club*",
-      "",
-      `Bonjou ${name}`,
-      "",
-      `Nou resevwa pre-enskripsyon ou te fè pou programme ${program}.`,
-      "",
-      reservLine,
-      "",
-      "Èske ou gen kesyon?",
-    ].join("\n");
+    const dat = (resa && resa !== "—") ? resa : "pi vit posib";
+    const active = (waMessages || []).find((m) => m && m.id === activeWaMessage);
+    const tmpl = (active && active.text) || DEFAULT_WA_TEMPLATE;
+    return tmpl
+      .replace(/\{non\}/g, prospectName(p))
+      .replace(/\{program\}/g, p.program || "")
+      .replace(/\{dat\}/g, dat);
   };
 
   // Afiche yon repons; si se yon nimewo Ayiti valab, mete yon bouton WhatsApp bò kote l
@@ -2674,6 +2715,9 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           {isStudents ? "Nouvo Etidyan" : "Nouvo Prospè"} {viewItems ? `(${viewItems.length})` : ""}
         </h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {isAdmin && (
+            <button onClick={() => setMsgPanel((v) => !v)} style={msgPanel ? goldBtn : ghostBtn}>Mesaj WhatsApp</button>
+          )}
           <button onClick={refresh} style={ghostBtn} disabled={busy}>{busy ? "Ap chaje…" : "Aktyalize"}</button>
           {viewItems && viewItems.length > 0 && (
             <>
@@ -2683,6 +2727,60 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           )}
         </div>
       </div>
+
+      {isAdmin && msgPanel && (
+        <div style={{ marginBottom: 18, padding: 16, border: `1px solid ${PALETTE.lineStrong}`, borderRadius: 14, background: "rgba(194,35,142,.05)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 10, flexWrap: "wrap" }}>
+            <strong style={{ fontSize: 15 }}>Modèl mesaj WhatsApp yo</strong>
+            <button onClick={() => setMsgPanel(false)} style={ghostBtn}>Fèmen</button>
+          </div>
+          <p style={{ fontSize: 12.5, color: `${PALETTE.cream}aa`, margin: "0 0 14px", lineHeight: 1.5 }}>
+            Sèvi ak <b>{"{non}"}</b> pou non moun nan, <b>{"{program}"}</b> pou pwogram nan, ak <b>{"{dat}"}</b> pou dat rezèvasyon an. Modèl ou chwazi nan ti meni an se sa k ap kole otomatikman nan WhatsApp lè ou klike bouton vèt la.
+          </p>
+
+          {(msgDraft || []).length === 0 ? (
+            <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: "0 0 12px" }}>Poko gen modèl. Klike "+ Ajoute yon modèl" pou kreye youn. (Si pa gen modèl, app la sèvi ak yon mesaj default.)</p>
+          ) : (
+            (msgDraft || []).map((m) => (
+              <div key={m.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 12, marginBottom: 10, background: "#fff" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                  <input
+                    value={m.name || ""}
+                    onChange={(e) => updateMsg(m.id, { name: e.target.value })}
+                    placeholder="Non modèl la (egz: Premye kontak)"
+                    style={{ flex: 1, fontSize: 13.5, padding: "8px 10px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: "#fff", color: "#3A0E33", boxSizing: "border-box" }}
+                  />
+                  <button onClick={() => removeMsg(m.id)} style={miniDanger} aria-label="Efase modèl">✕</button>
+                </div>
+                <textarea
+                  value={m.text || ""}
+                  onChange={(e) => updateMsg(m.id, { text: e.target.value })}
+                  rows={7}
+                  style={{ width: "100%", fontSize: 13.5, padding: 10, borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: "#fff", color: "#3A0E33", boxSizing: "border-box", resize: "vertical", lineHeight: 1.5 }}
+                />
+              </div>
+            ))
+          )}
+
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+            <button onClick={addMsg} style={ghostBtn}>+ Ajoute yon modèl</button>
+            <label style={{ fontSize: 13, color: `${PALETTE.cream}cc`, display: "inline-flex", alignItems: "center", gap: 6 }}>
+              Mesaj k ap voye:
+              <select
+                value={activeDraft || ""}
+                onChange={(e) => setActiveDraft(e.target.value)}
+                style={{ fontSize: 13, padding: "8px 10px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer" }}
+              >
+                <option value="">Mesaj default</option>
+                {(msgDraft || []).map((m) => (
+                  <option key={m.id} value={m.id}>{m.name || "(san non)"}</option>
+                ))}
+              </select>
+            </label>
+            <button onClick={saveMsgs} style={goldBtn}>{msgSaved ? "✓ Anrejistre" : "Anrejistre modèl yo"}</button>
+          </div>
+        </div>
+      )}
 
       {items === null ? (
         <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p>
