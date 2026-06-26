@@ -2456,6 +2456,59 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     return f ? f.answer || "" : "";
   };
 
+  // Reòganize kolòn yo: Nom, Nimewo (+WhatsApp), Kote li rete an premye; rès yo apre.
+  const { priorityCols, restCols } = useMemo(() => {
+    let nameCol = null, phoneCol = null, addrCol = null;
+    const rest = [];
+    const getVal = (p, q) => {
+      const f = (p.answers || []).find((a) => (a.question || "").trim() === q);
+      return f ? f.answer || "" : "";
+    };
+    const looksPhone = (q) => (viewItems || []).some((p) => validateHaitiPhone(getVal(p, q)).ok);
+    for (const q of qCols) {
+      const ql = q.toLowerCase();
+      if (!phoneCol && (/tel|phone|nimewo|whatsap|telef/.test(ql) || looksPhone(q))) { phoneCol = q; continue; }
+      if (!nameCol && /non|nom|name|prenon|prénom|prenom/.test(ql)) { nameCol = q; continue; }
+      if (!addrCol && /rete|adr|kote|z[oò]n|vil|abite|kominote|address|lokalite|komin|katye|kartye/.test(ql)) { addrCol = q; continue; }
+      rest.push(q);
+    }
+    return { priorityCols: [nameCol, phoneCol, addrCol].filter(Boolean), restCols: rest };
+  }, [qCols, viewItems]);
+
+  // Premye non moun nan (premye repons ki pa yon telefòn ni yon imèl)
+  const prospectName = (p) => {
+    for (const a of (p.answers || [])) {
+      const val = (a.answer || "").trim();
+      if (!val) continue;
+      if (validateHaitiPhone(val).ok) continue;
+      if (/\S+@\S+\.\S+/.test(val)) continue;
+      return val.split(/\s+/)[0];
+    }
+    return "";
+  };
+
+  // Mesaj WhatsApp ki ranpli otomatikman
+  const waMessage = (p) => {
+    const name = prospectName(p);
+    const program = p.program || "";
+    const resa = resaDate(p);
+    const hasDate = resa && resa !== "—";
+    const reservLine = hasDate
+      ? `Mwen prè pou m akonpaye w plis e ede w valide enskripsyon an ak espesyal rediksyon an. Paske ou ta sipoze reserve avan ${resa} pou w ka pami moun k ap nan espesyal yo.`
+      : `Mwen prè pou m akonpaye w plis e ede w valide enskripsyon an ak espesyal rediksyon an. Plas yo limite, donk reserve pi vit posib pou w ka pami moun k ap nan espesyal yo.`;
+    return [
+      "*Miss Thani Make-up & Lace Club*",
+      "",
+      `Bonjou ${name}`,
+      "",
+      `Nou resevwa pre-enskripsyon ou te fè pou programme ${program}.`,
+      "",
+      reservLine,
+      "",
+      "Èske ou gen kesyon?",
+    ].join("\n");
+  };
+
   // Afiche yon repons; si se yon nimewo Ayiti valab, mete yon bouton WhatsApp bò kote l
   const renderAnswer = (p, q) => {
     const val = answerFor(p, q);
@@ -2465,7 +2518,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
           <span>{val}</span>
           <a
-            href={`https://wa.me/${v.e164}`}
+            href={`https://wa.me/${v.e164}?text=${encodeURIComponent(waMessage(p))}`}
             target="_blank"
             rel="noopener noreferrer"
             title={`Ekri ${val} sou WhatsApp`}
@@ -2651,11 +2704,14 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               <tr>
                 <th style={{ ...thDark, width: 36 }}>#</th>
                 <th style={thDark}>Programme</th>
+                {priorityCols.map((q) => (
+                  <th key={q} style={{ ...thDark, whiteSpace: "nowrap" }}>{q}</th>
+                ))}
                 <th style={thDark}>Dat</th>
                 <th style={{ ...thDark, whiteSpace: "nowrap" }}>Réservation</th>
                 <th style={{ ...thDark, width: 150 }}>Swivi</th>
                 <th style={{ ...thDark, width: 150 }}>Etikèt</th>
-                {qCols.map((q) => (
+                {restCols.map((q) => (
                   <th key={q} style={thDark}>{q}</th>
                 ))}
                 <th style={{ ...thDark, width: 40 }}></th>
@@ -2666,6 +2722,9 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                 <tr key={p.id}>
                   <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 700 }}>{idx + 1}</td>
                   <td style={{ ...tdDark, color: PALETTE.goldSoft, fontWeight: 600, whiteSpace: "nowrap" }}>{p.program || "-"}</td>
+                  {priorityCols.map((q) => (
+                    <td key={q} style={{ ...tdDark, whiteSpace: "nowrap" }}>{renderAnswer(p, q)}</td>
+                  ))}
                   <td style={{ ...tdDark, color: `${PALETTE.cream}88`, whiteSpace: "nowrap" }}>{shortDate(p.updatedAt)}</td>
                   <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 600, whiteSpace: "nowrap" }}>{resaDate(p)}</td>
                   <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
@@ -2702,7 +2761,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                       </span>
                     )}
                   </td>
-                  {qCols.map((q) => (
+                  {restCols.map((q) => (
                     <td key={q} style={tdDark}>{renderAnswer(p, q)}</td>
                   ))}
                   <td style={{ ...tdDark, textAlign: "center" }}>
