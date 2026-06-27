@@ -2532,6 +2532,18 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [openProg, setOpenProg] = useState({}); // ki programme ki louvri
   const toggleProg = (k) => setOpenProg((s) => ({ ...s, [k]: !s[k] }));
 
+  // Pliye/depliye chak programme nan panèl Dat rezèvasyon an (louvri otomatikman sa ki gen yon peryòd an kous)
+  const [openResa, setOpenResa] = useState(() => {
+    const o = {};
+    const t = todayStr();
+    (programs || []).forEach((prog) => {
+      const slots = allVideoSlots(prog.steps || []);
+      if (slots.some((s) => s.start && s.start <= t && (!s.end || t <= s.end))) o[prog.label] = true;
+    });
+    return o;
+  });
+  const toggleResa = (k) => setOpenResa((s) => ({ ...s, [k]: !s[k] }));
+
   // Tèt tablo a (menm pou chak programme)
   const headCells = () => (
     <>
@@ -2886,38 +2898,68 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             Dat rezèvasyon an se 10 jou apre video pwograme a kòmanse. Men chak peryòd video ak dat limit rezèvasyon ki mache avè l.
           </p>
           {(() => {
-            const rows = [];
-            (programs || []).forEach((prog) => {
-              const slots = allVideoSlots(prog.steps || []);
-              slots.forEach((s) => rows.push({ program: prog.label, start: s.start, end: s.end, resa: addDays(s.start, 10) }));
-            });
-            if (rows.length === 0) {
+            const t = todayStr();
+            const progList = (programs || [])
+              .map((prog) => {
+                const slots = allVideoSlots(prog.steps || []).map((s) => ({
+                  start: s.start,
+                  end: s.end,
+                  resa: addDays(s.start, 10),
+                  active: s.start && s.start <= t && (!s.end || t <= s.end),
+                }));
+                return { label: prog.label, slots };
+              })
+              .filter((p) => p.slots.length > 0);
+
+            if (progList.length === 0) {
               return <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: 0 }}>Poko gen okenn video pwograme ak yon dat. (Mete yon orè sou yon blòk Videyo nan Editè a pou dat yo parèt isit la.)</p>;
             }
-            return (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 480 }}>
-                  <thead>
-                    <tr>
-                      <th style={thDark}>Programme</th>
-                      <th style={{ ...thDark, whiteSpace: "nowrap" }}>Peryòd video (soti → rive)</th>
-                      <th style={{ ...thDark, whiteSpace: "nowrap" }}>Dat limit rezèvasyon</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r, i) => (
-                      <tr key={i}>
-                        <td style={{ ...tdDark, color: PALETTE.goldSoft, fontWeight: 600 }}>{r.program}</td>
-                        <td style={{ ...tdDark, whiteSpace: "nowrap" }}>
-                          {formatHtDate(r.start)} {r.end ? `→ ${formatHtDate(r.end)}` : "→ (san limit)"}
-                        </td>
-                        <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 700, whiteSpace: "nowrap" }}>{formatHtDate(r.resa)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            );
+            return progList.map((pr) => {
+              const open = !!openResa[pr.label];
+              const hasActive = pr.slots.some((s) => s.active);
+              return (
+                <div key={pr.label} style={{ marginBottom: 10, border: `1px solid ${PALETTE.line}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
+                  <button
+                    type="button"
+                    onClick={() => toggleResa(pr.label)}
+                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "11px 13px", background: "rgba(224,165,10,.10)", border: "none", cursor: "pointer", textAlign: "left" }}
+                  >
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 12, color: PALETTE.gold, transform: open ? "rotate(90deg)" : "none", transition: "transform .15s", display: "inline-block" }}>▶</span>
+                      <strong style={{ fontSize: 14.5, color: PALETTE.cream }}>{pr.label}</strong>
+                    </span>
+                    <span style={{ fontSize: 12, color: `${PALETTE.cream}aa`, fontWeight: 600, whiteSpace: "nowrap" }}>
+                      {pr.slots.length} peryòd{hasActive ? " · ● an kous" : ""}
+                    </span>
+                  </button>
+                  {open && (
+                    <div style={{ overflowX: "auto", borderTop: `1px solid ${PALETTE.line}` }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 380 }}>
+                        <thead>
+                          <tr>
+                            <th style={{ ...thDark, whiteSpace: "nowrap" }}>Peryòd video (soti → rive)</th>
+                            <th style={{ ...thDark, whiteSpace: "nowrap" }}>Dat limit rezèvasyon</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pr.slots.map((s, i) => (
+                            <tr key={i} style={s.active ? { background: "rgba(224,165,10,.22)" } : undefined}>
+                              <td style={{ ...tdDark, whiteSpace: "nowrap", fontWeight: s.active ? 700 : 400 }}>
+                                {formatHtDate(s.start)} {s.end ? `→ ${formatHtDate(s.end)}` : "→ (san limit)"}
+                                {s.active && (
+                                  <span style={{ marginLeft: 8, display: "inline-block", padding: "1px 8px", borderRadius: 999, background: PALETTE.gold, color: "#fff", fontSize: 10.5, fontWeight: 700, verticalAlign: "middle" }}>● AN KOUS</span>
+                                )}
+                              </td>
+                              <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 700, whiteSpace: "nowrap" }}>{formatHtDate(s.resa)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            });
           })()}
         </div>
       )}
