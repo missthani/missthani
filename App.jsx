@@ -144,6 +144,26 @@ function activeVideoStartAll(screens) {
   return "";
 }
 
+/* Kreno video aktif la (start + end) — pou konnen dat "rive" a (dezyèm dat la) */
+function activeVideoSlot(blocks) {
+  const today = todayStr();
+  for (const b of blocks || []) {
+    if (b.kind !== "video") continue;
+    for (const s of b.schedule || []) {
+      if (!s.start || !((s.url || "").trim())) continue;
+      if (s.start <= today && (!s.end || today <= s.end)) return { start: s.start, end: s.end || "" };
+    }
+  }
+  return null;
+}
+function activeVideoSlotAll(screens) {
+  for (const sc of screens || []) {
+    const sl = activeVideoSlot(getStepBlocks(sc));
+    if (sl) return sl;
+  }
+  return null;
+}
+
 /* Tout kreno video pwograme yo (start/end) atravè tout etap yon pwogram — pou apèsi dat rezèvasyon yo */
 function allVideoSlots(screens) {
   const out = [];
@@ -194,12 +214,27 @@ const FOLLOWUP_TPL = {
   done: "Nou te kontan pale avèk ou {non} ! Sonje vin rezève plas ou anvan {dat10}.",
   noanswer: "Nou eseye rele w {non}, men nimewo ou a sone san repons. Tanpri verifye si w te resevwa apèl nou, e pa bliye vin rezève plas ou anvan {dat10}.",
   wrong: "Bonjou {non}. Nimewo ou te ban nou an pa fonksyone, nou pa rive jwenn ou. Tanpri ban nou yon lòt nimewo nou ka rele w.",
+  lwen: "Hello chère, nou vle raple w ke adrès nou se Pétion-Ville, Morne Hercule, nan lokal Zéphyrs. Etandone ou rete {adres}, nou wè adrès la yon jan lwen pou ou. Si tout fwa ou konte vini pi pre nou pou w ka vin pran fòmasyon {program} an, kontakte nou sou 46433016 pou n ka fè swivi pou ou.",
 };
 const FOLLOWUP_LABELS = {
   done: "Suivi fèt",
   noanswer: "Sone san repons",
   wrong: "Pa sone ditou (nimewo pa bon)",
+  lwen: "Lwen",
 };
+
+/* Mesaj ki ranplase mesaj rezèvasyon an lè dat limit la (dat10) fin pase, men peryòd la poko fini.
+   {datRive}=dezyèm dat la (dat rive a) nan peryòd soti→rive */
+const EXPIRED_RESA_TPL = "Hello chère, nou toujou ap resevwa enskripsyon jiska {datRive}, menm si espesyal la fini. Ou ka toujou vin enskri pou nouvèl sesyon an.";
+
+/* Pran adrès yon moun nan repons li yo (kolòn ki gen mo kle adrès) */
+function extractAddress(answers) {
+  const re = /rete|adr|kote|z[oò]n|vil|abite|kominote|address|lokalite|komin|katye|kartye/i;
+  for (const a of answers || []) {
+    if (re.test(a.question || "")) return (a.answer || "").trim();
+  }
+  return "";
+}
 
 /* Modèl default mesaj WhatsApp la — {non}=non konplè, {program}=pwogram, {dat}=dat rezèvasyon */
 const DEFAULT_WA_TEMPLATE = "*Miss Thani Make-up & Lace Club*\n\nBonjou {non}\n\nNou resevwa pre-enskripsyon ou te fè pou programme {program}.\n\nMwen prè pou m akonpaye w plis e ede w valide enskripsyon an ak espesyal rediksyon an. Paske ou ta sipoze reserve avan {dat} pou w ka pami moun k ap nan espesyal yo.\n\nÈske ou gen kesyon?";
@@ -212,12 +247,15 @@ const DEFAULT_SPECIAL_TPL = "Felisitasyon {non} ! Nou resevwa enfòmasyon pèson
    {dat10} ak {dat5} toulède bay menm dat la (10 jou apre dat video a). */
 function renderTemplate(tpl, vars) {
   const v = vars || {};
-  const parts = String(tpl || "").split(/(\{special\}|\{dat10\}|\{dat5\}|\{dat\}|\{non\})/g);
+  const parts = String(tpl || "").split(/(\{special\}|\{dat10\}|\{dat5\}|\{datRive\}|\{dat\}|\{non\}|\{adres\}|\{program\})/g);
   return parts.map((part, i) => {
     if (part === "{special}") return <strong key={i} style={{ color: PALETTE.goldSoft }}>{v.special || ""}</strong>;
     if (part === "{dat10}" || part === "{dat5}") return <strong key={i} style={{ color: PALETTE.goldSoft }}>{v.dat10 || ""}</strong>;
+    if (part === "{datRive}") return <strong key={i} style={{ color: PALETTE.goldSoft }}>{v.datRive || ""}</strong>;
     if (part === "{dat}") return <strong key={i} style={{ color: PALETTE.goldSoft }}>{v.dat || ""}</strong>;
     if (part === "{non}") return <strong key={i} style={{ color: PALETTE.goldSoft }}>{v.non || ""}</strong>;
+    if (part === "{adres}") return <strong key={i} style={{ color: PALETTE.goldSoft }}>{v.adres || ""}</strong>;
+    if (part === "{program}") return <strong key={i} style={{ color: PALETTE.goldSoft }}>{v.program || ""}</strong>;
     return <React.Fragment key={i}>{part}</React.Fragment>;
   });
 }
@@ -999,6 +1037,8 @@ function PublicSpace({ config, onAdmin }) {
 
   // Estati swivi pèsonèl vizitè a (admin nan mete l) + modifikasyon nimewo
   const [myFollowup, setMyFollowup] = useState("");
+  const [myAddr, setMyAddr] = useState("");
+  const [myProgram, setMyProgram] = useState("");
   const [editPhone, setEditPhone] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [phoneErr, setPhoneErr] = useState("");
@@ -1012,7 +1052,11 @@ function PublicSpace({ config, onAdmin }) {
     (async () => {
       if (!sessionRef.current) return;
       const rec = await loadProspectById(sessionRef.current);
-      if (active && rec) setMyFollowup(rec.followup || "");
+      if (active && rec) {
+        setMyFollowup(rec.followup || "");
+        setMyAddr(extractAddress(rec.answers));
+        setMyProgram(rec.program || "");
+      }
     })();
     return () => { active = false; };
   }, []);
@@ -1085,16 +1129,27 @@ function PublicSpace({ config, onAdmin }) {
     const bl = getStepBlocks(screens[i]);
     for (const b of bl) {
       if (b.kind === "special" && b.banner && formComplete) {
-        const dat10 = formatHtDate(addDays(specialVideoStart(screens, b), 10));
-        announcements.push({
-          id: b.id + "-" + i,
-          node: renderTemplate((b.tpl || "").trim() || DEFAULT_SPECIAL_TPL, {
+        const startDate = specialVideoStart(screens, b);
+        const deadlineRaw = addDays(startDate, 10); // dat limit rezèvasyon (YYYY-MM-DD)
+        const slot = activeVideoSlotAll(screens);
+        const riveRaw = slot ? slot.end : ""; // dezyèm dat la (dat rive a)
+        const expired = deadlineRaw && todayStr() > deadlineRaw;
+        let node;
+        if (expired && riveRaw) {
+          // Dat rezèvasyon an pase, men peryòd la poko fini: mesaj "n ap toujou resevwa enskripsyon jiska dat rive a"
+          node = renderTemplate(EXPIRED_RESA_TPL, {
+            datRive: formatHtDate(riveRaw),
+            non: firstNameGlobal,
+          });
+        } else {
+          node = renderTemplate((b.tpl || "").trim() || DEFAULT_SPECIAL_TPL, {
             special: (b.specialName || "").trim() || "special sa a",
             dat: formatHtDate(b.reserveDate),
-            dat10,
+            dat10: formatHtDate(deadlineRaw),
             non: firstNameGlobal,
-          }),
-        });
+          });
+        }
+        announcements.push({ id: b.id + "-" + i, node });
       }
     }
   }
@@ -1102,7 +1157,7 @@ function PublicSpace({ config, onAdmin }) {
   // Mesaj swivi pèsonèl (admin nan mete l nan paj prospè yo) — parèt anlè paj la
   const followupDat10 = formatHtDate(addDays(anyActiveVideoStart(programs), 10));
   const followupText = (myFollowup && FOLLOWUP_TPL[myFollowup])
-    ? renderTemplate(FOLLOWUP_TPL[myFollowup], { non: firstNameGlobal || "", dat10: followupDat10, dat: "", special: "" })
+    ? renderTemplate(FOLLOWUP_TPL[myFollowup], { non: firstNameGlobal || "", dat10: followupDat10, dat: "", special: "", adres: myAddr, program: myProgram || (selected && selected.label) || "" })
     : "";
 
   const saveNewPhone = async () => {
