@@ -2460,11 +2460,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   // Lis ki montre selon tab la: Etidyan = sa ki make "Vini", Prospè = lòt yo
   const viewItems = useMemo(() => {
     if (!items) return null;
-    return tab === "students"
-      ? items.filter((p) => p.followup === "vini")
-      : items.filter((p) => p.followup !== "vini");
+    if (tab === "students") return items.filter((p) => p.followup === "vini");
+    if (tab === "lwen") return items.filter((p) => p.followup === "lwen");
+    return items.filter((p) => p.followup !== "vini" && p.followup !== "lwen");
   }, [items, tab]);
   const isStudents = tab === "students";
+  const isLwen = tab === "lwen";
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -2596,6 +2597,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           <option value="noanswer">Sone san repons</option>
           <option value="wrong">Pa sone ditou</option>
           <option value="vini">Vini (nouvo etidyan)</option>
+          <option value="lwen">Lwen</option>
         </select>
       </td>
       <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
@@ -2749,7 +2751,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       <div>
         <div className="no-print" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, margin: 0 }}>
-            Vèsyon PDF — {(viewItems || []).length} {isStudents ? "etidyan" : "prospè"}
+            Vèsyon PDF — {(viewItems || []).length} {isStudents ? "etidyan" : isLwen ? "lwen" : "prospè"}
           </h2>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button onClick={() => setMode("list")} style={ghostBtn}>Tounen</button>
@@ -2828,6 +2830,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         >
           Nouvo Etidyan
         </button>
+        <button
+          onClick={() => { setTab("lwen"); setMode("list"); }}
+          style={tab === "lwen" ? goldBtn : ghostBtn}
+        >
+          Lwen
+        </button>
       </div>
 
       {saveErr && (
@@ -2871,7 +2879,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
         <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, margin: 0 }}>
-          {isStudents ? "Nouvo Etidyan" : "Nouvo Prospè"} {viewItems ? `(${viewItems.length})` : ""}
+          {isStudents ? "Nouvo Etidyan" : isLwen ? "Lwen" : "Nouvo Prospè"} {viewItems ? `(${viewItems.length})` : ""}
         </h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={() => setResaPanel((v) => !v)} style={resaPanel ? goldBtn : ghostBtn}>Dat rezèvasyon</button>
@@ -3023,11 +3031,13 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       ) : viewItems.length === 0 ? (
         <div style={{ textAlign: "center", padding: "40px 20px", border: `1px solid ${PALETTE.line}`, borderRadius: 16, background: "rgba(194,35,142,.04)" }}>
           <p style={{ fontSize: 16, color: `${PALETTE.cream}cc`, margin: 0 }}>
-            {isStudents ? "Poko gen okenn etidyan." : "Poko gen okenn prospè."}
+            {isStudents ? "Poko gen okenn etidyan." : isLwen ? "Poko gen okenn moun lwen." : "Poko gen okenn prospè."}
           </p>
           <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: "8px 0 0" }}>
             {isStudents
               ? "Lè ou make yon prospè \"Vini\" nan lis swivi a, l ap parèt isit la."
+              : isLwen
+              ? "Lè ou make yon prospè \"Lwen\" nan lis swivi a, l ap parèt isit la."
               : "Lè yon moun reponn yon etap Fòmilè sou paj piblik la, l ap parèt isit la."}
           </p>
         </div>
