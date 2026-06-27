@@ -144,6 +144,22 @@ function activeVideoStartAll(screens) {
   return "";
 }
 
+/* Tout kreno video pwograme yo (start/end) atravè tout etap yon pwogram — pou apèsi dat rezèvasyon yo */
+function allVideoSlots(screens) {
+  const out = [];
+  for (const sc of screens || []) {
+    for (const b of getStepBlocks(sc) || []) {
+      if (b.kind !== "video") continue;
+      for (const s of b.schedule || []) {
+        if (!s.start || !((s.url || "").trim())) continue;
+        out.push({ start: s.start, end: s.end || "" });
+      }
+    }
+  }
+  out.sort((a, b) => String(a.start).localeCompare(String(b.start)));
+  return out;
+}
+
 /* Jwenn dat video pwograme yon ETAP espesifik (1 = premye etap). 
    Si etap la pa egziste oswa pa gen video aktif, li retounen "". */
 function activeVideoStartForStep(screens, stepNum) {
@@ -385,6 +401,7 @@ async function loadProspects() {
       answers: r.answers || [],
       followup: r.followup || "",
       etiquette: r.etiquette || "",
+      contacted: !!r.contacted,
       updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : 0,
     }));
   } catch (e) {
@@ -444,6 +461,18 @@ async function setProspectEtiquette(id, name) {
   if (!id) return false;
   try {
     const { data, error } = await supabase.from("prospects").update({ etiquette: name }).eq("id", id).select();
+    if (error) return false;
+    return (data || []).length > 0;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* Make si yon mesaj WhatsApp te voye bay prospè a (vèt = voye, wouj = poko) */
+async function setProspectContacted(id, val) {
+  if (!id) return false;
+  try {
+    const { data, error } = await supabase.from("prospects").update({ contacted: !!val }).eq("id", id).select();
     if (error) return false;
     return (data || []).length > 0;
   } catch (e) {
@@ -2383,6 +2412,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [newEtq, setNewEtq] = useState("");
   const [saveErr, setSaveErr] = useState(""); // mesaj erè si anrejistreman echwe
   const [msgPanel, setMsgPanel] = useState(false); // panèl modèl mesaj WhatsApp louvri
+  const [resaPanel, setResaPanel] = useState(false); // panèl apèsi dat rezèvasyon yo
   const [msgDraft, setMsgDraft] = useState(waMessages || []);
   const [activeDraft, setActiveDraft] = useState(activeWaMessage || "");
   const [msgSaved, setMsgSaved] = useState(false);
@@ -2468,6 +2498,122 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     if (!ok) { setSaveErr("Pa rive anrejistre etikèt la nan baz done a. Tcheke kolòn `etiquette` ak règ RLS yo nan Supabase."); refresh(); }
   };
 
+  // Make si yon mesaj WhatsApp voye (vèt) oswa poko (wouj)
+  const markContacted = async (p, val) => {
+    if (!p || p.contacted === val) return;
+    setItems((prev) => (prev || []).map((x) => (x.id === p.id ? { ...x, contacted: val } : x)));
+    const ok = await setProspectContacted(p.id, val);
+    if (!ok) { setSaveErr("Pa rive anrejistre estati kontak la. Tcheke kolòn `contacted` nan Supabase."); refresh(); }
+  };
+  const toggleContacted = (p) => markContacted(p, !p.contacted);
+
+  // Ti boul koulè bò kote non an: vèt = mesaj WhatsApp voye, wouj = poko
+  const contactDot = (p) => (
+    <button
+      type="button"
+      onClick={() => toggleContacted(p)}
+      title={p.contacted ? "Mesaj WhatsApp voye — klike pou remete wouj" : "Poko voye mesaj — klike pou make voye"}
+      aria-label="Estati kontak WhatsApp"
+      style={{ width: 13, height: 13, borderRadius: "50%", border: "none", cursor: "pointer", padding: 0, flexShrink: 0, background: p.contacted ? "#25D366" : "#C0392B", boxShadow: p.contacted ? "0 0 0 2px rgba(37,211,102,.25)" : "0 0 0 2px rgba(192,57,43,.22)" }}
+    />
+  );
+
+  // Gwoupe prospè yo pa programme
+  const groups = useMemo(() => {
+    if (!viewItems) return [];
+    const map = new Map();
+    viewItems.forEach((p) => {
+      const k = p.program || "(San programme)";
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(p);
+    });
+    return Array.from(map.entries());
+  }, [viewItems]);
+  const [openProg, setOpenProg] = useState({}); // ki programme ki louvri
+  const toggleProg = (k) => setOpenProg((s) => ({ ...s, [k]: !s[k] }));
+
+  // Tèt tablo a (menm pou chak programme)
+  const headCells = (
+    <>
+      <th style={{ ...thDark, width: 36 }}>#</th>
+      {priorityCols.map((q) => (
+        <th key={q} style={{ ...thDark, whiteSpace: "nowrap" }}>{q}</th>
+      ))}
+      <th style={thDark}>Dat</th>
+      <th style={{ ...thDark, whiteSpace: "nowrap" }}>Réservation</th>
+      <th style={{ ...thDark, width: 150 }}>Swivi</th>
+      <th style={{ ...thDark, width: 150 }}>Etikèt</th>
+      {restCols.map((q) => (
+        <th key={q} style={thDark}>{q}</th>
+      ))}
+      <th style={{ ...thDark, width: 40 }}></th>
+    </>
+  );
+
+  // Yon ranje prospè
+  const renderRow = (p, idx) => (
+    <tr key={p.id}>
+      <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 700, whiteSpace: "nowrap" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {!nameCol && contactDot(p)}
+          {idx + 1}
+        </span>
+      </td>
+      {priorityCols.map((q) => (
+        <td key={q} style={{ ...tdDark, whiteSpace: "nowrap" }}>
+          {q === nameCol ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              {contactDot(p)}
+              {renderAnswer(p, q)}
+            </span>
+          ) : (
+            renderAnswer(p, q)
+          )}
+        </td>
+      ))}
+      <td style={{ ...tdDark, color: `${PALETTE.cream}88`, whiteSpace: "nowrap" }}>{shortDate(p.updatedAt)}</td>
+      <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 600, whiteSpace: "nowrap" }}>{resaDate(p)}</td>
+      <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
+        <select
+          value={p.followup || ""}
+          onChange={(e) => setSwivi(p.id, e.target.value)}
+          style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.followup ? "#FBE9F4" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 150 }}
+        >
+          <option value="">Swivi…</option>
+          <option value="done">Suivi fèt</option>
+          <option value="noanswer">Sone san repons</option>
+          <option value="wrong">Pa sone ditou</option>
+          <option value="vini">Vini (nouvo etidyan)</option>
+        </select>
+      </td>
+      <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
+        {(isAdmin || !p.etiquette) ? (
+          <select
+            value={p.etiquette || ""}
+            onChange={(e) => setEtiquette(p.id, e.target.value)}
+            style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.etiquette ? "#EEE3F7" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 150 }}
+          >
+            <option value="">Ajoute etikèt…</option>
+            {agentNames.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+            {p.etiquette && !agentNames.includes(p.etiquette) && (
+              <option value={p.etiquette}>{p.etiquette}</option>
+            )}
+          </select>
+        ) : (
+          <span style={{ fontSize: 13, color: "#7B2D8E", fontWeight: 600 }}>{p.etiquette}</span>
+        )}
+      </td>
+      {restCols.map((q) => (
+        <td key={q} style={tdDark}>{renderAnswer(p, q)}</td>
+      ))}
+      <td style={{ ...tdDark, textAlign: "center" }}>
+        <button onClick={() => remove(p.id)} style={miniDanger} aria-label="Efase prospè">✕</button>
+      </td>
+    </tr>
+  );
+
   const fmtDate = (ts) => {
     if (!ts) return "";
     try {
@@ -2508,7 +2654,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   };
 
   // Reòganize kolòn yo: Nom, Nimewo (+WhatsApp), Kote li rete an premye; rès yo apre.
-  const { priorityCols, restCols } = useMemo(() => {
+  const { priorityCols, restCols, nameCol } = useMemo(() => {
     let nameCol = null, phoneCol = null, addrCol = null;
     const rest = [];
     const getVal = (p, q) => {
@@ -2523,7 +2669,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       if (!addrCol && /rete|adr|kote|z[oò]n|vil|abite|kominote|address|lokalite|komin|katye|kartye/.test(ql)) { addrCol = q; continue; }
       rest.push(q);
     }
-    return { priorityCols: [nameCol, phoneCol, addrCol].filter(Boolean), restCols: rest };
+    return { priorityCols: [nameCol, phoneCol, addrCol].filter(Boolean), restCols: rest, nameCol };
   }, [qCols, viewItems]);
 
   // Non konplè moun nan (premye repons ki pa yon telefòn ni yon imèl)
@@ -2562,6 +2708,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             href={`https://wa.me/${v.e164}?text=${encodeURIComponent(waMessage(p))}`}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => markContacted(p, true)}
             title={`Ekri ${val} sou WhatsApp`}
             style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, background: "#25D366", color: "#fff", textDecoration: "none", fontSize: 11, fontWeight: 700 }}
           >
@@ -2715,6 +2862,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           {isStudents ? "Nouvo Etidyan" : "Nouvo Prospè"} {viewItems ? `(${viewItems.length})` : ""}
         </h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => setResaPanel((v) => !v)} style={resaPanel ? goldBtn : ghostBtn}>Dat rezèvasyon</button>
           {isAdmin && (
             <button onClick={() => setMsgPanel((v) => !v)} style={msgPanel ? goldBtn : ghostBtn}>Mesaj WhatsApp</button>
           )}
@@ -2727,6 +2875,52 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           )}
         </div>
       </div>
+
+      {resaPanel && (
+        <div style={{ marginBottom: 18, padding: 16, border: `1px solid ${PALETTE.gold}`, borderRadius: 14, background: "rgba(224,165,10,.08)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10, flexWrap: "wrap" }}>
+            <strong style={{ fontSize: 15 }}>Dat rezèvasyon pa programme</strong>
+            <button onClick={() => setResaPanel(false)} style={ghostBtn}>Fèmen</button>
+          </div>
+          <p style={{ fontSize: 12.5, color: `${PALETTE.cream}aa`, margin: "0 0 14px", lineHeight: 1.5 }}>
+            Dat rezèvasyon an se 10 jou apre video pwograme a kòmanse. Men chak peryòd video ak dat limit rezèvasyon ki mache avè l.
+          </p>
+          {(() => {
+            const rows = [];
+            (programs || []).forEach((prog) => {
+              const slots = allVideoSlots(prog.steps || []);
+              slots.forEach((s) => rows.push({ program: prog.label, start: s.start, end: s.end, resa: addDays(s.start, 10) }));
+            });
+            if (rows.length === 0) {
+              return <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: 0 }}>Poko gen okenn video pwograme ak yon dat. (Mete yon orè sou yon blòk Videyo nan Editè a pou dat yo parèt isit la.)</p>;
+            }
+            return (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 480 }}>
+                  <thead>
+                    <tr>
+                      <th style={thDark}>Programme</th>
+                      <th style={{ ...thDark, whiteSpace: "nowrap" }}>Peryòd video (soti → rive)</th>
+                      <th style={{ ...thDark, whiteSpace: "nowrap" }}>Dat limit rezèvasyon</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={i}>
+                        <td style={{ ...tdDark, color: PALETTE.goldSoft, fontWeight: 600 }}>{r.program}</td>
+                        <td style={{ ...tdDark, whiteSpace: "nowrap" }}>
+                          {formatHtDate(r.start)} {r.end ? `→ ${formatHtDate(r.end)}` : "→ (san limit)"}
+                        </td>
+                        <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 700, whiteSpace: "nowrap" }}>{formatHtDate(r.resa)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {isAdmin && msgPanel && (
         <div style={{ marginBottom: 18, padding: 16, border: `1px solid ${PALETTE.lineStrong}`, borderRadius: 14, background: "rgba(194,35,142,.05)" }}>
@@ -2796,79 +2990,37 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           </p>
         </div>
       ) : (
-        <div style={{ overflowX: "auto", border: `1px solid ${PALETTE.line}`, borderRadius: 12 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
-            <thead>
-              <tr>
-                <th style={{ ...thDark, width: 36 }}>#</th>
-                <th style={thDark}>Programme</th>
-                {priorityCols.map((q) => (
-                  <th key={q} style={{ ...thDark, whiteSpace: "nowrap" }}>{q}</th>
-                ))}
-                <th style={thDark}>Dat</th>
-                <th style={{ ...thDark, whiteSpace: "nowrap" }}>Réservation</th>
-                <th style={{ ...thDark, width: 150 }}>Swivi</th>
-                <th style={{ ...thDark, width: 150 }}>Etikèt</th>
-                {restCols.map((q) => (
-                  <th key={q} style={thDark}>{q}</th>
-                ))}
-                <th style={{ ...thDark, width: 40 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {viewItems.map((p, idx) => (
-                <tr key={p.id}>
-                  <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 700 }}>{idx + 1}</td>
-                  <td style={{ ...tdDark, color: PALETTE.goldSoft, fontWeight: 600, whiteSpace: "nowrap" }}>{p.program || "-"}</td>
-                  {priorityCols.map((q) => (
-                    <td key={q} style={{ ...tdDark, whiteSpace: "nowrap" }}>{renderAnswer(p, q)}</td>
-                  ))}
-                  <td style={{ ...tdDark, color: `${PALETTE.cream}88`, whiteSpace: "nowrap" }}>{shortDate(p.updatedAt)}</td>
-                  <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 600, whiteSpace: "nowrap" }}>{resaDate(p)}</td>
-                  <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
-                    <select
-                      value={p.followup || ""}
-                      onChange={(e) => setSwivi(p.id, e.target.value)}
-                      style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.followup ? "#FBE9F4" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 150 }}
-                    >
-                      <option value="">Swivi…</option>
-                      <option value="done">Suivi fèt</option>
-                      <option value="noanswer">Sone san repons</option>
-                      <option value="wrong">Pa sone ditou</option>
-                      <option value="vini">Vini (nouvo etidyan)</option>
-                    </select>
-                  </td>
-                  <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
-                    {(isAdmin || !p.etiquette) ? (
-                      <select
-                        value={p.etiquette || ""}
-                        onChange={(e) => setEtiquette(p.id, e.target.value)}
-                        style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.etiquette ? "#EEE3F7" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 150 }}
-                      >
-                        <option value="">Ajoute etikèt…</option>
-                        {agentNames.map((n) => (
-                          <option key={n} value={n}>{n}</option>
-                        ))}
-                        {p.etiquette && !agentNames.includes(p.etiquette) && (
-                          <option value={p.etiquette}>{p.etiquette}</option>
-                        )}
-                      </select>
-                    ) : (
-                      <span style={{ fontSize: 13, color: "#7B2D8E", fontWeight: 600 }}>
-                        {p.etiquette}
-                      </span>
-                    )}
-                  </td>
-                  {restCols.map((q) => (
-                    <td key={q} style={tdDark}>{renderAnswer(p, q)}</td>
-                  ))}
-                  <td style={{ ...tdDark, textAlign: "center" }}>
-                    <button onClick={() => remove(p.id)} style={miniDanger} aria-label="Efase prospè">✕</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div>
+          {groups.map(([prog, rows]) => {
+            const open = !!openProg[prog];
+            return (
+              <div key={prog} style={{ marginBottom: 12, border: `1px solid ${PALETTE.line}`, borderRadius: 12, overflow: "hidden" }}>
+                <button
+                  type="button"
+                  onClick={() => toggleProg(prog)}
+                  style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 14px", background: "rgba(194,35,142,.06)", border: "none", cursor: "pointer", textAlign: "left" }}
+                >
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 12, color: PALETTE.goldSoft, transform: open ? "rotate(90deg)" : "none", transition: "transform .15s", display: "inline-block" }}>▶</span>
+                    <strong style={{ fontSize: 15.5, color: PALETTE.cream }}>{prog}</strong>
+                  </span>
+                  <span style={{ fontSize: 13, color: `${PALETTE.cream}aa`, fontWeight: 600 }}>{rows.length} moun</span>
+                </button>
+                {open && (
+                  <div style={{ overflowX: "auto", borderTop: `1px solid ${PALETTE.line}` }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
+                      <thead>
+                        <tr>{headCells}</tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((p, idx) => renderRow(p, idx))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
