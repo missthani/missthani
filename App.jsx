@@ -2533,7 +2533,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const toggleProg = (k) => setOpenProg((s) => ({ ...s, [k]: !s[k] }));
 
   // Tèt tablo a (menm pou chak programme)
-  const headCells = (
+  const headCells = () => (
     <>
       <th style={{ ...thDark, width: 36 }}>#</th>
       {priorityCols.map((q) => (
@@ -3010,7 +3010,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                   <div style={{ overflowX: "auto", borderTop: `1px solid ${PALETTE.line}` }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
                       <thead>
-                        <tr>{headCells}</tr>
+                        <tr>{headCells()}</tr>
                       </thead>
                       <tbody>
                         {rows.map((p, idx) => renderRow(p, idx))}
