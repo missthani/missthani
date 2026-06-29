@@ -518,6 +518,20 @@ async function setProspectContacted(id, val) {
   }
 }
 
+/* Kachèt lokal pou estati kontak la (rezilyans si Supabase pa sove a tan, sitou sou telefòn) */
+const CONTACTED_CACHE_KEY = "missthani_contacted";
+function loadContactedCache() {
+  try { return JSON.parse(localStorage.getItem(CONTACTED_CACHE_KEY) || "{}") || {}; }
+  catch (e) { return {}; }
+}
+function saveContactedCache(id, val) {
+  try {
+    const c = loadContactedCache();
+    c[id] = !!val;
+    localStorage.setItem(CONTACTED_CACHE_KEY, JSON.stringify(c));
+  } catch (e) {}
+}
+
 /* Chèche yon sèl prospè pa idantifyan li (pou vizitè a tcheke pwòp estati swivi li) */
 async function loadProspectById(id) {
   if (!id) return null;
@@ -2525,7 +2539,11 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const refresh = useCallback(async () => {
     setBusy(true);
     const list = await loadProspects();
-    setItems(list);
+    const cache = loadContactedCache();
+    const merged = (list || []).map((p) =>
+      Object.prototype.hasOwnProperty.call(cache, p.id) ? { ...p, contacted: cache[p.id] } : p
+    );
+    setItems(merged);
     setBusy(false);
   }, []);
 
@@ -2558,8 +2576,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const markContacted = async (p, val) => {
     if (!p || p.contacted === val) return;
     setItems((prev) => (prev || []).map((x) => (x.id === p.id ? { ...x, contacted: val } : x)));
+    saveContactedCache(p.id, val); // kenbe l sou aparèy sa a kèlkeswa rezilta Supabase la
     const ok = await setProspectContacted(p.id, val);
-    if (!ok) { setSaveErr("Pa rive anrejistre estati kontak la. Tcheke kolòn `contacted` nan Supabase."); refresh(); }
+    if (!ok) {
+      // Pa retounen wouj: nou kenbe koulè a lokalman. Men nou avèti pou kolòn `contacted` la nan Supabase.
+      setSaveErr("Estati a sove sou aparèy sa a, men li pa rive nan Supabase. Pou l sove pou tout moun, ajoute kolòn `contacted` nan Supabase (gade enstriksyon yo).");
+    }
   };
   const toggleContacted = (p) => markContacted(p, !p.contacted);
 
