@@ -1173,7 +1173,7 @@ function PublicSpace({ config, onAdmin }) {
     for (const b of bl) {
       if (b.kind === "special" && b.banner && formComplete) {
         const startDate = activeVideoResaBaseAll(screens) || specialVideoStart(screens, b);
-        const deadlineRaw = addDays(startDate, 10); // dat limit rezèvasyon (dat session + 10 jou)
+        const deadlineRaw = addDays(startDate, -10); // dat limit rezèvasyon (10 jou anvan dat session)
         const slot = activeVideoSlotAll(screens);
         const riveRaw = slot ? slot.end : ""; // dezyèm dat la (dat rive a)
         const expired = deadlineRaw && todayStr() > deadlineRaw;
@@ -1198,7 +1198,7 @@ function PublicSpace({ config, onAdmin }) {
   }
 
   // Mesaj swivi pèsonèl (admin nan mete l nan paj prospè yo) — parèt anlè paj la
-  const followupDat10 = formatHtDate(addDays(anyActiveVideoResaBase(programs), 10));
+  const followupDat10 = formatHtDate(addDays(anyActiveVideoResaBase(programs), -10));
   const followupText = (myFollowup && FOLLOWUP_TPL[myFollowup])
     ? renderTemplate(FOLLOWUP_TPL[myFollowup], { non: firstNameGlobal || "", dat10: followupDat10, dat: "", special: "", adres: myAddr, program: myProgram || (selected && selected.label) || "" })
     : "";
@@ -1459,7 +1459,7 @@ function PublicSpace({ config, onAdmin }) {
       if (b.banner) return null; // anons yo parèt anlè paj la, pa anndan blòk la
       const sName = (b.specialName || "").trim();
       const reserveTxt = formatHtDate(b.reserveDate);
-      const dat10Txt = formatHtDate(addDays(specialVideoStart(screens, b), 10));
+      const dat10Txt = formatHtDate(addDays(activeVideoResaBaseAll(screens) || specialVideoStart(screens, b), -10));
       const nameField = formFields.find((f) => f.fieldType === "text") || formFields[0];
       const firstName = nameField ? ((answers[nameField.id] || "").trim().split(/\s+/)[0] || "") : "";
       const answered = (answers[b.id] || "").trim();
@@ -2187,7 +2187,7 @@ function AdminSpace({ config, onSave, onExit }) {
                                         <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${PALETTE.line}` }}>
                                           <span style={{ fontSize: 11, color: PALETTE.gold, fontWeight: 700 }}>Dat session</span>
                                           <span style={{ fontSize: 11, color: `${PALETTE.cream}77`, display: "block", marginBottom: 4 }}>
-                                            Jou session an. Se dat sa a (plis 10 jou apre l) k ap parèt nan "Dat rezèvasyon" an.
+                                            Jou session an. Dat limit rezèvasyon an ap 10 jou ANVAN dat sa a.
                                           </span>
                                           <input className="mt-input" type="date" style={{ colorScheme: "light", maxWidth: 200 }} value={sl.session || ""} onChange={(e) => updateBlockSlot(p.id, s.id, b.id, sl.id, { session: e.target.value })} />
                                         </div>
@@ -2233,7 +2233,7 @@ function AdminSpace({ config, onSave, onExit }) {
                                       <strong>{"{non}"}</strong> = non vizitè a<br />
                                       <strong>{"{special}"}</strong> = sou kisa special la ye<br />
                                       <strong>{"{dat}"}</strong> = jou pou rezève (sa ou chwazi anwo a)<br />
-                                      <strong>{"{dat10}"}</strong> = 10 jou apre dat session an (oswa dat komansman video a si pa gen session)
+                                      <strong>{"{dat10}"}</strong> = 10 jou anvan dat session an (oswa 10 jou anvan dat komansman video a si pa gen session)
                                     </div>
                                   </div>
                                   <label style={{ ...labelStyle, marginTop: 12 }}>Ki etap video pwograme a ye? (pou {"{dat10}"})</label>
@@ -2755,11 +2755,11 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     catch (e) { return ""; }
   };
 
-  // Dat rezèvasyon: MENM dat ki nan mesaj la — dat session (oswa dat video) + 10 jou
+  // Dat rezèvasyon: MENM dat ki nan mesaj la — 10 jou ANVAN dat session an
   const resaDate = (p) => {
     const prog = (programs || []).find((pp) => pp.label === p.program);
     const base = prog ? activeVideoResaBaseAll(prog.steps || []) : "";
-    const d = addDays(base, 10);
+    const d = addDays(base, -10);
     return d ? formatHtDate(d) : "—";
   };
 
@@ -3026,7 +3026,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                   const base = s.session || s.start; // dat session (sinon dat komansman)
                   return {
                     base,
-                    resa: addDays(base, 10),
+                    resa: addDays(base, -10),
                     active: s.start && s.start <= t && (!s.end || t <= s.end),
                   };
                 });
@@ -3061,7 +3061,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                         <thead>
                           <tr>
                             <th style={{ ...thDark, whiteSpace: "nowrap" }}>Dat session</th>
-                            <th style={{ ...thDark, whiteSpace: "nowrap" }}>Dat limit rezèvasyon (+10 jou)</th>
+                            <th style={{ ...thDark, whiteSpace: "nowrap" }}>Dat limit rezèvasyon (10 jou anvan)</th>
                           </tr>
                         </thead>
                         <tbody>
