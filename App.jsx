@@ -200,6 +200,34 @@ function activeVideoResaBaseAll(screens) {
   return "";
 }
 
+/* Kreno "aktyèl" la pou rezèvasyon (menm baz pou lis prospè, bouton dat rezèvasyon, ak mesaj WhatsApp):
+   1) kreno ki aktif jodi a (jodi a nan peryòd videyo a), sinon
+   2) pwochen session k ap vini an (dat session ki pi pre nan lavni), sinon
+   3) dènye session ki fin pase a */
+function currentVideoSlotAll(screens) {
+  const today = todayStr();
+  const slots = allVideoSlots(screens); // deja ranje pa dat komansman
+  for (const s of slots) {
+    if (s.start <= today && (!s.end || today <= s.end)) return s;
+  }
+  const withBase = slots.map((s) => ({ s, base: s.session || s.start })).filter((x) => x.base);
+  const up = withBase.filter((x) => x.base >= today).sort((a, b) => a.base.localeCompare(b.base));
+  if (up.length) return up[0].s;
+  const past = withBase.slice().sort((a, b) => b.base.localeCompare(a.base));
+  return past.length ? past[0].s : null;
+}
+function currentResaBaseAll(screens) {
+  const s = currentVideoSlotAll(screens);
+  return s ? (s.session || s.start) : "";
+}
+function anyCurrentResaBase(programs) {
+  for (const p of programs || []) {
+    const d = currentResaBaseAll(p.steps || []);
+    if (d) return d;
+  }
+  return "";
+}
+
 /* Jwenn dat video pwograme yon ETAP espesifik (1 = premye etap). 
    Si etap la pa egziste oswa pa gen video aktif, li retounen "". */
 function activeVideoStartForStep(screens, stepNum) {
@@ -1220,7 +1248,7 @@ function PublicSpace({ config, onAdmin }) {
     const bl = getStepBlocks(screens[i]);
     for (const b of bl) {
       if (b.kind === "special" && b.banner && formComplete) {
-        const startDate = activeVideoResaBaseAll(screens) || specialVideoStart(screens, b);
+        const startDate = currentResaBaseAll(screens) || specialVideoStart(screens, b);
         const deadlineRaw = addDays(startDate, -10); // dat limit rezèvasyon (10 jou anvan dat session)
         const slot = activeVideoSlotAll(screens);
         const riveRaw = slot ? slot.end : ""; // dezyèm dat la (dat rive a)
@@ -1246,7 +1274,7 @@ function PublicSpace({ config, onAdmin }) {
   }
 
   // Mesaj swivi pèsonèl (admin nan mete l nan paj prospè yo) — parèt anlè paj la
-  const followupDat10 = formatHtDate(addDays(anyActiveVideoResaBase(programs), -10));
+  const followupDat10 = formatHtDate(addDays(anyCurrentResaBase(programs), -10));
   const followupText = (myFollowup && FOLLOWUP_TPL[myFollowup])
     ? renderTemplate(FOLLOWUP_TPL[myFollowup], { non: firstNameGlobal || "", dat10: followupDat10, dat: "", special: "", adres: myAddr, program: myProgram || (selected && selected.label) || "" })
     : "";
@@ -1507,7 +1535,7 @@ function PublicSpace({ config, onAdmin }) {
       if (b.banner) return null; // anons yo parèt anlè paj la, pa anndan blòk la
       const sName = (b.specialName || "").trim();
       const reserveTxt = formatHtDate(b.reserveDate);
-      const dat10Txt = formatHtDate(addDays(activeVideoResaBaseAll(screens) || specialVideoStart(screens, b), -10));
+      const dat10Txt = formatHtDate(addDays(currentResaBaseAll(screens) || specialVideoStart(screens, b), -10));
       const nameField = formFields.find((f) => f.fieldType === "text") || formFields[0];
       const firstName = nameField ? ((answers[nameField.id] || "").trim().split(/\s+/)[0] || "") : "";
       const answered = (answers[b.id] || "").trim();
@@ -2562,7 +2590,9 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [mode, setMode] = useState("list"); // "list" | "pdf"
   const [pdfFilter, setPdfFilter] = useState("none"); // "none" | "date" | "etiquette" | "program"
   const [pdfEtq, setPdfEtq] = useState(""); // etikèt chwazi pou filtè a
-  const [pdfPeriod, setPdfPeriod] = useState(""); // semèn/mwa chwazi pou filtè dat la
+  const [pdfPeriod, setPdfPeriod] = useState(""); // (pa itilize ankò)
+  const [pdfMonth, setPdfMonth] = useState(""); // mwa chwazi pou filtè dat la
+  const [pdfWeek, setPdfWeek] = useState(""); // semèn chwazi anndan mwa a ("" = tout mwa a)
   const [pdfProgram, setPdfProgram] = useState(""); // programme chwazi pou filtè a
   const [tab, setTab] = useState("prospects"); // "prospects" | "students"
   const [creatingEtq, setCreatingEtq] = useState(false); // chan kreye etikèt la louvri
@@ -2807,10 +2837,10 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     catch (e) { return ""; }
   };
 
-  // Dat rezèvasyon: MENM dat ki nan mesaj la — 10 jou ANVAN dat session an
+  // Dat rezèvasyon: MENM baz ak bouton "Dat rezèvasyon" an — 10 jou ANVAN dat session aktyèl la
   const resaDate = (p) => {
     const prog = (programs || []).find((pp) => pp.label === p.program);
-    const base = prog ? activeVideoResaBaseAll(prog.steps || []) : "";
+    const base = prog ? currentResaBaseAll(prog.steps || []) : "";
     const d = addDays(base, -10);
     return d ? formatHtDate(d) : "—";
   };
@@ -2921,38 +2951,47 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     return [...set];
   }, [viewItems]);
 
-  // Lis peryòd yo: semèn pou mwa aktyèl la, mwa pou tan ki fin pase (pou lis la pa twò long)
+  // Lis mwa yo (ki gen prospè), pi resan an anwo
   const moisHt = ["Janvye", "Fevriye", "Mas", "Avril", "Me", "Jen", "Jiyè", "Out", "Septanm", "Oktòb", "Novanm", "Desanm"];
   const prospTs = (p) => prospectCreatedTs(p) || p.updatedAt || Date.now();
-  const pdfPeriods = useMemo(() => {
+  const pdfMonths = useMemo(() => {
     const arr0 = viewItems || [];
-    if (arr0.length === 0) return [];
-    const mondayOf = (d) => { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0, 0, 0, 0); return x; };
-    const fmt = (d) => `${d.getDate()} ${moisHt[d.getMonth()].toLowerCase()} ${d.getFullYear()}`;
-    const dates = arr0.map((p) => { const d = new Date(prospTs(p)); d.setHours(0, 0, 0, 0); return d; });
-    const minMonday = mondayOf(new Date(Math.min(...dates.map((d) => d.getTime()))));
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const thisMonday = mondayOf(today);
-    const curY = today.getFullYear(), curM = today.getMonth();
-    const periods = [];
-    const seenM = new Set();
-    let wk = new Date(minMonday);
-    while (wk.getTime() <= thisMonday.getTime()) {
-      const wy = wk.getFullYear(), wm = wk.getMonth();
-      const sun = new Date(wk); sun.setDate(sun.getDate() + 6);
-      if (wy === curY && wm === curM) {
-        periods.push({ key: `w-${wk.getTime()}`, type: "week", start: new Date(wk), end: sun, label: `Lendi ${fmt(wk)} → Dimanch ${fmt(sun)}` });
-      } else {
-        const mk = `${wy}-${wm}`;
-        if (!seenM.has(mk)) { seenM.add(mk); periods.push({ key: `m-${mk}`, type: "month", year: wy, month: wm, label: `${moisHt[wm]} ${wy}` }); }
-      }
-      wk = new Date(wk); wk.setDate(wk.getDate() + 7);
-    }
-    periods.reverse(); // pi resan an anwo
-    return periods;
+    const map = new Map();
+    arr0.forEach((p) => {
+      const d = new Date(prospTs(p));
+      const y = d.getFullYear(), m = d.getMonth();
+      const key = `${y}-${m}`;
+      if (!map.has(key)) map.set(key, { key, year: y, month: m, label: `${moisHt[m]} ${y}` });
+    });
+    return [...map.values()].sort((a, b) => (b.year - a.year) || (b.month - a.month));
   }, [viewItems]);
 
-  const selPeriod = useMemo(() => pdfPeriods.find((x) => x.key === pdfPeriod) || null, [pdfPeriods, pdfPeriod]);
+  // Semèn yo anndan mwa ki chwazi a (lendi → dimanch), sèlman semèn ki deja kòmanse
+  const weeksOfSelMonth = useMemo(() => {
+    if (!pdfMonth) return [];
+    const [y, m] = pdfMonth.split("-").map(Number);
+    const mondayOf = (d) => { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0, 0, 0, 0); return x; };
+    const fmt = (d) => `${d.getDate()} ${moisHt[d.getMonth()].toLowerCase()}`;
+    const ord = ["1ye", "2yèm", "3yèm", "4yèm", "5yèm", "6yèm"];
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const first = new Date(y, m, 1);
+    const last = new Date(y, m + 1, 0);
+    const endMonday = mondayOf(last);
+    const weeks = [];
+    let cur = mondayOf(first); let n = 0;
+    while (cur.getTime() <= endMonday.getTime()) {
+      const sun = new Date(cur); sun.setDate(sun.getDate() + 6);
+      if (cur.getTime() <= today.getTime()) {
+        n++;
+        weeks.push({ key: `w-${cur.getTime()}`, start: new Date(cur), end: new Date(sun), label: `${ord[n - 1] || n + "yèm"} semèn — Lendi ${fmt(cur)} → Dimanch ${fmt(sun)}` });
+      }
+      cur = new Date(cur); cur.setDate(cur.getDate() + 7);
+    }
+    return weeks;
+  }, [pdfMonth]);
+
+  const selWeek = useMemo(() => weeksOfSelMonth.find((w) => w.key === pdfWeek) || null, [weeksOfSelMonth, pdfWeek]);
+  const selMonthLabel = useMemo(() => (pdfMonths.find((mo) => mo.key === pdfMonth) || {}).label || "", [pdfMonths, pdfMonth]);
 
   // Moun ki pral nan PDF a (aplike filtè a)
   const pdfItems = useMemo(() => {
@@ -2960,17 +2999,13 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     if (pdfFilter === "etiquette") arr = pdfEtq ? arr.filter((p) => (p.etiquette || "") === pdfEtq) : [];
     else if (pdfFilter === "program") arr = pdfProgram ? arr.filter((p) => (p.program || "") === pdfProgram) : [];
     else if (pdfFilter === "date") {
-      if (!selPeriod) arr = [];
-      else arr = arr.filter((p) => {
-        const d = new Date(prospTs(p)); d.setHours(0, 0, 0, 0);
-        if (selPeriod.type === "week") return d.getTime() >= selPeriod.start.getTime() && d.getTime() <= selPeriod.end.getTime();
-        return d.getFullYear() === selPeriod.year && d.getMonth() === selPeriod.month;
-      });
+      if (!pdfMonth) arr = [];
+      else if (selWeek) arr = arr.filter((p) => { const d = new Date(prospTs(p)); d.setHours(0, 0, 0, 0); return d.getTime() >= selWeek.start.getTime() && d.getTime() <= selWeek.end.getTime(); });
+      else { const [y, m] = pdfMonth.split("-").map(Number); arr = arr.filter((p) => { const d = new Date(prospTs(p)); return d.getFullYear() === y && d.getMonth() === m; }); }
     }
-    // Ranje pa programme (Makiyaj ansanm, Tresse ansanm...)
     arr.sort((a, b) => String(a.program || "").localeCompare(String(b.program || "")));
     return arr;
-  }, [viewItems, pdfFilter, pdfEtq, pdfProgram, selPeriod]);
+  }, [viewItems, pdfFilter, pdfEtq, pdfProgram, pdfMonth, selWeek]);
 
   // Opsyon pou jenere PDF a
   const pdfTitleTxt = isStudents ? "Lis Nouvo Etidyan" : isLwen ? "Lis Lwen" : "Lis Nouvo Prospect";
@@ -2979,7 +3014,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     title:
       pdfFilter === "etiquette" && pdfEtq ? `${pdfTitleTxt} — Etikèt: ${pdfEtq}`
       : pdfFilter === "program" && pdfProgram ? `${pdfTitleTxt} — ${pdfProgram}`
-      : pdfFilter === "date" && selPeriod ? `${pdfTitleTxt} — ${selPeriod.label}`
+      : pdfFilter === "date" && pdfMonth ? `${pdfTitleTxt} — ${selWeek ? selWeek.label : selMonthLabel}`
       : pdfTitleTxt,
   };
 
@@ -3013,7 +3048,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           <span style={{ fontSize: 13, fontWeight: 700, color: PALETTE.cream }}>Filtè :</span>
           <select
             value={pdfFilter}
-            onChange={(e) => { const v = e.target.value; setPdfFilter(v); if (v !== "etiquette") setPdfEtq(""); if (v !== "date") setPdfPeriod(""); if (v !== "program") setPdfProgram(""); }}
+            onChange={(e) => { const v = e.target.value; setPdfFilter(v); if (v !== "etiquette") setPdfEtq(""); if (v !== "date") { setPdfMonth(""); setPdfWeek(""); } if (v !== "program") setPdfProgram(""); }}
             style={selStyle}
           >
             <option value="none">Tout ansanm</option>
@@ -3022,10 +3057,18 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             <option value="program">Pa programme</option>
           </select>
           {pdfFilter === "date" && (
-            <select value={pdfPeriod} onChange={(e) => setPdfPeriod(e.target.value)} style={selStyle}>
-              <option value="">Chwazi yon peryòd…</option>
-              {pdfPeriods.map((per) => (<option key={per.key} value={per.key}>{per.label}</option>))}
-            </select>
+            <>
+              <select value={pdfMonth} onChange={(e) => { setPdfMonth(e.target.value); setPdfWeek(""); }} style={selStyle}>
+                <option value="">Chwazi yon mwa…</option>
+                {pdfMonths.map((mo) => (<option key={mo.key} value={mo.key}>{mo.label}</option>))}
+              </select>
+              {pdfMonth && (
+                <select value={pdfWeek} onChange={(e) => setPdfWeek(e.target.value)} style={selStyle}>
+                  <option value="">Tout mwa a</option>
+                  {weeksOfSelMonth.map((w) => (<option key={w.key} value={w.key}>{w.label}</option>))}
+                </select>
+              )}
+            </>
           )}
           {pdfFilter === "etiquette" && (
             <select value={pdfEtq} onChange={(e) => setPdfEtq(e.target.value)} style={selStyle}>
@@ -3041,7 +3084,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           )}
           <span style={{ fontSize: 12, color: `${PALETTE.cream}99` }}>
             {pdfFilter === "date"
-              ? (selPeriod ? `Sèlman moun ki enskri nan "${selPeriod.label}".` : "Chwazi yon semèn oswa yon mwa.")
+              ? (!pdfMonth ? "Chwazi yon mwa (answit ou ka chwazi yon semèn ladann)." : selWeek ? `Sèlman moun ki enskri "${selWeek.label}".` : `Tout moun ki enskri nan ${selMonthLabel}.`)
               : pdfFilter === "etiquette"
               ? (pdfEtq ? `Sèlman moun ki gen etikèt "${pdfEtq}" yo.` : "Chwazi yon etikèt pou filtre.")
               : pdfFilter === "program"
@@ -3061,8 +3104,8 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               <p style={{ color: "#555", fontSize: 14 }}>
                 {pdfFilter === "etiquette" && !pdfEtq
                   ? "Chwazi yon etikèt anwo a."
-                  : pdfFilter === "date" && !pdfPeriod
-                  ? "Chwazi yon peryòd anwo a."
+                  : pdfFilter === "date" && !pdfMonth
+                  ? "Chwazi yon mwa anwo a."
                   : pdfFilter === "program" && !pdfProgram
                   ? "Chwazi yon programme anwo a."
                   : "Poko gen okenn moun."}
@@ -3205,12 +3248,13 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             const t = todayStr();
             const progList = (programs || [])
               .map((prog) => {
+                const curBase = currentResaBaseAll(prog.steps || []); // baz aktyèl la (menm ak lis prospè + WhatsApp)
                 const slots = allVideoSlots(prog.steps || []).map((s) => {
                   const base = s.session || s.start; // dat session (sinon dat komansman)
                   return {
                     base,
                     resa: addDays(base, -10),
-                    active: s.start && s.start <= t && (!s.end || t <= s.end),
+                    active: !!base && base === curBase,
                   };
                 });
                 return { label: prog.label, slots };
