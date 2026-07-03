@@ -2560,8 +2560,10 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [items, setItems] = useState(null); // null = ap chaje
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState("list"); // "list" | "pdf"
-  const [pdfFilter, setPdfFilter] = useState("none"); // "none" | "date" | "etiquette"
+  const [pdfFilter, setPdfFilter] = useState("none"); // "none" | "date" | "etiquette" | "program"
   const [pdfEtq, setPdfEtq] = useState(""); // etikèt chwazi pou filtè a
+  const [pdfPeriod, setPdfPeriod] = useState(""); // semèn/mwa chwazi pou filtè dat la
+  const [pdfProgram, setPdfProgram] = useState(""); // programme chwazi pou filtè a
   const [tab, setTab] = useState("prospects"); // "prospects" | "students"
   const [creatingEtq, setCreatingEtq] = useState(false); // chan kreye etikèt la louvri
   const [newEtq, setNewEtq] = useState("");
@@ -2913,47 +2915,79 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     return [...set];
   }, [agentNames, viewItems]);
 
-  // Moun ki pral nan PDF a (aplike filtè etikèt la si li chwazi)
+  const programOptions = useMemo(() => {
+    const set = new Set();
+    (viewItems || []).forEach((p) => p.program && set.add(p.program));
+    return [...set];
+  }, [viewItems]);
+
+  // Lis peryòd yo: semèn pou mwa aktyèl la, mwa pou tan ki fin pase (pou lis la pa twò long)
+  const moisHt = ["Janvye", "Fevriye", "Mas", "Avril", "Me", "Jen", "Jiyè", "Out", "Septanm", "Oktòb", "Novanm", "Desanm"];
+  const prospTs = (p) => prospectCreatedTs(p) || p.updatedAt || Date.now();
+  const pdfPeriods = useMemo(() => {
+    const arr0 = viewItems || [];
+    if (arr0.length === 0) return [];
+    const mondayOf = (d) => { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); x.setHours(0, 0, 0, 0); return x; };
+    const fmt = (d) => `${d.getDate()} ${moisHt[d.getMonth()].toLowerCase()} ${d.getFullYear()}`;
+    const dates = arr0.map((p) => { const d = new Date(prospTs(p)); d.setHours(0, 0, 0, 0); return d; });
+    const minMonday = mondayOf(new Date(Math.min(...dates.map((d) => d.getTime()))));
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const thisMonday = mondayOf(today);
+    const curY = today.getFullYear(), curM = today.getMonth();
+    const periods = [];
+    const seenM = new Set();
+    let wk = new Date(minMonday);
+    while (wk.getTime() <= thisMonday.getTime()) {
+      const wy = wk.getFullYear(), wm = wk.getMonth();
+      const sun = new Date(wk); sun.setDate(sun.getDate() + 6);
+      if (wy === curY && wm === curM) {
+        periods.push({ key: `w-${wk.getTime()}`, type: "week", start: new Date(wk), end: sun, label: `Lendi ${fmt(wk)} → Dimanch ${fmt(sun)}` });
+      } else {
+        const mk = `${wy}-${wm}`;
+        if (!seenM.has(mk)) { seenM.add(mk); periods.push({ key: `m-${mk}`, type: "month", year: wy, month: wm, label: `${moisHt[wm]} ${wy}` }); }
+      }
+      wk = new Date(wk); wk.setDate(wk.getDate() + 7);
+    }
+    periods.reverse(); // pi resan an anwo
+    return periods;
+  }, [viewItems]);
+
+  const selPeriod = useMemo(() => pdfPeriods.find((x) => x.key === pdfPeriod) || null, [pdfPeriods, pdfPeriod]);
+
+  // Moun ki pral nan PDF a (aplike filtè a)
   const pdfItems = useMemo(() => {
     let arr = (viewItems || []).slice();
-    if (pdfFilter === "etiquette" && pdfEtq) arr = arr.filter((p) => (p.etiquette || "") === pdfEtq);
+    if (pdfFilter === "etiquette") arr = pdfEtq ? arr.filter((p) => (p.etiquette || "") === pdfEtq) : [];
+    else if (pdfFilter === "program") arr = pdfProgram ? arr.filter((p) => (p.program || "") === pdfProgram) : [];
+    else if (pdfFilter === "date") {
+      if (!selPeriod) arr = [];
+      else arr = arr.filter((p) => {
+        const d = new Date(prospTs(p)); d.setHours(0, 0, 0, 0);
+        if (selPeriod.type === "week") return d.getTime() >= selPeriod.start.getTime() && d.getTime() <= selPeriod.end.getTime();
+        return d.getFullYear() === selPeriod.year && d.getMonth() === selPeriod.month;
+      });
+    }
+    // Ranje pa programme (Makiyaj ansanm, Tresse ansanm...)
+    arr.sort((a, b) => String(a.program || "").localeCompare(String(b.program || "")));
     return arr;
-  }, [viewItems, pdfFilter, pdfEtq]);
+  }, [viewItems, pdfFilter, pdfEtq, pdfProgram, selPeriod]);
 
   // Opsyon pou jenere PDF a
   const pdfTitleTxt = isStudents ? "Lis Nouvo Etidyan" : isLwen ? "Lis Lwen" : "Lis Nouvo Prospect";
   const pdfOpts = {
-    groupBy: pdfFilter === "date" ? "date" : "none",
-    title: pdfFilter === "etiquette" && pdfEtq ? `${pdfTitleTxt} — Etikèt: ${pdfEtq}` : pdfTitleTxt,
+    groupBy: "none",
+    title:
+      pdfFilter === "etiquette" && pdfEtq ? `${pdfTitleTxt} — Etikèt: ${pdfEtq}`
+      : pdfFilter === "program" && pdfProgram ? `${pdfTitleTxt} — ${pdfProgram}`
+      : pdfFilter === "date" && selPeriod ? `${pdfTitleTxt} — ${selPeriod.label}`
+      : pdfTitleTxt,
   };
 
-  // Ranje apèsi a (ak antèt semèn si gwoupman pa dat)
-  const previewRows = useMemo(() => {
-    const out = [];
-    const moisHt = ["janvye", "fevriye", "mas", "avril", "me", "jen", "jiyè", "out", "septanm", "oktòb", "novanm", "desanm"];
-    const fmtWk = (d) => `${d.getDate()} ${moisHt[d.getMonth()]} ${d.getFullYear()}`;
-    const wk = (p) => {
-      const ts = prospectCreatedTs(p) || p.updatedAt || Date.now();
-      const d = new Date(ts); d.setHours(0, 0, 0, 0);
-      const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); return d;
-    };
-    if (pdfFilter === "date") {
-      const arr = pdfItems.slice().sort((a, b) => {
-        const wa = wk(a).getTime(), wb = wk(b).getTime();
-        if (wa !== wb) return wa - wb;
-        return String(a.program || "").localeCompare(String(b.program || ""));
-      });
-      let curKey = null, num = 0;
-      arr.forEach((p) => {
-        const w = wk(p); const key = w.getTime();
-        if (key !== curKey) { curKey = key; const sun = new Date(w); sun.setDate(sun.getDate() + 6); out.push({ type: "header", label: `Semèn ${fmtWk(w)} - ${fmtWk(sun)}` }); }
-        num++; out.push({ type: "row", p, num });
-      });
-    } else {
-      pdfItems.forEach((p, i) => out.push({ type: "row", p, num: i + 1 }));
-    }
-    return out;
-  }, [pdfItems, pdfFilter]);
+  // Ranje apèsi a (lis senp — pdfItems deja filtre + ranje pa programme)
+  const previewRows = useMemo(
+    () => (pdfItems || []).map((p, i) => ({ type: "row", p, num: i + 1 })),
+    [pdfItems]
+  );
 
   const th = { textAlign: "left", padding: "6px 6px", fontSize: 10, color: "#1d1620", borderBottom: "1.5px solid #C2238E", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".3px" };
   const td = { textAlign: "left", padding: "7px 6px", fontSize: 11, color: "#1d1620", borderBottom: "0.5px solid #e7ddd2", verticalAlign: "top", wordBreak: "break-word" };
@@ -2977,22 +3011,41 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         {/* Filtè PDF */}
         <div className="no-print" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14, padding: "12px 14px", border: `1px solid ${PALETTE.line}`, borderRadius: 12, background: "rgba(224,165,10,.06)" }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: PALETTE.cream }}>Filtè :</span>
-          <select value={pdfFilter} onChange={(e) => { setPdfFilter(e.target.value); if (e.target.value !== "etiquette") setPdfEtq(""); }} style={selStyle}>
+          <select
+            value={pdfFilter}
+            onChange={(e) => { const v = e.target.value; setPdfFilter(v); if (v !== "etiquette") setPdfEtq(""); if (v !== "date") setPdfPeriod(""); if (v !== "program") setPdfProgram(""); }}
+            style={selStyle}
+          >
             <option value="none">Tout ansanm</option>
-            <option value="date">Regwoupe pa dat (semèn)</option>
+            <option value="date">Pa dat (semèn / mwa)</option>
             <option value="etiquette">Pa etikèt</option>
+            <option value="program">Pa programme</option>
           </select>
+          {pdfFilter === "date" && (
+            <select value={pdfPeriod} onChange={(e) => setPdfPeriod(e.target.value)} style={selStyle}>
+              <option value="">Chwazi yon peryòd…</option>
+              {pdfPeriods.map((per) => (<option key={per.key} value={per.key}>{per.label}</option>))}
+            </select>
+          )}
           {pdfFilter === "etiquette" && (
             <select value={pdfEtq} onChange={(e) => setPdfEtq(e.target.value)} style={selStyle}>
               <option value="">Chwazi yon etikèt…</option>
               {etqOptions.map((n) => (<option key={n} value={n}>{n}</option>))}
             </select>
           )}
+          {pdfFilter === "program" && (
+            <select value={pdfProgram} onChange={(e) => setPdfProgram(e.target.value)} style={selStyle}>
+              <option value="">Chwazi yon programme…</option>
+              {programOptions.map((n) => (<option key={n} value={n}>{n}</option>))}
+            </select>
+          )}
           <span style={{ fontSize: 12, color: `${PALETTE.cream}99` }}>
             {pdfFilter === "date"
-              ? "PDF a ap divize an blòk pou chak semèn (lendi → dimanch), tout programme yo ansanm."
+              ? (selPeriod ? `Sèlman moun ki enskri nan "${selPeriod.label}".` : "Chwazi yon semèn oswa yon mwa.")
               : pdfFilter === "etiquette"
               ? (pdfEtq ? `Sèlman moun ki gen etikèt "${pdfEtq}" yo.` : "Chwazi yon etikèt pou filtre.")
+              : pdfFilter === "program"
+              ? (pdfProgram ? `Sèlman moun ki nan programme "${pdfProgram}" an.` : "Chwazi yon programme pou filtre.")
               : "Tout moun yo, tout programme ansanm."}
           </span>
         </div>
@@ -3006,7 +3059,13 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             <PdfHeader count={pdfItems.length} />
             {pdfItems.length === 0 ? (
               <p style={{ color: "#555", fontSize: 14 }}>
-                {pdfFilter === "etiquette" && !pdfEtq ? "Chwazi yon etikèt anwo a." : "Poko gen okenn moun."}
+                {pdfFilter === "etiquette" && !pdfEtq
+                  ? "Chwazi yon etikèt anwo a."
+                  : pdfFilter === "date" && !pdfPeriod
+                  ? "Chwazi yon peryòd anwo a."
+                  : pdfFilter === "program" && !pdfProgram
+                  ? "Chwazi yon programme anwo a."
+                  : "Poko gen okenn moun."}
               </p>
             ) : (
               <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
