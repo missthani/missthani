@@ -616,7 +616,7 @@ function inputProps(fieldType) {
 
 /* ===================== JENERATÈ PDF (san okenn lib) =====================
    Konstwi yon vrè fichye PDF, fòma Letter (8.5 x 11), paj pa paj. */
-function buildProspectsPdfBytes(items, fmtDate) {
+function buildProspectsPdfBytes(items, fmtDate, opts) {
   const PW = 612, PH = 792;          // Letter an pwen (72 dpi)
   const ML = 50, MR = 50, MT = 50, MB = 56;
   const contentW = PW - ML - MR;
@@ -675,7 +675,7 @@ function buildProspectsPdfBytes(items, fmtDate) {
     return out.length ? out : [""];
   };
 
-  // Kolòn yo: #, Programme, Dat, epi yon kolòn pou chak kesyon
+  // Kolòn yo: #, Programme, Dat, Etikèt, epi yon kolòn pou chak kesyon
   const qCols = [];
   (items || []).forEach((p) =>
     (p.answers || []).forEach((a) => {
@@ -685,16 +685,17 @@ function buildProspectsPdfBytes(items, fmtDate) {
   );
   const cols = [
     { key: "#", label: "#", w: 20 },
-    { key: "prog", label: "Programme", w: 66 },
-    { key: "date", label: "Dat", w: 56 },
+    { key: "prog", label: "Programme", w: 62 },
+    { key: "date", label: "Dat", w: 46 },
+    { key: "etq", label: "Etikèt", w: 54 },
   ];
   const remaining = contentW - cols.reduce((s, c) => s + c.w, 0);
   if (qCols.length) {
     const wq = remaining / qCols.length;
     qCols.forEach((q) => cols.push({ key: "q:" + q, label: q, w: wq }));
   } else {
-    cols[1].w += remaining * 0.6;
-    cols[2].w += remaining * 0.4;
+    cols[1].w += remaining * 0.5;
+    cols[3].w += remaining * 0.5;
   }
   const colX = [];
   { let x = ML; cols.forEach((c) => { colX.push(x); x += c.w; }); }
@@ -707,6 +708,7 @@ function buildProspectsPdfBytes(items, fmtDate) {
     if (c.key === "#") return String(idx + 1);
     if (c.key === "prog") return p.program || "-";
     if (c.key === "date") return shortDate(p.updatedAt);
+    if (c.key === "etq") return p.etiquette || "";
     if (c.key.indexOf("q:") === 0) {
       const q = c.key.slice(2);
       const f = (p.answers || []).find((a) => (a.question || "").trim() === q);
@@ -717,11 +719,48 @@ function buildProspectsPdfBytes(items, fmtDate) {
 
   const CS = 9; // gwosè tèks tablo a
   const rowGap = 6;
-  const rows = (items || []).map((p, idx) => {
-    const cells = cols.map((c) => wrapCell(cellVal(p, c, idx), CS, c.w - 6));
+  const groupBy = (opts && opts.groupBy) || "none";
+  const pdfTitle = (opts && opts.title) || "Lis Nouvo Prospect";
+  const moisHt = ["janvye", "fevriye", "mas", "avril", "me", "jen", "jiyè", "out", "septanm", "oktòb", "novanm", "desanm"];
+  const fmtWk = (d) => `${d.getDate()} ${moisHt[d.getMonth()]} ${d.getFullYear()}`;
+
+  const makeRow = (p, num) => {
+    const cells = cols.map((c) => wrapCell(cellVal(p, c, num - 1), CS, c.w - 6));
     const nLines = Math.max(1, ...cells.map((a) => a.length));
-    return { cells, h: nLines * lineH(CS) + rowGap };
-  });
+    return { type: "row", cells, h: nLines * lineH(CS) + rowGap };
+  };
+
+  // Bati lis blòk yo (antèt semèn + ranje), selon fason gwoupman an
+  const blocks = [];
+  let ordered = (items || []).slice();
+  if (groupBy === "date") {
+    const wk = (p) => {
+      const ts = prospectCreatedTs(p) || p.updatedAt || Date.now();
+      const d = new Date(ts); d.setHours(0, 0, 0, 0);
+      const day = (d.getDay() + 6) % 7; // 0 = lendi ... 6 = dimanch
+      d.setDate(d.getDate() - day);
+      return d;
+    };
+    ordered.sort((a, b) => {
+      const wa = wk(a).getTime(), wb = wk(b).getTime();
+      if (wa !== wb) return wa - wb;
+      return String(a.program || "").localeCompare(String(b.program || ""));
+    });
+    let curKey = null; let num = 0;
+    ordered.forEach((p) => {
+      const w = wk(p); const key = w.getTime();
+      if (key !== curKey) {
+        curKey = key;
+        const sun = new Date(w); sun.setDate(sun.getDate() + 6);
+        blocks.push({ type: "header", label: `Semèn ${fmtWk(w)} - ${fmtWk(sun)}`, h: lineH(11) + 10 });
+      }
+      num++;
+      blocks.push(makeRow(p, num));
+    });
+  } else {
+    let num = 0;
+    ordered.forEach((p) => { num++; blocks.push(makeRow(p, num)); });
+  }
 
   // Antèt kolòn yo (li repete sou chak paj)
   const headCells = cols.map((c) => wrapCell(c.label, CS, c.w - 6));
@@ -733,19 +772,20 @@ function buildProspectsPdfBytes(items, fmtDate) {
   const bottomLimit = MB + 22;
   const topRows = (first) => PH - MT - (first ? titleH : 0) - headH;
 
-  const pages = [{ first: true, rows: [] }];
+  const pages = [{ first: true, blocks: [] }];
   let pi = 0;
   let yy = topRows(true);
-  rows.forEach((r, ri) => {
-    if (yy - r.h < bottomLimit) {
-      pages.push({ first: false, rows: [] });
+  blocks.forEach((b, bi) => {
+    if (yy - b.h < bottomLimit) {
+      pages.push({ first: false, blocks: [] });
       pi++;
       yy = topRows(false);
     }
-    pages[pi].rows.push(ri);
-    yy -= r.h;
+    pages[pi].blocks.push(bi);
+    yy -= b.h;
   });
   const total = pages.length;
+  const GOLDBAR = [0.98, 0.92, 0.78];
 
   const pageContents = pages.map((pg, idx) => {
     const first = pg.first;
@@ -756,8 +796,8 @@ function buildProspectsPdfBytes(items, fmtDate) {
       c += textOp("Miss Thani", ML, PH - MT - 20, "F2", 22, DARK);
       c += textOp("MAKE-UP & LACE CLUB", ML, PH - MT - 36, "F1", 9, GOLD);
       c += rect(ML, PH - MT - 48, contentW, 1.5, GOLD);
-      c += textOp("Lis Nouvo Prospect", ML, PH - MT - 70, "F2", 14, DARK);
-      c += textOp(`${(items || []).length} prospè`, PW - MR - 60, PH - MT - 70, "F1", 10, MUTE);
+      c += textOp(pdfTitle, ML, PH - MT - 70, "F2", 14, DARK);
+      c += textOp(`${(items || []).length} moun`, PW - MR - 60, PH - MT - 70, "F1", 10, MUTE);
     }
 
     const tableTop = PH - MT - (first ? titleH : 0);
@@ -770,24 +810,32 @@ function buildProspectsPdfBytes(items, fmtDate) {
     });
     c += rect(ML, tableTop - headH + 5, contentW, 1, GOLD);
 
-    // Ranje yo
+    // Blòk yo (antèt semèn + ranje)
     let ry = topRows(first);
-    pg.rows.forEach((ri) => {
-      const r = rows[ri];
+    pg.blocks.forEach((bi) => {
+      const blk = blocks[bi];
+      if (blk.type === "header") {
+        c += rect(ML, ry - blk.h + 3, contentW, blk.h - 3, GOLDBAR);
+        c += textOp(blk.label, ML + 5, ry - 13, "F2", 11, DARK);
+        ry -= blk.h;
+        return;
+      }
       cols.forEach((cc, ci) => {
-        r.cells[ci].forEach((ln, li) => {
+        blk.cells[ci].forEach((ln, li) => {
           const f = ci === 1 ? "F2" : "F1";
           const cr = ci === 1 ? DARK : BODY;
           c += textOp(ln, colX[ci] + 3, ry - CS - li * lineH(CS), f, CS, cr);
         });
       });
-      c += rect(ML, ry - r.h + 3, contentW, 0.4, [0.88, 0.82, 0.74]);
-      ry -= r.h;
+      c += rect(ML, ry - blk.h + 3, contentW, 0.4, [0.88, 0.82, 0.74]);
+      ry -= blk.h;
     });
 
-    // Liy vètikal ant kolòn yo
-    for (let ci = 1; ci < cols.length; ci++) {
-      c += rect(colX[ci] - 1, ry + 3, 0.4, tableTop - (ry + 3), [0.9, 0.85, 0.78]);
+    // Liy vètikal ant kolòn yo (sèlman lè pa gen antèt semèn)
+    if (groupBy !== "date") {
+      for (let ci = 1; ci < cols.length; ci++) {
+        c += rect(colX[ci] - 1, ry + 3, 0.4, tableTop - (ry + 3), [0.9, 0.85, 0.78]);
+      }
     }
 
     // Pye paj
@@ -838,9 +886,9 @@ function buildProspectsPdfBytes(items, fmtDate) {
   return buf;
 }
 
-function downloadProspectsPdf(items, fmtDate) {
+function downloadProspectsPdf(items, fmtDate, opts) {
   try {
-    const bytes = buildProspectsPdfBytes(items, fmtDate);
+    const bytes = buildProspectsPdfBytes(items, fmtDate, opts);
     const blob = new Blob([bytes], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -855,9 +903,9 @@ function downloadProspectsPdf(items, fmtDate) {
   }
 }
 
-function openProspectsPdf(items, fmtDate) {
+function openProspectsPdf(items, fmtDate, opts) {
   try {
-    const bytes = buildProspectsPdfBytes(items, fmtDate);
+    const bytes = buildProspectsPdfBytes(items, fmtDate, opts);
     const blob = new Blob([bytes], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     const w = window.open(url, "_blank");
@@ -2512,6 +2560,8 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [items, setItems] = useState(null); // null = ap chaje
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState("list"); // "list" | "pdf"
+  const [pdfFilter, setPdfFilter] = useState("none"); // "none" | "date" | "etiquette"
+  const [pdfEtq, setPdfEtq] = useState(""); // etikèt chwazi pou filtè a
   const [tab, setTab] = useState("prospects"); // "prospects" | "students"
   const [creatingEtq, setCreatingEtq] = useState(false); // chan kreye etikèt la louvri
   const [newEtq, setNewEtq] = useState("");
@@ -2855,72 +2905,146 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     return out;
   }, [viewItems]);
 
+  // Lis etikèt ki disponib pou filtè PDF a
+  const etqOptions = useMemo(() => {
+    const set = new Set();
+    (agentNames || []).forEach((n) => n && set.add(n));
+    (viewItems || []).forEach((p) => p.etiquette && set.add(p.etiquette));
+    return [...set];
+  }, [agentNames, viewItems]);
+
+  // Moun ki pral nan PDF a (aplike filtè etikèt la si li chwazi)
+  const pdfItems = useMemo(() => {
+    let arr = (viewItems || []).slice();
+    if (pdfFilter === "etiquette" && pdfEtq) arr = arr.filter((p) => (p.etiquette || "") === pdfEtq);
+    return arr;
+  }, [viewItems, pdfFilter, pdfEtq]);
+
+  // Opsyon pou jenere PDF a
+  const pdfTitleTxt = isStudents ? "Lis Nouvo Etidyan" : isLwen ? "Lis Lwen" : "Lis Nouvo Prospect";
+  const pdfOpts = {
+    groupBy: pdfFilter === "date" ? "date" : "none",
+    title: pdfFilter === "etiquette" && pdfEtq ? `${pdfTitleTxt} — Etikèt: ${pdfEtq}` : pdfTitleTxt,
+  };
+
+  // Ranje apèsi a (ak antèt semèn si gwoupman pa dat)
+  const previewRows = useMemo(() => {
+    const out = [];
+    const moisHt = ["janvye", "fevriye", "mas", "avril", "me", "jen", "jiyè", "out", "septanm", "oktòb", "novanm", "desanm"];
+    const fmtWk = (d) => `${d.getDate()} ${moisHt[d.getMonth()]} ${d.getFullYear()}`;
+    const wk = (p) => {
+      const ts = prospectCreatedTs(p) || p.updatedAt || Date.now();
+      const d = new Date(ts); d.setHours(0, 0, 0, 0);
+      const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); return d;
+    };
+    if (pdfFilter === "date") {
+      const arr = pdfItems.slice().sort((a, b) => {
+        const wa = wk(a).getTime(), wb = wk(b).getTime();
+        if (wa !== wb) return wa - wb;
+        return String(a.program || "").localeCompare(String(b.program || ""));
+      });
+      let curKey = null, num = 0;
+      arr.forEach((p) => {
+        const w = wk(p); const key = w.getTime();
+        if (key !== curKey) { curKey = key; const sun = new Date(w); sun.setDate(sun.getDate() + 6); out.push({ type: "header", label: `Semèn ${fmtWk(w)} - ${fmtWk(sun)}` }); }
+        num++; out.push({ type: "row", p, num });
+      });
+    } else {
+      pdfItems.forEach((p, i) => out.push({ type: "row", p, num: i + 1 }));
+    }
+    return out;
+  }, [pdfItems, pdfFilter]);
+
   const th = { textAlign: "left", padding: "6px 6px", fontSize: 10, color: "#1d1620", borderBottom: "1.5px solid #C2238E", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".3px" };
   const td = { textAlign: "left", padding: "7px 6px", fontSize: 11, color: "#1d1620", borderBottom: "0.5px solid #e7ddd2", verticalAlign: "top", wordBreak: "break-word" };
 
   /* ---------- VÈSYON PDF ---------- */
   if (mode === "pdf") {
+    const selStyle = { padding: "8px 10px", borderRadius: 10, border: `1px solid ${PALETTE.lineStrong}`, background: "#fff", color: PALETTE.cream, fontSize: 13, colorScheme: "light" };
     return (
       <div>
-        <div className="no-print" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
+        <div className="no-print" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 10, flexWrap: "wrap" }}>
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, margin: 0 }}>
-            Vèsyon PDF — {(viewItems || []).length} {isStudents ? "etidyan" : isLwen ? "lwen" : "prospè"}
+            Vèsyon PDF — {pdfItems.length} {isStudents ? "etidyan" : isLwen ? "lwen" : "prospè"}
           </h2>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button onClick={() => setMode("list")} style={ghostBtn}>Tounen</button>
-            <button onClick={() => openProspectsPdf(viewItems || [], fmtDate)} style={ghostBtn}>Wè PDF la</button>
-            <button onClick={() => downloadProspectsPdf(viewItems || [], fmtDate)} style={goldBtn}>Telechaje PDF</button>
+            <button onClick={() => openProspectsPdf(pdfItems, fmtDate, pdfOpts)} style={ghostBtn}>Wè PDF la</button>
+            <button onClick={() => downloadProspectsPdf(pdfItems, fmtDate, pdfOpts)} style={goldBtn}>Telechaje PDF</button>
           </div>
         </div>
+
+        {/* Filtè PDF */}
+        <div className="no-print" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14, padding: "12px 14px", border: `1px solid ${PALETTE.line}`, borderRadius: 12, background: "rgba(224,165,10,.06)" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: PALETTE.cream }}>Filtè :</span>
+          <select value={pdfFilter} onChange={(e) => { setPdfFilter(e.target.value); if (e.target.value !== "etiquette") setPdfEtq(""); }} style={selStyle}>
+            <option value="none">Tout ansanm</option>
+            <option value="date">Regwoupe pa dat (semèn)</option>
+            <option value="etiquette">Pa etikèt</option>
+          </select>
+          {pdfFilter === "etiquette" && (
+            <select value={pdfEtq} onChange={(e) => setPdfEtq(e.target.value)} style={selStyle}>
+              <option value="">Chwazi yon etikèt…</option>
+              {etqOptions.map((n) => (<option key={n} value={n}>{n}</option>))}
+            </select>
+          )}
+          <span style={{ fontSize: 12, color: `${PALETTE.cream}99` }}>
+            {pdfFilter === "date"
+              ? "PDF a ap divize an blòk pou chak semèn (lendi → dimanch), tout programme yo ansanm."
+              : pdfFilter === "etiquette"
+              ? (pdfEtq ? `Sèlman moun ki gen etikèt "${pdfEtq}" yo.` : "Chwazi yon etikèt pou filtre.")
+              : "Tout moun yo, tout programme ansanm."}
+          </span>
+        </div>
+
         <p className="no-print" style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: "0 0 18px" }}>
-          "Wè PDF la" louvri l nan yon nouvo paj. "Telechaje PDF" sere fichye a (<strong>nouvo-prospect.pdf</strong>). Anba a se yon apèsi an fòma tablo.
+          "Wè PDF la" louvri l nan yon nouvo paj. "Telechaje PDF" sere fichye a. Anba a se yon apèsi.
         </p>
 
         <div id="pdf-print-area" style={{ overflowX: "auto" }}>
-          {pages.length === 0 ? (
-            <div className="pdf-page">
-              <PdfHeader />
-              <p style={{ color: "#555", fontSize: 14 }}>Poko gen okenn prospè.</p>
-              <div className="pdf-foot"><span>Miss Thani - Make-Up &amp; Lace Club</span><span>Paj 1 / 1</span></div>
+          <div className="pdf-page">
+            <PdfHeader count={pdfItems.length} />
+            {pdfItems.length === 0 ? (
+              <p style={{ color: "#555", fontSize: 14 }}>
+                {pdfFilter === "etiquette" && !pdfEtq ? "Chwazi yon etikèt anwo a." : "Poko gen okenn moun."}
+              </p>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...th, width: 26 }}>#</th>
+                    <th style={{ ...th, width: 74 }}>Programme</th>
+                    <th style={{ ...th, width: 52 }}>Dat</th>
+                    <th style={{ ...th, width: 66 }}>Etikèt</th>
+                    {qCols.map((q) => (<th key={q} style={th}>{q}</th>))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((r, ri) =>
+                    r.type === "header" ? (
+                      <tr key={"h" + ri}>
+                        <td colSpan={4 + qCols.length} style={{ padding: "8px 8px", fontSize: 12, fontWeight: 800, color: "#7a2d0e", background: "rgba(224,165,10,.28)", borderTop: "1px solid #e0a50a", borderBottom: "1px solid #e0a50a" }}>
+                          {r.label}
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={r.p.id}>
+                        <td style={{ ...td, color: "#C2238E", fontWeight: 700 }}>{r.num}</td>
+                        <td style={{ ...td, fontWeight: 700 }}>{r.p.program || "-"}</td>
+                        <td style={{ ...td, color: "#7a6f63" }}>{shortDate(r.p.updatedAt)}</td>
+                        <td style={{ ...td, color: "#7a2d0e" }}>{r.p.etiquette || ""}</td>
+                        {qCols.map((q) => (<td key={q} style={td}>{answerFor(r.p, q)}</td>))}
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
+            )}
+            <div className="pdf-foot">
+              <span>Miss Thani - Make-Up &amp; Lace Club</span>
+              <span>Apèsi</span>
             </div>
-          ) : (
-            pages.map((pg, i) => (
-              <div className="pdf-page" key={i}>
-                {i === 0 && <PdfHeader count={(viewItems || []).length} />}
-                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ ...th, width: 26 }}>#</th>
-                      <th style={{ ...th, width: 78 }}>Programme</th>
-                      <th style={{ ...th, width: 60 }}>Dat</th>
-                      {qCols.map((q) => (
-                        <th key={q} style={th}>{q}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pg.map((p, idx) => {
-                      const num = i * ROWS_PER_PAGE + idx + 1;
-                      return (
-                        <tr key={p.id}>
-                          <td style={{ ...td, color: "#C2238E", fontWeight: 700 }}>{num}</td>
-                          <td style={{ ...td, fontWeight: 700 }}>{p.program || "-"}</td>
-                          <td style={{ ...td, color: "#7a6f63" }}>{shortDate(p.updatedAt)}</td>
-                          {qCols.map((q) => (
-                            <td key={q} style={td}>{answerFor(p, q)}</td>
-                          ))}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <div className="pdf-foot">
-                  <span>Miss Thani - Make-Up &amp; Lace Club</span>
-                  <span>Paj {i + 1} / {pages.length}</span>
-                </div>
-              </div>
-            ))
-          )}
+          </div>
         </div>
       </div>
     );
