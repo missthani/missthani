@@ -164,7 +164,7 @@ function activeVideoSlotAll(screens) {
   return null;
 }
 
-/* Tout kreno video pwograme yo (start/end) atravè tout etap yon pwogram — pou apèsi dat rezèvasyon yo */
+/* Tout kreno video pwograme yo (start/end/session) atravè tout etap yon pwogram — pou apèsi dat rezèvasyon yo */
 function allVideoSlots(screens) {
   const out = [];
   for (const sc of screens || []) {
@@ -172,12 +172,32 @@ function allVideoSlots(screens) {
       if (b.kind !== "video") continue;
       for (const s of b.schedule || []) {
         if (!s.start || !((s.url || "").trim())) continue;
-        out.push({ start: s.start, end: s.end || "" });
+        out.push({ start: s.start, end: s.end || "", session: s.session || "" });
       }
     }
   }
   out.sort((a, b) => String(a.start).localeCompare(String(b.start)));
   return out;
+}
+
+/* Dat baz pou kalkile rezèvasyon an nan kreno aktif la: dat session si li defini, sinon dat komansman */
+function activeVideoResaBase(blocks) {
+  const today = todayStr();
+  for (const b of blocks || []) {
+    if (b.kind !== "video") continue;
+    for (const s of b.schedule || []) {
+      if (!s.start || !((s.url || "").trim())) continue;
+      if (s.start <= today && (!s.end || today <= s.end)) return (s.session || s.start);
+    }
+  }
+  return "";
+}
+function activeVideoResaBaseAll(screens) {
+  for (const sc of screens || []) {
+    const d = activeVideoResaBase(getStepBlocks(sc));
+    if (d) return d;
+  }
+  return "";
 }
 
 /* Jwenn dat video pwograme yon ETAP espesifik (1 = premye etap). 
@@ -205,6 +225,15 @@ function anyActiveVideoStart(programs) {
   for (const p of programs || []) {
     const st = activeVideoStartAll(p.steps || []);
     if (st) return st;
+  }
+  return "";
+}
+
+/* Menm bagay men li bay dat baz rezèvasyon an (dat session si li defini) */
+function anyActiveVideoResaBase(programs) {
+  for (const p of programs || []) {
+    const d = activeVideoResaBaseAll(p.steps || []);
+    if (d) return d;
   }
   return "";
 }
@@ -1143,8 +1172,8 @@ function PublicSpace({ config, onAdmin }) {
     const bl = getStepBlocks(screens[i]);
     for (const b of bl) {
       if (b.kind === "special" && b.banner && formComplete) {
-        const startDate = specialVideoStart(screens, b);
-        const deadlineRaw = addDays(startDate, 10); // dat limit rezèvasyon (YYYY-MM-DD)
+        const startDate = activeVideoResaBaseAll(screens) || specialVideoStart(screens, b);
+        const deadlineRaw = addDays(startDate, 10); // dat limit rezèvasyon (dat session + 10 jou)
         const slot = activeVideoSlotAll(screens);
         const riveRaw = slot ? slot.end : ""; // dezyèm dat la (dat rive a)
         const expired = deadlineRaw && todayStr() > deadlineRaw;
@@ -1169,7 +1198,7 @@ function PublicSpace({ config, onAdmin }) {
   }
 
   // Mesaj swivi pèsonèl (admin nan mete l nan paj prospè yo) — parèt anlè paj la
-  const followupDat10 = formatHtDate(addDays(anyActiveVideoStart(programs), 10));
+  const followupDat10 = formatHtDate(addDays(anyActiveVideoResaBase(programs), 10));
   const followupText = (myFollowup && FOLLOWUP_TPL[myFollowup])
     ? renderTemplate(FOLLOWUP_TPL[myFollowup], { non: firstNameGlobal || "", dat10: followupDat10, dat: "", special: "", adres: myAddr, program: myProgram || (selected && selected.label) || "" })
     : "";
@@ -1863,7 +1892,7 @@ function AdminSpace({ config, onSave, onExit }) {
   // pwogram videyo pa dat (anndan yon blòk videyo)
   const updateBlockSchedule = (pid, sid, bid, fn) =>
     setStepBlocks(pid, sid, (bl) => bl.map((b) => (b.id === bid ? { ...b, schedule: fn(b.schedule || []) } : b)));
-  const addBlockSlot = (pid, sid, bid) => updateBlockSchedule(pid, sid, bid, (arr) => [...arr, { id: uid(), start: "", end: "", url: "" }]);
+  const addBlockSlot = (pid, sid, bid) => updateBlockSchedule(pid, sid, bid, (arr) => [...arr, { id: uid(), start: "", end: "", url: "", session: "" }]);
   const updateBlockSlot = (pid, sid, bid, slid, patch) => updateBlockSchedule(pid, sid, bid, (arr) => arr.map((x) => (x.id === slid ? { ...x, ...patch } : x)));
   const removeBlockSlot = (pid, sid, bid, slid) => updateBlockSchedule(pid, sid, bid, (arr) => arr.filter((x) => x.id !== slid));
 
@@ -2155,6 +2184,13 @@ function AdminSpace({ config, onSave, onExit }) {
                                           <button onClick={() => removeBlockSlot(p.id, s.id, b.id, sl.id)} style={{ ...miniDanger, alignSelf: "flex-end" }} aria-label="Efase dat">✕</button>
                                         </div>
                                         <input className="mt-input" style={{ marginTop: 8 }} placeholder="Lien videyo pou peryòd sa a" value={sl.url || ""} onChange={(e) => updateBlockSlot(p.id, s.id, b.id, sl.id, { url: e.target.value })} />
+                                        <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${PALETTE.line}` }}>
+                                          <span style={{ fontSize: 11, color: PALETTE.gold, fontWeight: 700 }}>Dat session</span>
+                                          <span style={{ fontSize: 11, color: `${PALETTE.cream}77`, display: "block", marginBottom: 4 }}>
+                                            Jou session an. Se dat sa a (plis 10 jou apre l) k ap parèt nan "Dat rezèvasyon" an.
+                                          </span>
+                                          <input className="mt-input" type="date" style={{ colorScheme: "light", maxWidth: 200 }} value={sl.session || ""} onChange={(e) => updateBlockSlot(p.id, s.id, b.id, sl.id, { session: e.target.value })} />
+                                        </div>
                                       </div>
                                     ))}
                                     <button onClick={() => addBlockSlot(p.id, s.id, b.id)} style={{ ...ghostBtn, width: "100%" }}>+ Ajoute yon peryòd</button>
@@ -2197,7 +2233,7 @@ function AdminSpace({ config, onSave, onExit }) {
                                       <strong>{"{non}"}</strong> = non vizitè a<br />
                                       <strong>{"{special}"}</strong> = sou kisa special la ye<br />
                                       <strong>{"{dat}"}</strong> = jou pou rezève (sa ou chwazi anwo a)<br />
-                                      <strong>{"{dat10}"}</strong> = 10 jou apre dat komansman video pwograme ki ap jwe a
+                                      <strong>{"{dat10}"}</strong> = 10 jou apre dat session an (oswa dat komansman video a si pa gen session)
                                     </div>
                                   </div>
                                   <label style={{ ...labelStyle, marginTop: 12 }}>Ki etap video pwograme a ye? (pou {"{dat10}"})</label>
@@ -2719,11 +2755,11 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     catch (e) { return ""; }
   };
 
-  // Dat rezèvasyon: MENM dat ki nan mesaj la — dat video pwograme a + 10 jou
+  // Dat rezèvasyon: MENM dat ki nan mesaj la — dat session (oswa dat video) + 10 jou
   const resaDate = (p) => {
     const prog = (programs || []).find((pp) => pp.label === p.program);
-    const start = prog ? activeVideoStartAll(prog.steps || []) : "";
-    const d = addDays(start, 10);
+    const base = prog ? activeVideoResaBaseAll(prog.steps || []) : "";
+    const d = addDays(base, 10);
     return d ? formatHtDate(d) : "—";
   };
 
@@ -2986,18 +3022,20 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             const t = todayStr();
             const progList = (programs || [])
               .map((prog) => {
-                const slots = allVideoSlots(prog.steps || []).map((s) => ({
-                  start: s.start,
-                  end: s.end,
-                  resa: addDays(s.start, 10),
-                  active: s.start && s.start <= t && (!s.end || t <= s.end),
-                }));
+                const slots = allVideoSlots(prog.steps || []).map((s) => {
+                  const base = s.session || s.start; // dat session (sinon dat komansman)
+                  return {
+                    base,
+                    resa: addDays(base, 10),
+                    active: s.start && s.start <= t && (!s.end || t <= s.end),
+                  };
+                });
                 return { label: prog.label, slots };
               })
               .filter((p) => p.slots.length > 0);
 
             if (progList.length === 0) {
-              return <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: 0 }}>Poko gen okenn video pwograme ak yon dat. (Mete yon orè sou yon blòk Videyo nan Editè a pou dat yo parèt isit la.)</p>;
+              return <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: 0 }}>Poko gen okenn dat session. (Mete yon "Dat session" sou yon kreno Videyo nan Editè a pou dat yo parèt isit la.)</p>;
             }
             return progList.map((pr) => {
               const open = !!openResa[pr.label];
@@ -3014,28 +3052,30 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                       <strong style={{ fontSize: 14.5, color: PALETTE.cream }}>{pr.label}</strong>
                     </span>
                     <span style={{ fontSize: 12, color: `${PALETTE.cream}aa`, fontWeight: 600, whiteSpace: "nowrap" }}>
-                      {pr.slots.length} peryòd{hasActive ? " · ● an kous" : ""}
+                      {pr.slots.length} session{hasActive ? " · ● an kous" : ""}
                     </span>
                   </button>
                   {open && (
                     <div style={{ overflowX: "auto", borderTop: `1px solid ${PALETTE.line}` }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 380 }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 360 }}>
                         <thead>
                           <tr>
-                            <th style={{ ...thDark, whiteSpace: "nowrap" }}>Peryòd video (soti → rive)</th>
-                            <th style={{ ...thDark, whiteSpace: "nowrap" }}>Dat limit rezèvasyon</th>
+                            <th style={{ ...thDark, whiteSpace: "nowrap" }}>Dat session</th>
+                            <th style={{ ...thDark, whiteSpace: "nowrap" }}>Dat limit rezèvasyon (+10 jou)</th>
                           </tr>
                         </thead>
                         <tbody>
                           {pr.slots.map((s, i) => (
-                            <tr key={i} style={s.active ? { background: "rgba(224,165,10,.22)" } : undefined}>
-                              <td style={{ ...tdDark, whiteSpace: "nowrap", fontWeight: s.active ? 700 : 400 }}>
-                                {formatHtDate(s.start)} {s.end ? `→ ${formatHtDate(s.end)}` : "→ (san limit)"}
+                            <tr key={i} style={s.active ? { background: "#C0392B" } : undefined}>
+                              <td style={{ ...tdDark, whiteSpace: "nowrap", fontWeight: 700, color: s.active ? "#FFFFFF" : PALETTE.cream }}>
+                                {s.base ? formatHtDate(s.base) : "—"}
                                 {s.active && (
-                                  <span style={{ marginLeft: 8, display: "inline-block", padding: "1px 8px", borderRadius: 999, background: PALETTE.gold, color: "#fff", fontSize: 10.5, fontWeight: 700, verticalAlign: "middle" }}>● AN KOUS</span>
+                                  <span style={{ marginLeft: 8, display: "inline-block", padding: "1px 8px", borderRadius: 999, background: "#FFFFFF", color: "#C0392B", fontSize: 10.5, fontWeight: 800, verticalAlign: "middle" }}>● AN KOUS</span>
                                 )}
                               </td>
-                              <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 700, whiteSpace: "nowrap" }}>{formatHtDate(s.resa)}</td>
+                              <td style={{ ...tdDark, whiteSpace: "nowrap", fontWeight: 700, color: s.active ? "#000000" : PALETTE.gold }}>
+                                {s.base ? formatHtDate(s.resa) : "—"}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
