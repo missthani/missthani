@@ -2741,12 +2741,13 @@ function StatsView() {
 }
 
 /* Konkou ant ajan yo — Progression des Agents (moun ki make "vini" konte pou ajan yo) */
+/* Konkou ant ajan yo — Progression des Agents (moun ki make "vini" konte pou ajan yo) */
 function AgentsProgressView({ items = [], programs = [] }) {
   const OBJ = 60;
   const LEVELS = [
-    { key: "silver", label: "SILVER", pct: 50, n: Math.round(OBJ * 0.5), color: "#9aa0a6" },
-    { key: "gold", label: "GOLD", pct: 80, n: Math.round(OBJ * 0.8), color: "#E0A50A" },
-    { key: "diamond", label: "DIAMOND", pct: 110, n: Math.round(OBJ * 1.1), color: "#5FA8D3" },
+    { key: "silver", label: "SILVER", pct: 50, n: Math.round(OBJ * 0.5), color: "#9AA0A6", soft: "#EEF0F2", grad: "linear-gradient(90deg,#C7CAD0,#9AA0A6)", icon: "🥈" },
+    { key: "gold", label: "GOLD", pct: 80, n: Math.round(OBJ * 0.8), color: "#E0A50A", soft: "#FCEFC7", grad: "linear-gradient(90deg,#F6CE5A,#E0A50A)", icon: "🥇" },
+    { key: "diamond", label: "DIAMOND", pct: 110, n: Math.round(OBJ * 1.1), color: "#5FA8D3", soft: "#E3F1FA", grad: "linear-gradient(90deg,#9AD1EF,#5FA8D3)", icon: "💎" },
   ];
   const progList = (programs || []).map((p) => p.label).filter(Boolean);
   const [sel, setSel] = useState(progList[0] || "");
@@ -2754,8 +2755,23 @@ function AgentsProgressView({ items = [], programs = [] }) {
 
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const moisHt = ["Janvye", "Fevriye", "Mas", "Avril", "Me", "Jen", "Jiyè", "Out", "Septanm", "Oktòb", "Novanm", "Desanm"];
-  const monthLabel = `${moisHt[now.getMonth()]} ${now.getFullYear()}`;
+  const moisFr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+  const monthLabel = `${moisFr[now.getMonth()]} ${now.getFullYear()}`;
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const endLabel = `${endOfMonth.getDate()} ${moisFr[now.getMonth()]} ${now.getFullYear()}`;
+  const daysLeft = Math.max(0, Math.ceil((endOfMonth - now) / 86400000));
+
+  const progIcon = (lbl) => {
+    const s = (lbl || "").toLowerCase();
+    if (/ongl|nail/.test(s)) return "💅";
+    if (/maki|makyaj|make|maqui/.test(s)) return "💄";
+    if (/tres|braid/.test(s)) return "🎀";
+    if (/dread|loc/.test(s)) return "🧶";
+    if (/fl[eè]|fleur|flow|flo/.test(s)) return "🌸";
+    return "⭐";
+  };
+  const initials = (name) => (name || "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const avatarColor = (name) => { let h = 0; for (const c of name || "") h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h},55%,62%)`; };
 
   const { agents, winners } = useMemo(() => {
     const vinis = (items || []).filter((p) => p.followup === "vini" && p.program === sel && (!p.cameAt || p.cameAt.slice(0, 7) === ym));
@@ -2769,91 +2785,143 @@ function AgentsProgressView({ items = [], programs = [] }) {
     LEVELS.forEach((L) => {
       let best = null;
       ags.forEach((ag) => {
-        if (ag.count >= L.n) {
-          const t = ag.times[L.n - 1] || "9999";
-          if (!best || t < best.time) best = { agent: ag.agent, time: t };
-        }
+        if (ag.count >= L.n) { const t = ag.times[L.n - 1] || "9999"; if (!best || t < best.time) best = { agent: ag.agent, time: t }; }
       });
       wins[L.key] = best;
     });
     return { agents: ags, winners: wins };
   }, [items, sel, ym]);
 
-  const barColor = (name) => {
-    if (winners.diamond && winners.diamond.agent === name) return LEVELS[2].color;
-    if (winners.gold && winners.gold.agent === name) return LEVELS[1].color;
-    if (winners.silver && winners.silver.agent === name) return LEVELS[0].color;
-    return PALETTE.blush;
+  const levelOf = (name) => {
+    if (winners.diamond && winners.diamond.agent === name) return LEVELS[2];
+    if (winners.gold && winners.gold.agent === name) return LEVELS[1];
+    if (winners.silver && winners.silver.agent === name) return LEVELS[0];
+    return null;
   };
-  const wonLevels = (name) => LEVELS.filter((L) => winners[L.key] && winners[L.key].agent === name).map((L) => L.label);
+  const barColor = (name) => { const L = levelOf(name); return L ? L.grad : `linear-gradient(90deg,${PALETTE.blush},#C2238E)`; };
+  const wonLevels = (name) => LEVELS.filter((L) => winners[L.key] && winners[L.key].agent === name);
+
+  const seg = [{ w: 50 / 150, L: LEVELS[0] }, { w: 30 / 150, L: LEVELS[1] }, { w: 30 / 150, L: LEVELS[2] }];
+  const axisTicks = [0, 25, 50, 80, 110, 150];
 
   return (
     <div>
-      <div style={{ marginBottom: 14 }}>
-        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: 0, color: PALETTE.cream }}>Progression des Agents</h2>
-        <p style={{ fontSize: 13, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Konkou {monthLabel} — objektif {OBJ} moun pa programme</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 30 }}>🏆</span>
+          <div>
+            <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 26, fontWeight: 800, letterSpacing: ".5px", margin: 0, color: PALETTE.cream }}>PROGRESSION DES AGENTS</h2>
+            <p style={{ fontSize: 13, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Soyez le premier à atteindre les objectifs et gagnez les bonus !</p>
+          </div>
+        </div>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", border: `1px solid ${PALETTE.line}`, borderRadius: 12, background: "#fff", fontWeight: 700, color: PALETTE.cream, fontSize: 14 }}>📅 {monthLabel}</div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-        {progList.map((pl) => (
-          <button key={pl} onClick={() => setSel(pl)} style={{ ...(sel === pl ? goldBtn : ghostBtn), padding: "6px 14px", fontSize: 13 }}>{pl}</button>
-        ))}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 20 }}>
-        {LEVELS.map((L) => {
-          const w = winners[L.key];
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
+        {progList.map((pl) => {
+          const on = sel === pl;
           return (
-            <div key={L.key} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 14, padding: 14, background: `${L.color}18` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 12, height: 12, borderRadius: 999, background: L.color }} />
-                <strong style={{ fontSize: 14, color: PALETTE.cream }}>{L.label}</strong>
-              </div>
-              <div style={{ fontSize: 12, color: `${PALETTE.cream}aa`, margin: "4px 0" }}>{L.n} moun ({L.pct}%)</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: w ? L.color : `${PALETTE.cream}66` }}>
-                {w ? `🏆 ${w.agent}` : "Pa ankò genyen"}
-              </div>
-            </div>
+            <button key={pl} onClick={() => setSel(pl)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 14, cursor: "pointer", border: `2px solid ${on ? PALETTE.blush : PALETTE.line}`, background: on ? "rgba(229,36,126,.06)" : "#fff", textAlign: "left" }}>
+              <span style={{ fontSize: 20 }}>{progIcon(pl)}</span>
+              <span>
+                <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: on ? PALETTE.blush : PALETTE.cream }}>{pl}</span>
+                <span style={{ display: "block", fontSize: 11, color: `${PALETTE.cream}88` }}>Objectif : {OBJ}</span>
+              </span>
+            </button>
           );
         })}
       </div>
 
-      {agents.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "40px 20px", border: `1px solid ${PALETTE.line}`, borderRadius: 16, background: "rgba(194,35,142,.04)" }}>
-          <p style={{ fontSize: 15, color: `${PALETTE.cream}cc`, margin: 0 }}>Poko gen okenn ajan ki gen moun ki "vini" pou {sel || "programme sa a"} nan mwa {monthLabel}.</p>
-          <p style={{ fontSize: 12.5, color: `${PALETTE.cream}88`, margin: "6px 0 0" }}>Lè yon ajan (etikèt) make yon moun "Vini", l ap konte isit la.</p>
+      <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 18, background: "#fff", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: PALETTE.cream, letterSpacing: ".5px" }}>{(sel || "").toUpperCase()} CHALLENGE</h3>
+            <p style={{ margin: "3px 0 0", fontSize: 13, color: `${PALETTE.cream}99` }}>🎯 Objectif : {OBJ} personnes</p>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <p style={{ margin: 0, fontSize: 12.5, color: `${PALETTE.cream}99` }}>🕒 Fin du challenge : {endLabel}</p>
+            <p style={{ margin: "2px 0 0", fontSize: 13, fontWeight: 800, color: PALETTE.blush }}>Il reste {daysLeft} jour{daysLeft > 1 ? "s" : ""}</p>
+          </div>
         </div>
-      ) : (
-        <div>
-          {agents.map((ag, i) => {
-            const pct = Math.min(150, Math.round((ag.count / OBJ) * 100));
-            const c = barColor(ag.agent);
+
+        <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+          {seg.map((s) => {
+            const w = winners[s.L.key];
+            return (
+              <div key={s.L.key} style={{ flex: s.w, minWidth: 88, background: s.L.soft, padding: "12px 8px", borderRadius: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontWeight: 800, fontSize: 12.5, color: s.L.color }}>
+                  <span>{s.L.icon}</span>{s.L.label}
+                </div>
+                <div style={{ textAlign: "center", fontSize: 11, color: `${PALETTE.cream}aa`, marginTop: 3 }}>{s.L.n} pers. ({s.L.pct}%)</div>
+                {w && <div style={{ textAlign: "center", fontSize: 10.5, fontWeight: 700, color: s.L.color, marginTop: 4 }}>🏆 {w.agent}</div>}
+              </div>
+            );
+          })}
+          <div style={{ flex: 40 / 150, minWidth: 88, background: "rgba(229,36,126,.08)", padding: "12px 8px", borderRadius: 10 }}>
+            <div style={{ textAlign: "center", fontWeight: 800, fontSize: 12, color: PALETTE.blush }}>🏆 GAGNANT</div>
+            <div style={{ textAlign: "center", fontSize: 10.5, color: `${PALETTE.cream}aa`, marginTop: 3 }}>{winners.silver ? winners.silver.agent : "—"}</div>
+          </div>
+        </div>
+        <div style={{ position: "relative", height: 16, marginTop: 6 }}>
+          {axisTicks.map((t) => (
+            <span key={t} style={{ position: "absolute", left: `${(t / 150) * 100}%`, transform: "translateX(-50%)", fontSize: 10.5, color: [50, 80, 110].includes(t) ? PALETTE.gold : `${PALETTE.cream}77`, fontWeight: [50, 80, 110].includes(t) ? 800 : 500 }}>{t}%</span>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 236px", gap: 16, alignItems: "start" }}>
+        <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 16, background: "#fff" }}>
+          {agents.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "30px 16px" }}>
+              <p style={{ fontSize: 15, color: `${PALETTE.cream}cc`, margin: 0 }}>Poko gen ajan pou {sel} nan {monthLabel}.</p>
+              <p style={{ fontSize: 12.5, color: `${PALETTE.cream}88`, margin: "6px 0 0" }}>Lè yon ajan (etikèt) make yon moun "Vini", l ap parèt isit la.</p>
+            </div>
+          ) : agents.map((ag, i) => {
+            const pctReal = Math.round((ag.count / OBJ) * 100);
+            const barW = Math.min(150, pctReal) / 150 * 100;
+            const medal = ["🥇", "🥈", "🥉"][i];
             const won = wonLevels(ag.agent);
             return (
-              <div key={ag.agent} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <span style={{ width: 22, textAlign: "right", fontWeight: 800, color: i < 3 ? PALETTE.gold : `${PALETTE.cream}88`, fontSize: 14 }}>{i + 1}</span>
-                <div style={{ width: 120, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", fontSize: 13.5, fontWeight: 600, color: PALETTE.cream }}>{ag.agent}</div>
-                <div style={{ width: 70, fontSize: 12, color: `${PALETTE.cream}aa`, whiteSpace: "nowrap" }}>{ag.count} moun</div>
-                <div style={{ flex: 1, minWidth: 90, background: "rgba(123,45,142,.10)", borderRadius: 8, overflow: "hidden", height: 22 }}>
-                  <div style={{ width: `${(pct / 150) * 100}%`, minWidth: 34, height: "100%", background: c, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 8, boxSizing: "border-box" }}>
-                    <span style={{ fontSize: 11.5, fontWeight: 800, color: "#fff" }}>{Math.round((ag.count / OBJ) * 100)}%</span>
-                  </div>
+              <div key={ag.agent} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 0", borderBottom: i < agents.length - 1 ? `1px solid ${PALETTE.line}` : "none" }}>
+                <span style={{ width: 22, textAlign: "center", fontSize: medal ? 16 : 13, fontWeight: 800, color: `${PALETTE.cream}99` }}>{medal || i + 1}</span>
+                <span style={{ width: 32, height: 32, borderRadius: 999, background: avatarColor(ag.agent), color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 12, flexShrink: 0 }}>{initials(ag.agent)}</span>
+                <div style={{ width: 88, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", fontSize: 13, fontWeight: 700, color: PALETTE.cream }}>{ag.agent}</div>
+                <div style={{ width: 58, fontSize: 11, color: `${PALETTE.cream}99`, whiteSpace: "nowrap" }}>{ag.count} pers.</div>
+                <div style={{ flex: 1, minWidth: 60, background: "rgba(123,45,142,.08)", borderRadius: 8, overflow: "hidden", height: 18 }}>
+                  <div style={{ width: `${barW}%`, minWidth: 8, height: "100%", background: barColor(ag.agent), borderRadius: 8 }} />
                 </div>
-                {won.length > 0 && (
-                  <span style={{ fontSize: 10.5, fontWeight: 800, color: c, whiteSpace: "nowrap" }}>🏆 {won.join(" + ")}</span>
-                )}
+                <span style={{ width: 38, textAlign: "right", fontSize: 12.5, fontWeight: 800, color: PALETTE.cream }}>{pctReal}%</span>
+                {won.length > 0 && <span style={{ fontSize: 13 }} title={won.map((L) => L.label).join(" + ")}>{won.map((L) => L.icon).join("")}</span>}
               </div>
             );
           })}
         </div>
-      )}
-      <p style={{ fontSize: 12, color: `${PALETTE.cream}88`, marginTop: 16, lineHeight: 1.5 }}>
-        Silver = 50% ({LEVELS[0].n}), Gold = 80% ({LEVELS[1].n}), Diamond = 110% ({LEVELS[2].n}). Se sèlman <b>premye ajan</b> ki rive nan yon nivo ki genyen bonis li. Yon ajan ki genyen plizyè nivo, bonis yo <b>adisyone</b>. Bar tout lòt ajan yo rete woz.
-      </p>
+
+        <div>
+          <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 14, background: "#fff", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 800, fontSize: 13, color: PALETTE.cream, marginBottom: 6 }}>👑 GAGNANTS DES BONUS</div>
+            {LEVELS.map((L) => {
+              const w = winners[L.key];
+              return (
+                <div key={L.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${PALETTE.line}` }}>
+                  <span style={{ fontSize: 18 }}>{L.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 12.5, fontWeight: 800, color: L.color }}>{L.label}</div>
+                    <div style={{ fontSize: 12, color: w ? PALETTE.cream : `${PALETTE.cream}77` }}>{w ? w.agent : "Pas encore gagné"}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ borderRadius: 18, padding: 14, background: "rgba(229,36,126,.07)", border: `1px solid ${PALETTE.lineStrong}` }}>
+            <div style={{ fontWeight: 800, fontSize: 13, color: PALETTE.blush, marginBottom: 4 }}>Continuez comme ça ! 🎁</div>
+            <p style={{ fontSize: 11.5, color: `${PALETTE.cream}aa`, margin: 0, lineHeight: 1.5 }}>Le premier à chaque niveau remporte le bonus ! Un agent qui atteint plusieurs niveaux additionne ses bonus.</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
-
 function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages, tickerMsgs = {}, onSaveTickerMsgs, stageConditions = {} }) {
   const fillTpl = (key, vars) => {
     let t = (tickerMsgs && tickerMsgs[key]) || TICKER_DEFAULTS[key] || "";
