@@ -284,6 +284,30 @@ const FOLLOWUP_LABELS = {
    {datRive}=dezyèm dat la (dat rive a) nan peryòd soti→rive */
 const EXPIRED_RESA_TPL = "Hello chère, nou toujou ap resevwa enskripsyon jiska {datRive}, menm si espesyal la fini. Ou ka toujou vin enskri pou nouvèl sesyon an.";
 
+/* Modèl mesaj ki defile nan kazye chak moun (Bwat mesaj — admin ka modifye yo).
+   Chak etap gen pwòp varyab li. */
+const TICKER_STATES = [
+  { key: "no_tag_no_follow", label: "Kontakte — san etikèt, san swivi", vars: ["{non}"],
+    def: "Moun sa ({non}) jwenn mesaj WhatsApp deja, men nou pa mete etikèt sou li, epi nou pa make swivi pou li." },
+  { key: "tag_no_follow", label: "Gen etikèt — poko gen swivi", vars: ["{etiket}", "{non}"],
+    def: "Hello {etiket}, ou gen pou fè swivi ak {non}." },
+  { key: "follow_done", label: "Swivi fèt", vars: ["{etiket}", "{non}", "{dat_swivi}", "{dat_rezervasyon}", "{dat_session}", "{dat_apel}"],
+    def: "Hello {etiket}, sonje ou te fè swivi ak {non} deja {dat_swivi}. Dat rezèvasyon an se {dat_rezervasyon} pou sesyon {dat_session}. Sonje rele {non} {dat_apel} pou w raple l sa." },
+  { key: "follow_noanswer", label: "Sone san repons / pa sone ditou", vars: ["{etiket}", "{non}", "{dat_swivi}", "{estati}", "{dat_refe}"],
+    def: "Hello {etiket}, sonje ou te fè swivi ak {non} {dat_swivi}, men li te {estati}. Sonje refè swivi ak {non} {dat_refe}." },
+  { key: "reserved", label: "Li reserve (felisitasyon)", vars: ["{etiket}", "{non}", "{dat_apel}", "{dat_session}"],
+    def: "Felisitasyon {etiket}, {non} reserve. Kounya sonje rele li {dat_apel} pou w raple l pou l vini nan kou (session {dat_session})." },
+  { key: "reserved_daybefore", label: "Li reserve — jou anvan session an", vars: ["{etiket}", "{non}", "{dat_session}"],
+    def: "Hello {etiket}, rele {non} pou w di l vini nan session an demen ({dat_session})." },
+  { key: "reserved_sessionday", label: "Jou session an — èske li vini?", vars: ["{non}", "{dat_session}"],
+    def: "Eske {non} vini nan kou? (Session an se {dat_session}.)" },
+  { key: "special_passed", label: "Dat special pase — poko reserve", vars: ["{etiket}", "{non}"],
+    def: "Hello {etiket}, {non} poko reserve et dat special la pase. Kontinye fè swivi avè l, fè l antre sou gwoup la." },
+  { key: "recycle", label: "Recycle", vars: ["{etiket}", "{non}"],
+    def: "Hello {etiket}, sonje {non} enskri deja men li poko vini nan kou. Sonje rele l pou planifye avè l jiskaske l vini nan kou." },
+];
+const TICKER_DEFAULTS = TICKER_STATES.reduce((o, s) => { o[s.key] = s.def; return o; }, {});
+
 /* Pran adrès yon moun nan repons li yo (kolòn ki gen mo kle adrès) */
 function extractAddress(answers) {
   const re = /rete|adr|kote|z[oò]n|vil|abite|kominote|address|lokalite|komin|katye|kartye/i;
@@ -438,6 +462,7 @@ const DEFAULT_CONFIG = {
   agents: [], // non ajan yo pou etikèt yo (admin nan jere lis sa a)
   waMessages: [], // modèl mesaj WhatsApp yo (admin nan jere)
   activeWaMessage: "", // id modèl ki aktif la
+  tickerMsgs: {}, // modèl mesaj ki defile nan kazye yo (admin ka modifye — Bwat mesaj)
   programs: [
     { id: uid(), label: "Onglerie", steps: [] },
     { id: uid(), label: "Tresse", steps: [] },
@@ -2059,6 +2084,12 @@ function AdminSpace({ config, onSave, onExit }) {
     await onSave(nd);
   };
 
+  const saveTickerMsgs = async (msgs) => {
+    const nd = { ...draft, tickerMsgs: msgs };
+    setDraft(nd);
+    await onSave(nd);
+  };
+
   /* ---- login ekran ---- */
   if (!authed) {
     return (
@@ -2110,7 +2141,7 @@ function AdminSpace({ config, onSave, onExit }) {
       </div>
 
       {adminTab === "prospects" ? (
-        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} />
+        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} tickerMsgs={draft.tickerMsgs || {}} onSaveTickerMsgs={saveTickerMsgs} />
       ) : adminTab === "stats" ? (
         <StatsView />
       ) : (
@@ -2519,7 +2550,7 @@ function ProspectsGate({ config }) {
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600 }}>Nouvo Prospè</div>
         <a href="/" style={{ ...ghostBtn, textDecoration: "none" }}>Tounen sou sit la</a>
       </div>
-      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} programs={(config && config.programs) || []} waMessages={(config && config.waMessages) || []} activeWaMessage={(config && config.activeWaMessage) || ""} />
+      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} programs={(config && config.programs) || []} waMessages={(config && config.waMessages) || []} activeWaMessage={(config && config.activeWaMessage) || ""} tickerMsgs={(config && config.tickerMsgs) || {}} />
     </div>
   );
 }
@@ -2618,7 +2649,12 @@ function StatsView() {
   );
 }
 
-function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages }) {
+function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages, tickerMsgs = {}, onSaveTickerMsgs }) {
+  const fillTpl = (key, vars) => {
+    let t = (tickerMsgs && tickerMsgs[key]) || TICKER_DEFAULTS[key] || "";
+    Object.keys(vars || {}).forEach((k) => { t = t.split(`{${k}}`).join(vars[k] == null ? "" : vars[k]); });
+    return t;
+  };
   const [items, setItems] = useState(null); // null = ap chaje
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState("list"); // "list" | "pdf"
@@ -2639,6 +2675,19 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [msgSaved, setMsgSaved] = useState(false);
   useEffect(() => { setMsgDraft(waMessages || []); }, [waMessages]);
   useEffect(() => { setActiveDraft(activeWaMessage || ""); }, [activeWaMessage]);
+
+  // Bwat mesaj — panèl pou modifye mesaj ki defile nan kazye yo
+  const [boxPanel, setBoxPanel] = useState(false);
+  const [boxDraft, setBoxDraft] = useState(tickerMsgs || {});
+  const [boxSaved, setBoxSaved] = useState(false);
+  useEffect(() => { setBoxDraft(tickerMsgs || {}); }, [tickerMsgs]);
+  const boxVal = (key) => (boxDraft[key] != null ? boxDraft[key] : TICKER_DEFAULTS[key] || "");
+  const setBoxVal = (key, v) => setBoxDraft((d) => ({ ...d, [key]: v }));
+  const resetBoxVal = (key) => setBoxDraft((d) => { const n = { ...d }; delete n[key]; return n; });
+  const saveBox = async () => {
+    if (onSaveTickerMsgs) await onSaveTickerMsgs(boxDraft);
+    setBoxSaved(true); setTimeout(() => setBoxSaved(false), 2000);
+  };
 
   const addMsg = () => {
     const id = "wa" + Math.random().toString(36).slice(2, 8);
@@ -2930,7 +2979,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       const dayBefore = session ? addDays(session, -1) : "";
       if (session && today >= session) {
         return {
-          text: `Eske ${name} vini nan kou? (Session an se ${sessTxt}.)`,
+          text: fillTpl("reserved_sessionday", { non: name, dat_session: sessTxt }),
           tone: "red",
           dropdown: { title: `Eske ${name} vini nan kou?`, options: [
             { label: "Vini", value: "came" },
@@ -2939,16 +2988,16 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         };
       }
       if (dayBefore && today >= dayBefore) {
-        return { text: `${greet}, rele ${name} pou w di l vini nan session an demen (${sessTxt}).`, tone: "red" };
+        return { text: fillTpl("reserved_daybefore", { etiket: etq || "chè", non: name, dat_session: sessTxt }), tone: "red" };
       }
       const callArrived = callDay && today >= callDay;
       const callTxt = callDay ? (callArrived ? "JODIA" : formatHtDate(callDay)) : "byento";
-      return { text: `${feli}, ${name} reserve. Kounya sonje rele li ${callTxt} pou w raple l pou l vini nan kou (session ${sessTxt}).`, tone: callArrived ? "red" : "none" };
+      return { text: fillTpl("reserved", { etiket: etq || "chè", non: name, dat_apel: callTxt, dat_session: sessTxt }), tone: callArrived ? "red" : "none" };
     }
 
     if (stage === "special_passed") {
       return {
-        text: `${greet}, ${name} poko reserve et dat special la pase. Kontinye fè swivi avè l, fè l antre sou gwoup la.`,
+        text: fillTpl("special_passed", { etiket: etq || "chè", non: name }),
         tone: "none",
         dropdown: { title: `Aksyon pou ${name}:`, options: [
           { label: "Enskri", value: "stage:reserved_special" },
@@ -2959,7 +3008,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
     if (stage === "recycle") {
       return {
-        text: `${greet}, sonje ${name} enskri deja men li poko vini nan kou. Sonje rele l pou planifye avè l jiskaske l vini nan kou.`,
+        text: fillTpl("recycle", { etiket: etq || "chè", non: name }),
         tone: "none",
         dropdown: { title: `Aksyon pou ${name}:`, options: [
           { label: "Li reserve", value: "stage:reserved_special" },
@@ -2970,7 +3019,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
     // ===== Pa gen stage ankò =====
     if (!etq && (!fu || fu === "")) {
-      return { text: `Moun sa (${name}) jwenn mesaj WhatsApp deja, men nou pa mete etikèt sou li, epi nou pa make swivi pou li.`, tone: "warn" };
+      return { text: fillTpl("no_tag_no_follow", { non: name }), tone: "warn" };
     }
     if (fu === "done") {
       const callDay = resa ? addDays(resa, -2) : "";
@@ -2979,7 +3028,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       const resaTxt = resa ? formatHtDate(resa) : "—";
       const sessTxt = session ? formatHtDate(session) : "—";
       return {
-        text: `${greet}, sonje ou te fè swivi ak ${name} deja${cAtTxt ? " " + cAtTxt : ""}. Dat rezèvasyon an se ${resaTxt} pou sesyon ${sessTxt}. Sonje rele ${name} ${callTxt} pou w raple l sa.`,
+        text: fillTpl("follow_done", { etiket: etq || "chè", non: name, dat_swivi: cAtTxt, dat_rezervasyon: resaTxt, dat_session: sessTxt, dat_apel: callTxt }),
         tone: arrived ? "red" : "none",
         dropdown: { title: `Eske ou fè swivi ak ${name}?`, options: [
           { label: "Li reserve nan dat special", value: "stage:reserved_special" },
@@ -2994,9 +3043,9 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       const redoDay = cAt ? addDays(cAt, 3) : "";
       const arrived = redoDay && today >= redoDay;
       const redoTxt = redoDay ? (arrived ? "JODIA" : formatHtDate(redoDay)) : "byento";
-      return { text: `${greet}, sonje ou te fè swivi ak ${name}${cAtTxt ? " " + cAtTxt : ""}, men li te ${stat}. Sonje refè swivi ak ${name} ${redoTxt}.`, tone: arrived ? "blue" : "none" };
+      return { text: fillTpl("follow_noanswer", { etiket: etq || "chè", non: name, dat_swivi: cAtTxt, estati: stat, dat_refe: redoTxt }), tone: arrived ? "blue" : "none" };
     }
-    if (etq) return { text: `${greet}, ou gen pou fè swivi ak ${name}.`, tone: "none" };
+    if (etq) return { text: fillTpl("tag_no_follow", { etiket: etq, non: name }), tone: "none" };
     return null;
   };
 
@@ -3402,7 +3451,10 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={() => setResaPanel((v) => !v)} style={resaPanel ? goldBtn : ghostBtn}>Dat rezèvasyon</button>
           {isAdmin && (
-            <button onClick={() => setMsgPanel((v) => !v)} style={msgPanel ? goldBtn : ghostBtn}>Mesaj WhatsApp</button>
+            <>
+              <button onClick={() => setMsgPanel((v) => !v)} style={msgPanel ? goldBtn : ghostBtn}>Mesaj WhatsApp</button>
+              <button onClick={() => setBoxPanel((v) => !v)} style={boxPanel ? goldBtn : ghostBtn}>Bwat mesaj</button>
+            </>
           )}
           <button onClick={refresh} style={ghostBtn} disabled={busy}>{busy ? "Ap chaje…" : "Aktyalize"}</button>
           {viewItems && viewItems.length > 0 && (
@@ -3492,6 +3544,38 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               );
             });
           })()}
+        </div>
+      )}
+
+      {isAdmin && boxPanel && (
+        <div style={{ marginBottom: 18, padding: 16, border: `1px solid ${PALETTE.lineStrong}`, borderRadius: 14, background: "rgba(224,165,10,.06)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 10, flexWrap: "wrap" }}>
+            <strong style={{ fontSize: 15 }}>Bwat mesaj — mesaj ki defile nan kazye yo</strong>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {boxSaved && <span style={{ color: PALETTE.goldSoft, fontSize: 13 }}>Anrejistre ✓</span>}
+              <button onClick={saveBox} style={goldBtn}>Anrejistre mesaj yo</button>
+              <button onClick={() => setBoxPanel(false)} style={ghostBtn}>Fèmen</button>
+            </div>
+          </div>
+          <p style={{ fontSize: 12.5, color: `${PALETTE.cream}aa`, margin: "0 0 14px", lineHeight: 1.5 }}>
+            Modifye mesaj chak etap. Sèvi ak varyab yo (tankou <b>{"{non}"}</b>, <b>{"{etiket}"}</b>, <b>{"{dat_session}"}</b>) — y ap ranplase otomatikman. Kite yon chan vid oswa klike "Remete default" pou sèvi ak mesaj orijinal la.
+          </p>
+          {TICKER_STATES.map((st) => (
+            <div key={st.key} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 12, marginBottom: 10, background: "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                <strong style={{ fontSize: 13.5, color: PALETTE.cream }}>{st.label}</strong>
+                <button onClick={() => resetBoxVal(st.key)} style={{ ...ghostBtn, padding: "3px 10px", fontSize: 12 }}>Remete default</button>
+              </div>
+              <div style={{ fontSize: 11.5, color: `${PALETTE.cream}88`, marginBottom: 6 }}>
+                Varyab: {st.vars.map((v) => (<code key={v} style={{ background: "rgba(194,35,142,.08)", padding: "1px 5px", borderRadius: 4, marginRight: 5 }}>{v}</code>))}
+              </div>
+              <textarea className="mt-input" style={{ minHeight: 70 }} value={boxVal(st.key)} onChange={(e) => setBoxVal(st.key, e.target.value)} />
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
+            {boxSaved && <span style={{ color: PALETTE.goldSoft, fontSize: 13, alignSelf: "center" }}>Anrejistre ✓</span>}
+            <button onClick={saveBox} style={goldBtn}>Anrejistre mesaj yo</button>
+          </div>
         </div>
       )}
 
