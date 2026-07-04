@@ -2207,6 +2207,12 @@ function AdminSpace({ config, onSave, onExit }) {
     await onSave(nd);
   };
 
+  const saveAgentsAndInfo = async (names, info) => {
+    const nd = { ...draft, agents: names, agentInfo: info };
+    setDraft(nd);
+    await onSave(nd);
+  };
+
   /* ---- login ekran ---- */
   if (!authed) {
     return (
@@ -2258,7 +2264,7 @@ function AdminSpace({ config, onSave, onExit }) {
       </div>
 
       {adminTab === "prospects" ? (
-        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} tickerMsgs={draft.tickerMsgs || {}} onSaveTickerMsgs={saveTickerMsgs} stageConditions={draft.stageConditions || {}} agentInfo={draft.agentInfo || {}} onSaveAgentInfo={saveAgentInfo} />
+        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} tickerMsgs={draft.tickerMsgs || {}} onSaveTickerMsgs={saveTickerMsgs} stageConditions={draft.stageConditions || {}} agentInfo={draft.agentInfo || {}} onSaveAgentInfo={saveAgentInfo} onSaveAgentsAndInfo={saveAgentsAndInfo} />
       ) : adminTab === "stats" ? (
         <StatsView />
       ) : (
@@ -3130,7 +3136,7 @@ function AgentSpace({ config, onSave }) {
   );
 }
 
-function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages, tickerMsgs = {}, onSaveTickerMsgs, stageConditions = {}, agentInfo = {}, onSaveAgentInfo }) {
+function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages, tickerMsgs = {}, onSaveTickerMsgs, stageConditions = {}, agentInfo = {}, onSaveAgentInfo, onSaveAgentsAndInfo }) {
   const fillTpl = (key, vars) => {
     let t = (tickerMsgs && tickerMsgs[key]) || TICKER_DEFAULTS[key] || "";
     Object.keys(vars || {}).forEach((k) => { t = t.split(`{${k}}`).join(vars[k] == null ? "" : vars[k]); });
@@ -3213,13 +3219,19 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   // Kreye / efase yon etikèt (admin sèlman)
   const createEtiquette = async () => {
     const name = newEtq.trim();
-    if (!name || !onSaveAgents) { setCreatingEtq(false); setNewEtq(""); setNewPin(""); return; }
-    if (!agentNames.includes(name)) await onSaveAgents([...agentNames, name]);
-    if (onSaveAgentInfo && newPin) {
-      await onSaveAgentInfo({ ...(agentInfo || {}), [name]: { ...((agentInfo || {})[name] || {}), pin: newPin } });
-    }
+    if (!name) { setCreatingEtq(false); setNewEtq(""); setNewPin(""); return; }
+    const names = agentNames.includes(name) ? agentNames : [...agentNames, name];
+    const info = { ...(agentInfo || {}) };
+    if (newPin) info[name] = { ...(info[name] || {}), pin: newPin };
+    if (onSaveAgentsAndInfo) await onSaveAgentsAndInfo(names, info);
+    else if (onSaveAgents) await onSaveAgents(names);
     setNewEtq(""); setNewPin("");
     setCreatingEtq(false);
+  };
+  // Mete/chanje modpas pou yon etikèt ki deja egziste
+  const setAgentPin = async (name, pin) => {
+    if (!onSaveAgentInfo) return;
+    await onSaveAgentInfo({ ...(agentInfo || {}), [name]: { ...((agentInfo || {})[name] || {}), pin } });
   };
   const removeEtiquetteName = async (name) => {
     if (!onSaveAgents) return;
@@ -3990,6 +4002,32 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                   <button onClick={() => removeEtiquetteName(n)} aria-label="Efase etikèt" style={{ border: "none", background: "transparent", color: "#7B2D8E", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: 0 }}>✕</button>
                 </span>
               ))}
+            </div>
+          )}
+          {isAdmin && agentNames.length > 0 && (
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${PALETTE.line}` }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: PALETTE.cream, marginBottom: 6 }}>🔑 Modpas ajan yo (4 chif) — pou konekte sou paj /agent la</div>
+              {agentNames.map((n) => {
+                const hasPin = !!((agentInfo || {})[n] && (agentInfo || {})[n].pin);
+                return (
+                  <div key={n} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                    <span style={{ width: 130, fontSize: 13, fontWeight: 600, color: PALETTE.cream, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{n}</span>
+                    <input
+                      className="mt-input"
+                      style={{ maxWidth: 120, letterSpacing: "4px", textAlign: "center" }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={4}
+                      placeholder="4 chif"
+                      defaultValue={((agentInfo || {})[n] && (agentInfo || {})[n].pin) || ""}
+                      onInput={(e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4); }}
+                      onBlur={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 4); if (v && v.length === 4) setAgentPin(n, v); }}
+                    />
+                    <span style={{ fontSize: 12, color: hasPin ? "#1E7E34" : `${PALETTE.cream}77` }}>{hasPin ? "✓ modpas mete" : "pa gen modpas"}</span>
+                  </div>
+                );
+              })}
+              <p style={{ fontSize: 11, color: `${PALETTE.cream}77`, margin: "4px 0 0" }}>Tape 4 chif epi klike deyò chan an pou sove.</p>
             </div>
           )}
         </div>
