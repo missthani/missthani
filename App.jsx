@@ -498,6 +498,7 @@ async function loadProspects() {
       etiquette: r.etiquette || "",
       contacted: !!r.contacted,
       contactedAt: r.contacted_at || "",
+      stage: r.stage || "",
       updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : 0,
     }));
   } catch (e) {
@@ -557,6 +558,18 @@ async function setProspectEtiquette(id, name) {
   if (!id) return false;
   try {
     const { data, error } = await supabase.from("prospects").update({ etiquette: name }).eq("id", id).select();
+    if (error) return false;
+    return (data || []).length > 0;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* Etap (stage) nan sikl swivi a: "", "reserved", "notreserved", "recycle" */
+async function setProspectStage(id, stage) {
+  if (!id) return false;
+  try {
+    const { data, error } = await supabase.from("prospects").update({ stage: stage || "" }).eq("id", id).select();
     if (error) return false;
     return (data || []).length > 0;
   } catch (e) {
@@ -2706,6 +2719,26 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     if (!ok) { setSaveErr("Pa rive anrejistre swivi a nan baz done a. Tcheke kolòn `followup` ak règ RLS yo nan Supabase."); refresh(); }
   };
 
+  // Mete etap (stage) nan pwosesis la
+  const setStage = async (id, stage) => {
+    setSaveErr("");
+    setItems((prev) => (prev || []).map((p) => (p.id === id ? { ...p, stage } : p)));
+    const ok = await setProspectStage(id, stage);
+    if (!ok) { setSaveErr("Pa rive anrejistre etap la. Ajoute kolòn `stage` nan Supabase (gade enstriksyon yo)."); }
+  };
+
+  // Aksyon ki soti nan ti meni ki bò kote mesaj defilan an
+  const applyTickerAction = async (p, value) => {
+    if (!value) return;
+    if (value === "came") {
+      // Deplase moun nan nan "Nouvo Etidyan"
+      await setStage(p.id, "");
+      await setSwivi(p.id, "vini");
+    } else if (value.indexOf("stage:") === 0) {
+      await setStage(p.id, value.slice(6));
+    }
+  };
+
   // Mete etikèt (non ajan) pou yon prospè
   const setEtiquette = async (id, name) => {
     setSaveErr("");
@@ -2876,23 +2909,69 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     return { session: base, resa: base ? addDays(base, -10) : "" };
   };
 
-  // Mesaj ki defile nan kazye chak moun (selon kontak, etikèt, swivi, ak dat yo)
+  // Mesaj ki defile nan kazye chak moun (selon kontak, etikèt, swivi, stage, ak dat yo)
   const rowTicker = (p) => {
     if (!p.contacted) return null;
     const name = prospectName(p) || "moun sa";
     const etq = (p.etiquette || "").trim();
     const fu = p.followup || "";
+    const stage = p.stage || "";
     const cAt = p.contactedAt || "";
     const cAtTxt = cAt ? formatHtDate(cAt) : "";
     const today = todayStr();
     const { session, resa } = resaRawOf(p);
     const greet = etq ? `Hello ${etq}` : "Hello";
+    const feli = etq ? `Felisitasyon ${etq}` : "Felisitasyon";
 
-    // 1) Kontakte men pa gen ni etikèt ni swivi
+    // ===== Machin-eta (stage) =====
+    if (stage === "reserved_special" || stage === "reserved_after") {
+      const sessTxt = session ? formatHtDate(session) : "—";
+      const callDay = session ? addDays(session, -2) : "";
+      const dayBefore = session ? addDays(session, -1) : "";
+      if (session && today >= session) {
+        return {
+          text: `Eske ${name} vini nan kou? (Session an se ${sessTxt}.)`,
+          tone: "red",
+          dropdown: { title: `Eske ${name} vini nan kou?`, options: [
+            { label: "Vini", value: "came" },
+            { label: "Recycler", value: "stage:recycle" },
+          ] },
+        };
+      }
+      if (dayBefore && today >= dayBefore) {
+        return { text: `${greet}, rele ${name} pou w di l vini nan session an demen (${sessTxt}).`, tone: "red" };
+      }
+      const callArrived = callDay && today >= callDay;
+      const callTxt = callDay ? (callArrived ? "JODIA" : formatHtDate(callDay)) : "byento";
+      return { text: `${feli}, ${name} reserve. Kounya sonje rele li ${callTxt} pou w raple l pou l vini nan kou (session ${sessTxt}).`, tone: callArrived ? "red" : "none" };
+    }
+
+    if (stage === "special_passed") {
+      return {
+        text: `${greet}, ${name} poko reserve et dat special la pase. Kontinye fè swivi avè l, fè l antre sou gwoup la.`,
+        tone: "none",
+        dropdown: { title: `Aksyon pou ${name}:`, options: [
+          { label: "Enskri", value: "stage:reserved_special" },
+          { label: "Recycler", value: "stage:recycle" },
+        ] },
+      };
+    }
+
+    if (stage === "recycle") {
+      return {
+        text: `${greet}, sonje ${name} enskri deja men li poko vini nan kou. Sonje rele l pou planifye avè l jiskaske l vini nan kou.`,
+        tone: "none",
+        dropdown: { title: `Aksyon pou ${name}:`, options: [
+          { label: "Li reserve", value: "stage:reserved_special" },
+          { label: "Vini", value: "came" },
+        ] },
+      };
+    }
+
+    // ===== Pa gen stage ankò =====
     if (!etq && (!fu || fu === "")) {
       return { text: `Moun sa (${name}) jwenn mesaj WhatsApp deja, men nou pa mete etikèt sou li, epi nou pa make swivi pou li.`, tone: "warn" };
     }
-    // 2) Swivi fèt — rapèl pou rele
     if (fu === "done") {
       const callDay = resa ? addDays(resa, -2) : "";
       const arrived = callDay && today >= callDay;
@@ -2902,20 +2981,21 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       return {
         text: `${greet}, sonje ou te fè swivi ak ${name} deja${cAtTxt ? " " + cAtTxt : ""}. Dat rezèvasyon an se ${resaTxt} pou sesyon ${sessTxt}. Sonje rele ${name} ${callTxt} pou w raple l sa.`,
         tone: arrived ? "red" : "none",
+        dropdown: { title: `Eske ou fè swivi ak ${name}?`, options: [
+          { label: "Li reserve nan dat special", value: "stage:reserved_special" },
+          { label: "Dat special la pase, li poko reserve", value: "stage:special_passed" },
+          { label: "Li reserve apre special", value: "stage:reserved_after" },
+          { label: "Li recycler", value: "stage:recycle" },
+        ] },
       };
     }
-    // 3) Sone san repons / pa sone ditou — refè swivi
     if (fu === "noanswer" || fu === "wrong") {
       const stat = fu === "noanswer" ? "sone san repons" : "pa sone ditou";
       const redoDay = cAt ? addDays(cAt, 3) : "";
       const arrived = redoDay && today >= redoDay;
       const redoTxt = redoDay ? (arrived ? "JODIA" : formatHtDate(redoDay)) : "byento";
-      return {
-        text: `${greet}, sonje ou te fè swivi ak ${name}${cAtTxt ? " " + cAtTxt : ""}, men li te ${stat}. Sonje refè swivi ak ${name} ${redoTxt}.`,
-        tone: arrived ? "blue" : "none",
-      };
+      return { text: `${greet}, sonje ou te fè swivi ak ${name}${cAtTxt ? " " + cAtTxt : ""}, men li te ${stat}. Sonje refè swivi ak ${name} ${redoTxt}.`, tone: arrived ? "blue" : "none" };
     }
-    // 4) Gen etikèt men poko gen swivi
     if (etq) return { text: `${greet}, ou gen pou fè swivi ak ${name}.`, tone: "none" };
     return null;
   };
@@ -3011,6 +3091,16 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             <div style={{ overflow: "hidden", width: "100%", maxWidth: 230, height: 18, display: "flex", alignItems: "center", background: `${bc}14`, border: `1px solid ${bc}44`, borderRadius: 6 }}>
               <span className="mt-marquee" style={{ fontSize: 10.5, color: bc, fontWeight: 700 }}>{tk.text}</span>
             </div>
+          )}
+          {tk && tk.dropdown && (
+            <select
+              value=""
+              onChange={(e) => { const v = e.target.value; if (v) applyTickerAction(p, v); }}
+              style={{ maxWidth: 230, fontSize: 11.5, padding: "3px 6px", borderRadius: 8, border: `1px solid ${bc}66`, background: "#fff", color: PALETTE.cream, fontWeight: 600 }}
+            >
+              <option value="">▾ {tk.dropdown.title}</option>
+              {tk.dropdown.options.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+            </select>
           )}
         </div>
       );
