@@ -336,6 +336,46 @@ const TICKER_STATES = [
 ];
 const TICKER_DEFAULTS = TICKER_STATES.reduce((o, s) => { o[s.key] = s.def; return o; }, {});
 
+/* Tout varyab ki disponib pou bouton "+" nan editè mesaj yo */
+const ALL_TICKER_VARS = [
+  { v: "{non}", d: "non moun nan" },
+  { v: "{etiket}", d: "non etikèt la" },
+  { v: "{dat_swivi}", d: "dat WhatsApp la klike" },
+  { v: "{dat_rezervasyon}", d: "dat limit rezèvasyon" },
+  { v: "{dat_session}", d: "dat session an" },
+  { v: "{dat_apel}", d: "dat pou rele (rapèl)" },
+  { v: "{dat_refe}", d: "dat pou refè swivi" },
+  { v: "{estati}", d: "sone san repons / pa sone ditou" },
+];
+
+/* Lis kondisyon yo detekte nan sistèm nan — admin ka konekte yon etap ak yo (Koneksyon) */
+const CONDITIONS = [
+  { key: "green", label: "Bouton vèt (WhatsApp klike)", test: (p) => !!p.contacted },
+  { key: "etiquette", label: "Gen etikèt", test: (p) => !!String(p.etiquette || "").trim() },
+  { key: "no_etiquette", label: "PA gen etikèt", test: (p) => !String(p.etiquette || "").trim() },
+  { key: "no_swivi", label: "PA gen swivi", test: (p) => !p.followup },
+  { key: "swivi_done", label: "Swivi = Suivi fèt", test: (p) => p.followup === "done" },
+  { key: "swivi_noanswer", label: "Swivi = Sone san repons", test: (p) => p.followup === "noanswer" },
+  { key: "swivi_wrong", label: "Swivi = Pa sone ditou", test: (p) => p.followup === "wrong" },
+  { key: "reserved", label: "Enskri (li reserve)", test: (p) => p.stage === "reserved_special" || p.stage === "reserved_after" },
+  { key: "special_passed", label: "Special pase, poko reserve", test: (p) => p.stage === "special_passed" },
+  { key: "recycle", label: "Enskri poko vini (recycle)", test: (p) => p.stage === "recycle" },
+];
+const CONDITIONS_MAP = CONDITIONS.reduce((o, c) => { o[c.key] = c; return o; }, {});
+
+/* Kondisyon default pou chak etap (sa fè konpòtman an rete menm jan an si admin pa chanje anyen) */
+const DEFAULT_STAGE_CONDS = {
+  no_tag_no_follow: ["green", "no_etiquette", "no_swivi"],
+  tag_no_follow: ["green", "etiquette", "no_swivi"],
+  follow_done: ["green", "swivi_done"],
+  follow_noanswer: ["green"],
+  reserved: ["reserved"],
+  reserved_daybefore: ["reserved"],
+  reserved_sessionday: ["reserved"],
+  special_passed: ["special_passed"],
+  recycle: ["recycle"],
+};
+
 /* Pran adrès yon moun nan repons li yo (kolòn ki gen mo kle adrès) */
 function extractAddress(answers) {
   const re = /rete|adr|kote|z[oò]n|vil|abite|kominote|address|lokalite|komin|katye|kartye/i;
@@ -491,6 +531,7 @@ const DEFAULT_CONFIG = {
   waMessages: [], // modèl mesaj WhatsApp yo (admin nan jere)
   activeWaMessage: "", // id modèl ki aktif la
   tickerMsgs: {}, // modèl mesaj ki defile nan kazye yo (admin ka modifye — Bwat mesaj)
+  stageConditions: {}, // ki kondisyon ki konekte ak chak etap (Koneksyon)
   programs: [
     { id: uid(), label: "Onglerie", steps: [] },
     { id: uid(), label: "Tresse", steps: [] },
@@ -2112,8 +2153,9 @@ function AdminSpace({ config, onSave, onExit }) {
     await onSave(nd);
   };
 
-  const saveTickerMsgs = async (msgs) => {
+  const saveTickerMsgs = async (msgs, conds) => {
     const nd = { ...draft, tickerMsgs: msgs };
+    if (conds) nd.stageConditions = conds;
     setDraft(nd);
     await onSave(nd);
   };
@@ -2169,7 +2211,7 @@ function AdminSpace({ config, onSave, onExit }) {
       </div>
 
       {adminTab === "prospects" ? (
-        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} tickerMsgs={draft.tickerMsgs || {}} onSaveTickerMsgs={saveTickerMsgs} />
+        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} tickerMsgs={draft.tickerMsgs || {}} onSaveTickerMsgs={saveTickerMsgs} stageConditions={draft.stageConditions || {}} />
       ) : adminTab === "stats" ? (
         <StatsView />
       ) : (
@@ -2578,7 +2620,7 @@ function ProspectsGate({ config }) {
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600 }}>Nouvo Prospè</div>
         <a href="/" style={{ ...ghostBtn, textDecoration: "none" }}>Tounen sou sit la</a>
       </div>
-      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} programs={(config && config.programs) || []} waMessages={(config && config.waMessages) || []} activeWaMessage={(config && config.activeWaMessage) || ""} tickerMsgs={(config && config.tickerMsgs) || {}} />
+      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} programs={(config && config.programs) || []} waMessages={(config && config.waMessages) || []} activeWaMessage={(config && config.activeWaMessage) || ""} tickerMsgs={(config && config.tickerMsgs) || {}} stageConditions={(config && config.stageConditions) || {}} />
     </div>
   );
 }
@@ -2677,12 +2719,15 @@ function StatsView() {
   );
 }
 
-function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages, tickerMsgs = {}, onSaveTickerMsgs }) {
+function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages, tickerMsgs = {}, onSaveTickerMsgs, stageConditions = {} }) {
   const fillTpl = (key, vars) => {
     let t = (tickerMsgs && tickerMsgs[key]) || TICKER_DEFAULTS[key] || "";
     Object.keys(vars || {}).forEach((k) => { t = t.split(`{${k}}`).join(vars[k] == null ? "" : vars[k]); });
     return t;
   };
+  // Kondisyon ki konekte ak yon etap (default = konpòtman natirèl la)
+  const condsOf = (key) => (stageConditions && stageConditions[key]) || DEFAULT_STAGE_CONDS[key] || [];
+  const matchConds = (p, key) => condsOf(key).every((ck) => (CONDITIONS_MAP[ck] ? CONDITIONS_MAP[ck].test(p) : true));
   const [items, setItems] = useState(null); // null = ap chaje
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState("list"); // "list" | "pdf"
@@ -2707,13 +2752,24 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   // Bwat mesaj — panèl pou modifye mesaj ki defile nan kazye yo
   const [boxPanel, setBoxPanel] = useState(false);
   const [boxDraft, setBoxDraft] = useState(tickerMsgs || {});
+  const [condDraft, setCondDraft] = useState(stageConditions || {});
+  const [openInsert, setOpenInsert] = useState(""); // ki etap ki gen meni "+" louvri
+  const [openConn, setOpenConn] = useState(""); // ki etap ki gen panèl Koneksyon louvri
   const [boxSaved, setBoxSaved] = useState(false);
   useEffect(() => { setBoxDraft(tickerMsgs || {}); }, [tickerMsgs]);
+  useEffect(() => { setCondDraft(stageConditions || {}); }, [stageConditions]);
   const boxVal = (key) => (boxDraft[key] != null ? boxDraft[key] : TICKER_DEFAULTS[key] || "");
   const setBoxVal = (key, v) => setBoxDraft((d) => ({ ...d, [key]: v }));
   const resetBoxVal = (key) => setBoxDraft((d) => { const n = { ...d }; delete n[key]; return n; });
+  const insertVar = (key, varText) => setBoxDraft((d) => ({ ...d, [key]: (d[key] != null ? d[key] : TICKER_DEFAULTS[key] || "") + " " + varText }));
+  const condsDraftOf = (key) => (condDraft[key] != null ? condDraft[key] : DEFAULT_STAGE_CONDS[key] || []);
+  const toggleCond = (key, ck) => setCondDraft((d) => {
+    const cur = d[key] != null ? d[key] : DEFAULT_STAGE_CONDS[key] || [];
+    const next = cur.includes(ck) ? cur.filter((x) => x !== ck) : [...cur, ck];
+    return { ...d, [key]: next };
+  });
   const saveBox = async () => {
-    if (onSaveTickerMsgs) await onSaveTickerMsgs(boxDraft);
+    if (onSaveTickerMsgs) await onSaveTickerMsgs(boxDraft, condDraft);
     setBoxSaved(true); setTimeout(() => setBoxSaved(false), 2000);
   };
 
@@ -3001,7 +3057,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const feli = etq ? `Felisitasyon ${etq}` : "Felisitasyon";
 
     // ===== Machin-eta (stage) =====
-    if (stage === "reserved_special" || stage === "reserved_after") {
+    if (matchConds(p, "reserved")) {
       const sessTxt = session ? formatHtDate(session) : "—";
       const callDay = session ? addDays(session, -2) : "";
       const dayBefore = session ? addDays(session, -1) : "";
@@ -3023,7 +3079,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       return { text: fillTpl("reserved", { etiket: etq || "chè", non: name, dat_apel: callTxt, dat_session: sessTxt }), tone: callArrived ? "red" : "none" };
     }
 
-    if (stage === "special_passed") {
+    if (matchConds(p, "special_passed")) {
       return {
         text: fillTpl("special_passed", { etiket: etq || "chè", non: name }),
         tone: "none",
@@ -3034,7 +3090,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       };
     }
 
-    if (stage === "recycle") {
+    if (matchConds(p, "recycle")) {
       return {
         text: fillTpl("recycle", { etiket: etq || "chè", non: name }),
         tone: "none",
@@ -3046,10 +3102,10 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     }
 
     // ===== Pa gen stage ankò =====
-    if (!etq && (!fu || fu === "")) {
+    if (matchConds(p, "no_tag_no_follow")) {
       return { text: fillTpl("no_tag_no_follow", { non: name }), tone: "warn" };
     }
-    if (fu === "done") {
+    if (matchConds(p, "follow_done")) {
       const callDay = resa ? addDays(resa, -2) : "";
       const arrived = callDay && today >= callDay;
       const callTxt = callDay ? (arrived ? "JODIA" : formatHtDate(callDay)) : "byento";
@@ -3066,14 +3122,14 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         ] },
       };
     }
-    if (fu === "noanswer" || fu === "wrong") {
+    if ((fu === "noanswer" || fu === "wrong") && matchConds(p, "follow_noanswer")) {
       const stat = fu === "noanswer" ? "sone san repons" : "pa sone ditou";
       const redoDay = cAt ? addDays(cAt, 3) : "";
       const arrived = redoDay && today >= redoDay;
       const redoTxt = redoDay ? (arrived ? "JODIA" : formatHtDate(redoDay)) : "byento";
       return { text: fillTpl("follow_noanswer", { etiket: etq || "chè", non: name, dat_swivi: cAtTxt, estati: stat, dat_refe: redoTxt }), tone: arrived ? "blue" : "none" };
     }
-    if (etq) return { text: fillTpl("tag_no_follow", { etiket: etq, non: name }), tone: "none" };
+    if (matchConds(p, "tag_no_follow")) return { text: fillTpl("tag_no_follow", { etiket: etq, non: name }), tone: "none" };
     return null;
   };
 
@@ -3602,10 +3658,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                   <div key={st.key} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 12, marginBottom: 10, background: "#fff" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                       <strong style={{ fontSize: 13.5, color: PALETTE.cream }}>{st.label}</strong>
-                      <button onClick={() => resetBoxVal(st.key)} style={{ ...ghostBtn, padding: "3px 10px", fontSize: 12 }}>Remete default</button>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button onClick={() => setOpenConn(openConn === st.key ? "" : st.key)} style={{ ...(openConn === st.key ? goldBtn : ghostBtn), padding: "3px 10px", fontSize: 12 }}>Koneksyon</button>
+                        <button onClick={() => resetBoxVal(st.key)} style={{ ...ghostBtn, padding: "3px 10px", fontSize: 12 }} title="Remete mesaj default la">↺</button>
+                      </div>
                     </div>
                     <div style={{ fontSize: 11.5, color: `${PALETTE.cream}cc`, marginBottom: 6, lineHeight: 1.5 }}>
-                      <div><b style={{ color: PALETTE.goldSoft }}>Kondisyon:</b> {st.cond}</div>
                       {st.dateRule && <div><b style={{ color: PALETTE.goldSoft }}>Règ dat:</b> {st.dateRule}</div>}
                       {st.dropdown && <div><b style={{ color: PALETTE.goldSoft }}>Meni:</b> {st.dropdown}</div>}
                       {st.flow && st.flow.length > 0 && (
@@ -3616,9 +3674,36 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                         </div>
                       )}
                     </div>
-                    <div style={{ fontSize: 11, color: `${PALETTE.cream}88`, marginBottom: 5 }}>
-                      Varyab: {st.vars.map((v) => (<code key={v} style={{ background: "rgba(194,35,142,.08)", padding: "1px 5px", borderRadius: 4, marginRight: 5 }}>{v}</code>))}
+
+                    {openConn === st.key && (
+                      <div style={{ border: `1px solid ${PALETTE.lineStrong}`, borderRadius: 10, padding: 10, marginBottom: 8, background: "rgba(224,165,10,.06)" }}>
+                        <div style={{ fontSize: 11.5, color: `${PALETTE.cream}aa`, marginBottom: 6 }}>Chwazi kondisyon ki konekte ak etap sa a (mesaj la ap parèt sèlman lè yo tout vre):</div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {CONDITIONS.map((c) => {
+                            const on = condsDraftOf(st.key).includes(c.key);
+                            return (
+                              <button key={c.key} onClick={() => toggleCond(st.key, c.key)} style={{ padding: "3px 9px", borderRadius: 999, fontSize: 11.5, fontWeight: 600, cursor: "pointer", border: `1px solid ${on ? PALETTE.goldSoft : PALETTE.line}`, background: on ? PALETTE.goldSoft : "#fff", color: on ? "#fff" : PALETTE.cream }}>
+                                {on ? "✓ " : ""}{c.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                      <button onClick={() => setOpenInsert(openInsert === st.key ? "" : st.key)} style={{ ...ghostBtn, padding: "2px 9px", fontSize: 13, fontWeight: 800 }} title="Ajoute yon varyab">+</button>
+                      <span style={{ fontSize: 11, color: `${PALETTE.cream}88` }}>Varyab pou mete nan mesaj la</span>
                     </div>
+                    {openInsert === st.key && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6, padding: 8, border: `1px solid ${PALETTE.line}`, borderRadius: 8, background: "rgba(194,35,142,.04)" }}>
+                        {ALL_TICKER_VARS.map((av) => (
+                          <button key={av.v} onClick={() => insertVar(st.key, av.v)} title={av.d} style={{ padding: "3px 8px", borderRadius: 6, fontSize: 11.5, fontWeight: 600, cursor: "pointer", border: `1px solid ${PALETTE.line}`, background: "#fff", color: PALETTE.goldSoft }}>
+                            {av.v}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <textarea className="mt-input" style={{ minHeight: 64 }} value={boxVal(st.key)} onChange={(e) => setBoxVal(st.key, e.target.value)} />
                   </div>
                 ))}
