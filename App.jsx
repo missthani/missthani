@@ -287,23 +287,51 @@ const EXPIRED_RESA_TPL = "Hello chère, nou toujou ap resevwa enskripsyon jiska 
 /* Modèl mesaj ki defile nan kazye chak moun (Bwat mesaj — admin ka modifye yo).
    Chak etap gen pwòp varyab li. */
 const TICKER_STATES = [
-  { key: "no_tag_no_follow", label: "Kontakte — san etikèt, san swivi", vars: ["{non}"],
+  { key: "no_tag_no_follow", label: "Kontakte — san etikèt, san swivi", step: 1, vars: ["{non}"],
+    cond: "Moun nan klike WhatsApp (boul vèt) + PA gen etikèt + PA gen swivi",
+    dateRule: "", dropdown: "", flow: ["Mete yon etikèt oswa chwazi yon swivi → pwochen etap la"],
     def: "Moun sa ({non}) jwenn mesaj WhatsApp deja, men nou pa mete etikèt sou li, epi nou pa make swivi pou li." },
-  { key: "tag_no_follow", label: "Gen etikèt — poko gen swivi", vars: ["{etiket}", "{non}"],
+  { key: "tag_no_follow", label: "Gen etikèt — poko gen swivi", step: 1, vars: ["{etiket}", "{non}"],
+    cond: "Kontakte + gen etikèt + PA gen swivi",
+    dateRule: "", dropdown: "", flow: ["Chwazi yon swivi nan meni « Swivi » a → etap 2"],
     def: "Hello {etiket}, ou gen pou fè swivi ak {non}." },
-  { key: "follow_done", label: "Swivi fèt", vars: ["{etiket}", "{non}", "{dat_swivi}", "{dat_rezervasyon}", "{dat_session}", "{dat_apel}"],
+  { key: "follow_done", label: "Swivi fèt", step: 2, vars: ["{etiket}", "{non}", "{dat_swivi}", "{dat_rezervasyon}", "{dat_session}", "{dat_apel}"],
+    cond: "Swivi = « Suivi fèt »",
+    dateRule: "Rapèl pou rele = dat rezèvasyon − 2 jou. Lè jou a rive: dat la vin « JODIA » + liy WOUJ.",
+    dropdown: "Eske ou fè swivi ak {non}?",
+    flow: ["Li reserve nan dat special → etap « Li reserve »", "Dat special pase, poko reserve → etap « Special pase »", "Li reserve apre special → etap « Li reserve »", "Li recycler → etap « Recycle »"],
     def: "Hello {etiket}, sonje ou te fè swivi ak {non} deja {dat_swivi}. Dat rezèvasyon an se {dat_rezervasyon} pou sesyon {dat_session}. Sonje rele {non} {dat_apel} pou w raple l sa." },
-  { key: "follow_noanswer", label: "Sone san repons / pa sone ditou", vars: ["{etiket}", "{non}", "{dat_swivi}", "{estati}", "{dat_refe}"],
+  { key: "follow_noanswer", label: "Sone san repons / pa sone ditou", step: 2, vars: ["{etiket}", "{non}", "{dat_swivi}", "{estati}", "{dat_refe}"],
+    cond: "Swivi = « Sone san repons » oswa « Pa sone ditou »",
+    dateRule: "Refè swivi = dat WhatsApp + 3 jou. Lè jou a rive: « JODIA » + liy BLE.",
+    dropdown: "", flow: ["Rele ankò, epi chanje swivi a lè w jwenn moun nan"],
     def: "Hello {etiket}, sonje ou te fè swivi ak {non} {dat_swivi}, men li te {estati}. Sonje refè swivi ak {non} {dat_refe}." },
-  { key: "reserved", label: "Li reserve (felisitasyon)", vars: ["{etiket}", "{non}", "{dat_apel}", "{dat_session}"],
+  { key: "reserved", label: "Li reserve (felisitasyon)", step: 3, vars: ["{etiket}", "{non}", "{dat_apel}", "{dat_session}"],
+    cond: "Etap = « Li reserve » (anvan jou session an)",
+    dateRule: "Rapèl pou rele = dat session − 2 jou.",
+    dropdown: "Eske {non} vini nan kou?",
+    flow: ["Vini → deplase nan « Nouvo Etidyan »", "Recycler → etap « Recycle »"],
     def: "Felisitasyon {etiket}, {non} reserve. Kounya sonje rele li {dat_apel} pou w raple l pou l vini nan kou (session {dat_session})." },
-  { key: "reserved_daybefore", label: "Li reserve — jou anvan session an", vars: ["{etiket}", "{non}", "{dat_session}"],
+  { key: "reserved_daybefore", label: "Li reserve — jou anvan session an", step: 3, vars: ["{etiket}", "{non}", "{dat_session}"],
+    cond: "Etap = « Li reserve » + se JOU ANVAN session an",
+    dateRule: "Otomatik 1 jou anvan dat session an. Liy WOUJ.",
+    dropdown: "", flow: ["Kontinye rive nan jou session an"],
     def: "Hello {etiket}, rele {non} pou w di l vini nan session an demen ({dat_session})." },
-  { key: "reserved_sessionday", label: "Jou session an — èske li vini?", vars: ["{non}", "{dat_session}"],
+  { key: "reserved_sessionday", label: "Jou session an — èske li vini?", step: 3, vars: ["{non}", "{dat_session}"],
+    cond: "Etap = « Li reserve » + se JOU session an",
+    dateRule: "Otomatik jou dat session an. Liy WOUJ.",
+    dropdown: "Eske {non} vini nan kou?",
+    flow: ["Vini → « Nouvo Etidyan »", "Recycler → etap « Recycle »"],
     def: "Eske {non} vini nan kou? (Session an se {dat_session}.)" },
-  { key: "special_passed", label: "Dat special pase — poko reserve", vars: ["{etiket}", "{non}"],
+  { key: "special_passed", label: "Dat special pase — poko reserve", step: 3, vars: ["{etiket}", "{non}"],
+    cond: "Etap = « Special pase »",
+    dateRule: "", dropdown: "Aksyon pou {non}",
+    flow: ["Enskri → etap « Li reserve »", "Recycler → etap « Recycle »"],
     def: "Hello {etiket}, {non} poko reserve et dat special la pase. Kontinye fè swivi avè l, fè l antre sou gwoup la." },
-  { key: "recycle", label: "Recycle", vars: ["{etiket}", "{non}"],
+  { key: "recycle", label: "Recycle", step: 4, vars: ["{etiket}", "{non}"],
+    cond: "Etap = « Recycle »",
+    dateRule: "", dropdown: "Aksyon pou {non}",
+    flow: ["Li reserve → etap « Li reserve »", "Vini → « Nouvo Etidyan »"],
     def: "Hello {etiket}, sonje {non} enskri deja men li poko vini nan kou. Sonje rele l pou planifye avè l jiskaske l vini nan kou." },
 ];
 const TICKER_DEFAULTS = TICKER_STATES.reduce((o, s) => { o[s.key] = s.def; return o; }, {});
@@ -3453,7 +3481,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           {isAdmin && (
             <>
               <button onClick={() => setMsgPanel((v) => !v)} style={msgPanel ? goldBtn : ghostBtn}>Mesaj WhatsApp</button>
-              <button onClick={() => setBoxPanel((v) => !v)} style={boxPanel ? goldBtn : ghostBtn}>Bwat mesaj</button>
+              <button onClick={() => setBoxPanel((v) => !v)} style={boxPanel ? goldBtn : ghostBtn}>Chèn pwosesis</button>
             </>
           )}
           <button onClick={refresh} style={ghostBtn} disabled={busy}>{busy ? "Ap chaje…" : "Aktyalize"}</button>
@@ -3550,7 +3578,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       {isAdmin && boxPanel && (
         <div style={{ marginBottom: 18, padding: 16, border: `1px solid ${PALETTE.lineStrong}`, borderRadius: 14, background: "rgba(224,165,10,.06)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 10, flexWrap: "wrap" }}>
-            <strong style={{ fontSize: 15 }}>Bwat mesaj — mesaj ki defile nan kazye yo</strong>
+            <strong style={{ fontSize: 15 }}>Chèn pwosesis — mesaj ki defile nan kazye yo</strong>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               {boxSaved && <span style={{ color: PALETTE.goldSoft, fontSize: 13 }}>Anrejistre ✓</span>}
               <button onClick={saveBox} style={goldBtn}>Anrejistre mesaj yo</button>
@@ -3558,20 +3586,45 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             </div>
           </div>
           <p style={{ fontSize: 12.5, color: `${PALETTE.cream}aa`, margin: "0 0 14px", lineHeight: 1.5 }}>
-            Modifye mesaj chak etap. Sèvi ak varyab yo (tankou <b>{"{non}"}</b>, <b>{"{etiket}"}</b>, <b>{"{dat_session}"}</b>) — y ap ranplase otomatikman. Kite yon chan vid oswa klike "Remete default" pou sèvi ak mesaj orijinal la.
+            Men tout etap pwosesis la, prezante tankou yon chèn. Chak kat montre <b>kondisyon</b> ki deklanche l, <b>mesaj</b> la (ou ka modifye l), <b>règ dat</b> yo, ak <b>kote chak opsyon meni an mennen</b>. Varyab yo (<b>{"{non}"}</b>, <b>{"{etiket}"}</b>, <b>{"{dat_session}"}</b>...) ranplase otomatikman.
           </p>
-          {TICKER_STATES.map((st) => (
-            <div key={st.key} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 12, marginBottom: 10, background: "#fff" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                <strong style={{ fontSize: 13.5, color: PALETTE.cream }}>{st.label}</strong>
-                <button onClick={() => resetBoxVal(st.key)} style={{ ...ghostBtn, padding: "3px 10px", fontSize: 12 }}>Remete default</button>
+          {[1, 2, 3, 4].map((stepNum) => {
+            const inStep = TICKER_STATES.filter((s) => s.step === stepNum);
+            if (inStep.length === 0) return null;
+            return (
+              <div key={stepNum} style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "4px 0 10px" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 999, background: PALETTE.goldSoft, color: "#fff", fontSize: 13, fontWeight: 800 }}>{stepNum}</span>
+                  <strong style={{ fontSize: 14, color: PALETTE.goldSoft }}>Etap {stepNum}</strong>
+                  <span style={{ flex: 1, height: 1, background: PALETTE.line }} />
+                </div>
+                {inStep.map((st) => (
+                  <div key={st.key} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 12, marginBottom: 10, background: "#fff" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                      <strong style={{ fontSize: 13.5, color: PALETTE.cream }}>{st.label}</strong>
+                      <button onClick={() => resetBoxVal(st.key)} style={{ ...ghostBtn, padding: "3px 10px", fontSize: 12 }}>Remete default</button>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: `${PALETTE.cream}cc`, marginBottom: 6, lineHeight: 1.5 }}>
+                      <div><b style={{ color: PALETTE.goldSoft }}>Kondisyon:</b> {st.cond}</div>
+                      {st.dateRule && <div><b style={{ color: PALETTE.goldSoft }}>Règ dat:</b> {st.dateRule}</div>}
+                      {st.dropdown && <div><b style={{ color: PALETTE.goldSoft }}>Meni:</b> {st.dropdown}</div>}
+                      {st.flow && st.flow.length > 0 && (
+                        <div><b style={{ color: PALETTE.goldSoft }}>Kote opsyon yo mennen:</b>
+                          <ul style={{ margin: "3px 0 0", paddingLeft: 18 }}>
+                            {st.flow.map((f, i) => (<li key={i}>{f}</li>))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: `${PALETTE.cream}88`, marginBottom: 5 }}>
+                      Varyab: {st.vars.map((v) => (<code key={v} style={{ background: "rgba(194,35,142,.08)", padding: "1px 5px", borderRadius: 4, marginRight: 5 }}>{v}</code>))}
+                    </div>
+                    <textarea className="mt-input" style={{ minHeight: 64 }} value={boxVal(st.key)} onChange={(e) => setBoxVal(st.key, e.target.value)} />
+                  </div>
+                ))}
               </div>
-              <div style={{ fontSize: 11.5, color: `${PALETTE.cream}88`, marginBottom: 6 }}>
-                Varyab: {st.vars.map((v) => (<code key={v} style={{ background: "rgba(194,35,142,.08)", padding: "1px 5px", borderRadius: 4, marginRight: 5 }}>{v}</code>))}
-              </div>
-              <textarea className="mt-input" style={{ minHeight: 70 }} value={boxVal(st.key)} onChange={(e) => setBoxVal(st.key, e.target.value)} />
-            </div>
-          ))}
+            );
+          })}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
             {boxSaved && <span style={{ color: PALETTE.goldSoft, fontSize: 13, alignSelf: "center" }}>Anrejistre ✓</span>}
             <button onClick={saveBox} style={goldBtn}>Anrejistre mesaj yo</button>
