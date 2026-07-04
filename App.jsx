@@ -600,6 +600,7 @@ async function loadProspects() {
       contacted: !!r.contacted,
       contactedAt: r.contacted_at || "",
       stage: r.stage || "",
+      cameAt: r.came_at || "",
       updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : 0,
     }));
   } catch (e) {
@@ -646,7 +647,9 @@ async function loadEvents(limit = 5000) {
 async function setProspectFollowup(id, status) {
   if (!id) return false;
   try {
-    const { data, error } = await supabase.from("prospects").update({ followup: status }).eq("id", id).select();
+    const patch = { followup: status };
+    if (status === "vini") patch.came_at = todayStr(); // dat moun nan make "vini" (pou konkou ajan yo)
+    const { data, error } = await supabase.from("prospects").update(patch).eq("id", id).select();
     if (error) return false;
     return (data || []).length > 0; // 0 ranje = RLS bloke oswa id pa jwenn
   } catch (e) {
@@ -2737,6 +2740,120 @@ function StatsView() {
   );
 }
 
+/* Konkou ant ajan yo — Progression des Agents (moun ki make "vini" konte pou ajan yo) */
+function AgentsProgressView({ items = [], programs = [] }) {
+  const OBJ = 60;
+  const LEVELS = [
+    { key: "silver", label: "SILVER", pct: 50, n: Math.round(OBJ * 0.5), color: "#9aa0a6" },
+    { key: "gold", label: "GOLD", pct: 80, n: Math.round(OBJ * 0.8), color: "#E0A50A" },
+    { key: "diamond", label: "DIAMOND", pct: 110, n: Math.round(OBJ * 1.1), color: "#5FA8D3" },
+  ];
+  const progList = (programs || []).map((p) => p.label).filter(Boolean);
+  const [sel, setSel] = useState(progList[0] || "");
+  useEffect(() => { if (!progList.includes(sel) && progList[0]) setSel(progList[0]); }, [progList.join("|")]);
+
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const moisHt = ["Janvye", "Fevriye", "Mas", "Avril", "Me", "Jen", "Jiyè", "Out", "Septanm", "Oktòb", "Novanm", "Desanm"];
+  const monthLabel = `${moisHt[now.getMonth()]} ${now.getFullYear()}`;
+
+  const { agents, winners } = useMemo(() => {
+    const vinis = (items || []).filter((p) => p.followup === "vini" && p.program === sel && (!p.cameAt || p.cameAt.slice(0, 7) === ym));
+    const by = {};
+    vinis.forEach((p) => {
+      const a = (String(p.etiquette || "").trim()) || "San etikèt";
+      (by[a] = by[a] || []).push(p.cameAt || "9999-99-99");
+    });
+    const ags = Object.keys(by).map((a) => ({ agent: a, count: by[a].length, times: by[a].slice().sort() })).sort((x, y) => y.count - x.count);
+    const wins = {};
+    LEVELS.forEach((L) => {
+      let best = null;
+      ags.forEach((ag) => {
+        if (ag.count >= L.n) {
+          const t = ag.times[L.n - 1] || "9999";
+          if (!best || t < best.time) best = { agent: ag.agent, time: t };
+        }
+      });
+      wins[L.key] = best;
+    });
+    return { agents: ags, winners: wins };
+  }, [items, sel, ym]);
+
+  const barColor = (name) => {
+    if (winners.diamond && winners.diamond.agent === name) return LEVELS[2].color;
+    if (winners.gold && winners.gold.agent === name) return LEVELS[1].color;
+    if (winners.silver && winners.silver.agent === name) return LEVELS[0].color;
+    return PALETTE.blush;
+  };
+  const wonLevels = (name) => LEVELS.filter((L) => winners[L.key] && winners[L.key].agent === name).map((L) => L.label);
+
+  return (
+    <div>
+      <div style={{ marginBottom: 14 }}>
+        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: 0, color: PALETTE.cream }}>Progression des Agents</h2>
+        <p style={{ fontSize: 13, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Konkou {monthLabel} — objektif {OBJ} moun pa programme</p>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        {progList.map((pl) => (
+          <button key={pl} onClick={() => setSel(pl)} style={{ ...(sel === pl ? goldBtn : ghostBtn), padding: "6px 14px", fontSize: 13 }}>{pl}</button>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 20 }}>
+        {LEVELS.map((L) => {
+          const w = winners[L.key];
+          return (
+            <div key={L.key} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 14, padding: 14, background: `${L.color}18` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 999, background: L.color }} />
+                <strong style={{ fontSize: 14, color: PALETTE.cream }}>{L.label}</strong>
+              </div>
+              <div style={{ fontSize: 12, color: `${PALETTE.cream}aa`, margin: "4px 0" }}>{L.n} moun ({L.pct}%)</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: w ? L.color : `${PALETTE.cream}66` }}>
+                {w ? `🏆 ${w.agent}` : "Pa ankò genyen"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {agents.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "40px 20px", border: `1px solid ${PALETTE.line}`, borderRadius: 16, background: "rgba(194,35,142,.04)" }}>
+          <p style={{ fontSize: 15, color: `${PALETTE.cream}cc`, margin: 0 }}>Poko gen okenn ajan ki gen moun ki "vini" pou {sel || "programme sa a"} nan mwa {monthLabel}.</p>
+          <p style={{ fontSize: 12.5, color: `${PALETTE.cream}88`, margin: "6px 0 0" }}>Lè yon ajan (etikèt) make yon moun "Vini", l ap konte isit la.</p>
+        </div>
+      ) : (
+        <div>
+          {agents.map((ag, i) => {
+            const pct = Math.min(150, Math.round((ag.count / OBJ) * 100));
+            const c = barColor(ag.agent);
+            const won = wonLevels(ag.agent);
+            return (
+              <div key={ag.agent} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <span style={{ width: 22, textAlign: "right", fontWeight: 800, color: i < 3 ? PALETTE.gold : `${PALETTE.cream}88`, fontSize: 14 }}>{i + 1}</span>
+                <div style={{ width: 120, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", fontSize: 13.5, fontWeight: 600, color: PALETTE.cream }}>{ag.agent}</div>
+                <div style={{ width: 70, fontSize: 12, color: `${PALETTE.cream}aa`, whiteSpace: "nowrap" }}>{ag.count} moun</div>
+                <div style={{ flex: 1, minWidth: 90, background: "rgba(123,45,142,.10)", borderRadius: 8, overflow: "hidden", height: 22 }}>
+                  <div style={{ width: `${(pct / 150) * 100}%`, minWidth: 34, height: "100%", background: c, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 8, boxSizing: "border-box" }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 800, color: "#fff" }}>{Math.round((ag.count / OBJ) * 100)}%</span>
+                  </div>
+                </div>
+                {won.length > 0 && (
+                  <span style={{ fontSize: 10.5, fontWeight: 800, color: c, whiteSpace: "nowrap" }}>🏆 {won.join(" + ")}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <p style={{ fontSize: 12, color: `${PALETTE.cream}88`, marginTop: 16, lineHeight: 1.5 }}>
+        Silver = 50% ({LEVELS[0].n}), Gold = 80% ({LEVELS[1].n}), Diamond = 110% ({LEVELS[2].n}). Se sèlman <b>premye ajan</b> ki rive nan yon nivo ki genyen bonis li. Yon ajan ki genyen plizyè nivo, bonis yo <b>adisyone</b>. Bar tout lòt ajan yo rete woz.
+      </p>
+    </div>
+  );
+}
+
 function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages, tickerMsgs = {}, onSaveTickerMsgs, stageConditions = {} }) {
   const fillTpl = (key, vars) => {
     let t = (tickerMsgs && tickerMsgs[key]) || TICKER_DEFAULTS[key] || "";
@@ -3537,7 +3654,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           onClick={() => { setTab("students"); setMode("list"); }}
           style={tab === "students" ? goldBtn : ghostBtn}
         >
-          Nouvo Etidyan
+          Progression des Agents
         </button>
         <button
           onClick={() => { setTab("lwen"); setMode("list"); }}
@@ -3831,6 +3948,8 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
       {items === null ? (
         <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p>
+      ) : isStudents ? (
+        <AgentsProgressView items={items || []} programs={programs} />
       ) : viewItems.length === 0 ? (
         <div style={{ textAlign: "center", padding: "40px 20px", border: `1px solid ${PALETTE.line}`, borderRadius: 16, background: "rgba(194,35,142,.04)" }}>
           <p style={{ fontSize: 16, color: `${PALETTE.cream}cc`, margin: 0 }}>
