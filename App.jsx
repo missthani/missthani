@@ -539,6 +539,7 @@ const DEFAULT_CONFIG = {
   activeWaMessage: "", // id modèl ki aktif la
   tickerMsgs: {}, // modèl mesaj ki defile nan kazye yo (admin ka modifye — Bwat mesaj)
   stageConditions: {}, // ki kondisyon ki konekte ak chak etap (Koneksyon)
+  agentInfo: {}, // { [nonEtikèt]: { pin: "1234", photo: "" } } — modpas ak foto ajan yo
   programs: [
     { id: uid(), label: "Onglerie", steps: [] },
     { id: uid(), label: "Tresse", steps: [] },
@@ -575,15 +576,29 @@ async function saveConfig(cfg) {
 /* ----------------------- Prospè yo ----------------------- */
 async function upsertProspect(record) {
   try {
-    const { error } = await supabase.from("prospects").upsert({
+    const row = {
       id: record.id,
       program: record.program,
       answers: record.answers,
       updated_at: new Date(record.updatedAt || Date.now()).toISOString(),
-    });
+    };
+    if (record.etiquette) row.etiquette = record.etiquette; // etikèt otomatik nan lien referans lan
+    const { error } = await supabase.from("prospects").upsert(row);
     return !error;
   } catch (e) {
     return false;
+  }
+}
+
+/* Li paramèt ?ref= nan URL la (etikèt ajan an) epi kenbe l pou sesyon an */
+function getRefAgent() {
+  try {
+    const u = new URLSearchParams(window.location.search || "");
+    const r = (u.get("ref") || "").trim();
+    if (r) { try { localStorage.setItem("missthani_ref", r); } catch (e) {} return r; }
+    return localStorage.getItem("missthani_ref") || "";
+  } catch (e) {
+    return "";
   }
 }
 
@@ -1129,6 +1144,8 @@ export default function MissThaniApp() {
 
   // Èske nou sou paj /formulaire la? (lyen separe pou lis prospè yo)
   const isFormulaire = typeof window !== "undefined" && /^\/formulaire\/?$/i.test(window.location.pathname || "");
+  // Èske nou sou paj /agent la? (espas ajan yo — Progression des Agents)
+  const isAgent = typeof window !== "undefined" && /^\/agent\/?$/i.test(window.location.pathname || "");
 
   // Chaje konfigirasyon an o depa
   useEffect(() => {
@@ -1199,6 +1216,8 @@ export default function MissThaniApp() {
         <Centered>
           <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p>
         </Centered>
+      ) : isAgent ? (
+        <AgentSpace config={config} onSave={persist} />
       ) : isFormulaire ? (
         <ProspectsGate config={config} />
       ) : view === "admin" ? (
@@ -1527,6 +1546,7 @@ function PublicSpace({ config, onAdmin }) {
       program: selected.label,
       answers: answered,
       updatedAt: Date.now(),
+      etiquette: getRefAgent(),
     });
   };
 
@@ -2181,6 +2201,12 @@ function AdminSpace({ config, onSave, onExit }) {
     await onSave(nd);
   };
 
+  const saveAgentInfo = async (info) => {
+    const nd = { ...draft, agentInfo: info };
+    setDraft(nd);
+    await onSave(nd);
+  };
+
   /* ---- login ekran ---- */
   if (!authed) {
     return (
@@ -2232,7 +2258,7 @@ function AdminSpace({ config, onSave, onExit }) {
       </div>
 
       {adminTab === "prospects" ? (
-        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} tickerMsgs={draft.tickerMsgs || {}} onSaveTickerMsgs={saveTickerMsgs} stageConditions={draft.stageConditions || {}} />
+        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} tickerMsgs={draft.tickerMsgs || {}} onSaveTickerMsgs={saveTickerMsgs} stageConditions={draft.stageConditions || {}} agentInfo={draft.agentInfo || {}} onSaveAgentInfo={saveAgentInfo} />
       ) : adminTab === "stats" ? (
         <StatsView />
       ) : (
@@ -2922,7 +2948,189 @@ function AgentsProgressView({ items = [], programs = [] }) {
     </div>
   );
 }
-function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages, tickerMsgs = {}, onSaveTickerMsgs, stageConditions = {} }) {
+/* Espas Ajan yo — paj /agent (login ak etikèt + modpas 4 chif, pwofil, tablo de bòd, rémunération, lien referans) */
+function AgentSpace({ config, onSave }) {
+  const agentsList = (config && config.agents) || [];
+  const names = [...new Set(agentsList.map((a) => (typeof a === "string" ? a : (a && a.name) || "")).filter(Boolean))];
+  const info = (config && config.agentInfo) || {};
+
+  const [items, setItems] = useState(null);
+  useEffect(() => { (async () => setItems(await loadProspects()))(); }, []);
+
+  const [me, setMe] = useState(() => { try { return localStorage.getItem("missthani_agent") || ""; } catch (e) { return ""; } });
+  const [pick, setPick] = useState("");
+  const [pin, setPin] = useState("");
+  const [err, setErr] = useState("");
+  const [tab, setTab] = useState("dash"); // "dash" | "remun"
+
+  const login = () => {
+    if (!pick) { setErr("Chwazi non ou nan lis la."); return; }
+    const expected = String((info[pick] && info[pick].pin) || "");
+    if (!expected) { setErr("Pa gen modpas pou etikèt sa a. Mande admin nan mete youn."); return; }
+    if (pin !== expected) { setErr("Modpas la pa kòrèk."); return; }
+    setMe(pick); try { localStorage.setItem("missthani_agent", pick); } catch (e) {}
+    setErr(""); setPin("");
+  };
+  const logout = () => { setMe(""); setPick(""); try { localStorage.removeItem("missthani_agent"); } catch (e) {} };
+
+  const PER = 750;
+  const BONUS = { silver: 2500, gold: 5000, diamond: 7500 };
+  const LVLN = { silver: 30, gold: 48, diamond: 66 };
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  const remun = useMemo(() => {
+    if (!me || !items) return { count: 0, base: 0, bonuses: [], total: 0 };
+    let count = 0; const bonuses = [];
+    ((config && config.programs) || []).forEach((prog) => {
+      const vinis = items.filter((p) => p.followup === "vini" && p.program === prog.label && (!p.cameAt || p.cameAt.slice(0, 7) === ym));
+      const by = {};
+      vinis.forEach((p) => { const a = (String(p.etiquette || "").trim()) || "San etikèt"; (by[a] = by[a] || []).push(p.cameAt || "9999-99-99"); });
+      count += (by[me] || []).length;
+      ["silver", "gold", "diamond"].forEach((lvl) => {
+        const n = LVLN[lvl]; let best = null;
+        Object.keys(by).forEach((a) => { if (by[a].length >= n) { const t = by[a].slice().sort()[n - 1] || "9999"; if (!best || t < best.t) best = { a, t }; } });
+        if (best && best.a === me) bonuses.push({ program: prog.label, level: lvl, amount: BONUS[lvl] });
+      });
+    });
+    const base = count * PER;
+    const bt = bonuses.reduce((s, b) => s + b.amount, 0);
+    return { count, base, bonuses, total: base + bt };
+  }, [me, items, config, ym]);
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const refLink = me ? `${origin}/?ref=${encodeURIComponent(me)}` : "";
+  const myPhoto = (info[me] && info[me].photo) || "";
+  const gmt = (n) => n.toLocaleString("fr-FR") + " gdes";
+
+  const uploadPhoto = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = async () => {
+        const max = 240; const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+        cv.getContext("2d").drawImage(img, 0, 0, w, h);
+        const dataUrl = cv.toDataURL("image/jpeg", 0.8);
+        const nd = { ...config, agentInfo: { ...(config.agentInfo || {}), [me]: { ...((config.agentInfo || {})[me] || {}), photo: dataUrl } } };
+        await onSave(nd);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const copyLink = () => { try { navigator.clipboard.writeText(refLink); } catch (e) {} };
+
+  const wrap = { maxWidth: 1080, margin: "0 auto", padding: "24px 18px 60px" };
+
+  // ---- Login ----
+  if (!me) {
+    return (
+      <div style={wrap}>
+        <div style={{ textAlign: "center", marginTop: 20, marginBottom: 22 }}>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, fontWeight: 700, color: PALETTE.goldSoft, letterSpacing: "1px" }}>MISS THANI</div>
+          <div style={{ fontSize: 12, letterSpacing: "3px", color: `${PALETTE.cream}99`, fontWeight: 600 }}>BONUS SYSTEM</div>
+        </div>
+        <div style={{ maxWidth: 380, margin: "0 auto", background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 22 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 4px", color: PALETTE.cream }}>Connexion Agent</h2>
+          <p style={{ fontSize: 13, color: `${PALETTE.cream}99`, margin: "0 0 16px" }}>Chwazi non ou epi antre modpas 4 chif ou.</p>
+          <label style={{ fontSize: 12.5, fontWeight: 700, color: PALETTE.cream }}>Non ou (etikèt)</label>
+          <select className="mt-input" style={{ margin: "6px 0 14px" }} value={pick} onChange={(e) => { setPick(e.target.value); setErr(""); }}>
+            <option value="">Chwazi…</option>
+            {names.map((n) => (<option key={n} value={n}>{n}</option>))}
+          </select>
+          <label style={{ fontSize: 12.5, fontWeight: 700, color: PALETTE.cream }}>Modpas (4 chif)</label>
+          <input className="mt-input" style={{ marginTop: 6, letterSpacing: "6px", textAlign: "center", fontSize: 20 }} type="password" inputMode="numeric" maxLength={4} value={pin} onChange={(e) => { setPin(e.target.value.replace(/\D/g, "").slice(0, 4)); setErr(""); }} onKeyDown={(e) => { if (e.key === "Enter") login(); }} placeholder="••••" />
+          {err && <p style={{ color: PALETTE.danger, fontSize: 13, margin: "10px 0 0" }}>{err}</p>}
+          <button onClick={login} style={{ ...goldBtn, width: "100%", marginTop: 16 }}>Konekte</button>
+          {names.length === 0 && <p style={{ fontSize: 12, color: `${PALETTE.cream}88`, marginTop: 12 }}>Poko gen okenn etikèt. Admin nan dwe kreye etikèt yo ak modpas 4 chif nan panèl la.</p>}
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Pwofil / Tablo de bòd ----
+  return (
+    <div style={wrap}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <label style={{ cursor: "pointer", position: "relative" }} title="Chanje foto">
+            {myPhoto ? (
+              <img src={myPhoto} alt="" style={{ width: 58, height: 58, borderRadius: 999, objectFit: "cover", border: `2px solid ${PALETTE.goldSoft}` }} />
+            ) : (
+              <span style={{ width: 58, height: 58, borderRadius: 999, background: PALETTE.goldSoft, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 20 }}>{(me[0] || "?").toUpperCase()}</span>
+            )}
+            <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => uploadPhoto(e.target.files && e.target.files[0])} />
+            <span style={{ position: "absolute", bottom: -2, right: -2, background: PALETTE.blush, color: "#fff", width: 20, height: 20, borderRadius: 999, fontSize: 12, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✎</span>
+          </label>
+          <div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: PALETTE.cream }}>{me}</div>
+            <div style={{ fontSize: 12.5, color: `${PALETTE.cream}99` }}>Agent Miss Thani</div>
+          </div>
+        </div>
+        <button onClick={logout} style={ghostBtn}>Dekonekte</button>
+      </div>
+
+      {/* Lien referans */}
+      <div style={{ background: "rgba(229,36,126,.07)", border: `1px solid ${PALETTE.lineStrong}`, borderRadius: 16, padding: 14, marginBottom: 18 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: PALETTE.blush, marginBottom: 6 }}>🔗 Lien referans ou a</div>
+        <p style={{ fontSize: 12, color: `${PALETTE.cream}aa`, margin: "0 0 8px" }}>Pataje lien sa a. Tout moun ki enskri pa lien sa a ap otomatikman gen etikèt ou an, epi ap konte pou ou.</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <code style={{ flex: 1, minWidth: 180, background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 8, padding: "8px 10px", fontSize: 12.5, wordBreak: "break-all", color: PALETTE.cream }}>{refLink}</code>
+          <button onClick={copyLink} style={goldBtn}>Kopye lien an</button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button onClick={() => setTab("dash")} style={tab === "dash" ? goldBtn : ghostBtn}>Tableau de bord</button>
+        <button onClick={() => setTab("remun")} style={tab === "remun" ? goldBtn : ghostBtn}>Rémunération</button>
+      </div>
+
+      {tab === "remun" ? (
+        <div style={{ background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 18 }}>
+          <h3 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 800, color: PALETTE.cream }}>Rémunération — {now.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</h3>
+          <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "0 0 16px" }}>750 gdes pa moun ki vini. Bonis: Silver 2 500 · Gold 5 000 · Diamond 7 500 gdes.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 16 }}>
+            <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 14, padding: 14 }}>
+              <div style={{ fontSize: 12, color: `${PALETTE.cream}aa` }}>Moun ki vini</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: PALETTE.cream }}>{remun.count}</div>
+              <div style={{ fontSize: 12, color: `${PALETTE.cream}99` }}>× 750 = {gmt(remun.base)}</div>
+            </div>
+            <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 14, padding: 14 }}>
+              <div style={{ fontSize: 12, color: `${PALETTE.cream}aa` }}>Bonis nivo yo</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: PALETTE.gold }}>{gmt(remun.bonuses.reduce((s, b) => s + b.amount, 0))}</div>
+              <div style={{ fontSize: 12, color: `${PALETTE.cream}99` }}>{remun.bonuses.length} bonis</div>
+            </div>
+            <div style={{ border: `2px solid ${PALETTE.blush}`, borderRadius: 14, padding: 14, background: "rgba(229,36,126,.06)" }}>
+              <div style={{ fontSize: 12, color: `${PALETTE.cream}aa` }}>TOTAL</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: PALETTE.blush }}>{gmt(remun.total)}</div>
+            </div>
+          </div>
+          {remun.bonuses.length > 0 && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: PALETTE.cream, marginBottom: 6 }}>Detay bonis yo:</div>
+              {remun.bonuses.map((b, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0", borderBottom: `1px solid ${PALETTE.line}` }}>
+                  <span style={{ color: PALETTE.cream }}>{b.level.toUpperCase()} — {b.program}</span>
+                  <strong style={{ color: PALETTE.gold }}>{gmt(b.amount)}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+          {!items && <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p>}
+        </div>
+      ) : (
+        items === null ? <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p> : <AgentsProgressView items={items || []} programs={(config && config.programs) || []} />
+      )}
+    </div>
+  );
+}
+
+function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages, tickerMsgs = {}, onSaveTickerMsgs, stageConditions = {}, agentInfo = {}, onSaveAgentInfo }) {
   const fillTpl = (key, vars) => {
     let t = (tickerMsgs && tickerMsgs[key]) || TICKER_DEFAULTS[key] || "";
     Object.keys(vars || {}).forEach((k) => { t = t.split(`{${k}}`).join(vars[k] == null ? "" : vars[k]); });
@@ -2943,6 +3151,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [tab, setTab] = useState("prospects"); // "prospects" | "students"
   const [creatingEtq, setCreatingEtq] = useState(false); // chan kreye etikèt la louvri
   const [newEtq, setNewEtq] = useState("");
+  const [newPin, setNewPin] = useState("");
   const [saveErr, setSaveErr] = useState(""); // mesaj erè si anrejistreman echwe
   const [msgPanel, setMsgPanel] = useState(false); // panèl modèl mesaj WhatsApp louvri
   const [resaPanel, setResaPanel] = useState(false); // panèl apèsi dat rezèvasyon yo
@@ -3004,9 +3213,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   // Kreye / efase yon etikèt (admin sèlman)
   const createEtiquette = async () => {
     const name = newEtq.trim();
-    if (!name || !onSaveAgents) { setCreatingEtq(false); setNewEtq(""); return; }
+    if (!name || !onSaveAgents) { setCreatingEtq(false); setNewEtq(""); setNewPin(""); return; }
     if (!agentNames.includes(name)) await onSaveAgents([...agentNames, name]);
-    setNewEtq("");
+    if (onSaveAgentInfo && newPin) {
+      await onSaveAgentInfo({ ...(agentInfo || {}), [name]: { ...((agentInfo || {})[name] || {}), pin: newPin } });
+    }
+    setNewEtq(""); setNewPin("");
     setCreatingEtq(false);
   };
   const removeEtiquetteName = async (name) => {
@@ -3719,10 +3931,11 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           Nouvo Prospè
         </button>
         <button
-          onClick={() => { setTab("students"); setMode("list"); }}
-          style={tab === "students" ? goldBtn : ghostBtn}
+          onClick={() => { if (typeof window !== "undefined") window.location.href = "/agent"; }}
+          style={ghostBtn}
+          title="Louvri paj Progression des Agents"
         >
-          Progression des Agents
+          Progression des Agents ↗
         </button>
         <button
           onClick={() => { setTab("lwen"); setMode("list"); }}
@@ -3754,8 +3967,19 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                 onKeyDown={(e) => { if (e.key === "Enter" && newEtq.trim()) createEtiquette(); }}
                 autoFocus
               />
+              <input
+                className="mt-input"
+                style={{ maxWidth: 130, letterSpacing: "4px", textAlign: "center" }}
+                placeholder="Modpas 4 chif"
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                value={newPin}
+                onChange={(e) => setNewPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                onKeyDown={(e) => { if (e.key === "Enter" && newEtq.trim()) createEtiquette(); }}
+              />
               <button onClick={createEtiquette} disabled={!newEtq.trim()} style={{ ...goldBtn, opacity: newEtq.trim() ? 1 : 0.6 }}>Anrejistre</button>
-              <button onClick={() => { setCreatingEtq(false); setNewEtq(""); }} style={ghostBtn}>Anile</button>
+              <button onClick={() => { setCreatingEtq(false); setNewEtq(""); setNewPin(""); }} style={ghostBtn}>Anile</button>
             </div>
           )}
           {agentNames.length > 0 && (
