@@ -678,6 +678,17 @@ async function setProspectStage(id, stage) {
   }
 }
 
+/* Reset pwosesis bwat mesaj la pou yon prospè (swivi, kontak, dat kontak, etap) — admin sèlman */
+async function resetProspectProcess(id) {
+  if (!id) return false;
+  try {
+    const { error } = await supabase.from("prospects").update({ stage: "", followup: "", contacted: false, contacted_at: "" }).eq("id", id);
+    return !error;
+  } catch (e) {
+    return false;
+  }
+}
+
 /* Make si yon mesaj WhatsApp te voye bay prospè a (vèt = voye, wouj = poko) */
 async function setProspectContacted(id, val, atDate) {
   if (!id) return false;
@@ -2879,6 +2890,15 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     }
   };
 
+  // Reset tout pwosesis bwat mesaj la pou yon prospè (admin sèlman)
+  const resetProcess = async (p) => {
+    if (typeof window !== "undefined" && !window.confirm(`Reset pwosesis mesaj la pou ${prospectName(p) || "moun sa"}? Sa ap remete swivi a, estati kontak la (boul vèt), ak etap la nan kòmansman. (Etikèt la ap rete.)`)) return;
+    setItems((prev) => (prev || []).map((x) => (x.id === p.id ? { ...x, stage: "", followup: "", contacted: false, contactedAt: "" } : x)));
+    saveContactedCache(p.id, false, "");
+    const ok = await resetProspectProcess(p.id);
+    if (!ok) setSaveErr("Pa rive reset pwosesis la nan Supabase. Tcheke koneksyon an.");
+  };
+
   // Mete etikèt (non ajan) pou yon prospè
   const setEtiquette = async (id, name) => {
     setSaveErr("");
@@ -3263,6 +3283,15 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                 <span style={{ fontSize: 9.5, color: "#B8860B", lineHeight: 1.2 }}>{tk.dropdown.disabledNote}</span>
               )}
             </div>
+          )}
+          {tk && tk.text && isAdmin && (
+            <button
+              onClick={() => resetProcess(p)}
+              title="Reset pwosesis mesaj la pou moun sa"
+              style={{ alignSelf: "flex-start", marginTop: 2, padding: "2px 8px", borderRadius: 999, fontSize: 10.5, fontWeight: 700, cursor: "pointer", border: `1px solid ${PALETTE.danger}55`, background: "#fff", color: PALETTE.danger }}
+            >
+              ↺ Reset pwosesis
+            </button>
           )}
         </div>
       );
