@@ -2944,7 +2944,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       {restCols.map((q) => (
         <th key={q} style={thDark}>{q}</th>
       ))}
-      <th style={{ ...thDark, width: 40 }}></th>
+      {isAdmin && <th style={{ ...thDark, width: 40 }}></th>}
     </>
   );
 
@@ -3007,9 +3007,11 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       {restCols.map((q) => (
         <td key={q} style={tdDark}>{renderAnswer(p, q)}</td>
       ))}
-      <td style={{ ...tdDark, textAlign: "center" }}>
-        <button onClick={() => remove(p.id)} style={miniDanger} aria-label="Efase prospè">✕</button>
-      </td>
+      {isAdmin && (
+        <td style={{ ...tdDark, textAlign: "center" }}>
+          <button onClick={() => remove(p.id)} style={miniDanger} aria-label="Efase prospè">✕</button>
+        </td>
+      )}
     </tr>
   );
 
