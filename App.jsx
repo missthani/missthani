@@ -333,6 +333,11 @@ const TICKER_STATES = [
     dateRule: "", dropdown: "Aksyon pou {non}",
     flow: ["Li reserve → etap « Li reserve »", "Vini → « Nouvo Etidyan »"],
     def: "Hello {etiket}, sonje {non} enskri deja men li poko vini nan kou. Sonje rele l pou planifye avè l jiskaske l vini nan kou." },
+  { key: "noshow", label: "Reserve men pa vini", step: 4, vars: ["{etiket}", "{non}"],
+    cond: "Etap = « Pa vini » (li te reserve men li pa t vini)",
+    dateRule: "", dropdown: "Aksyon pou {non}",
+    flow: ["Li reserve ankò → etap « Li reserve »", "Vini → « Nouvo Etidyan »"],
+    def: "Hello {etiket}, sonje {non} te reserve deja men li poko vini." },
 ];
 const TICKER_DEFAULTS = TICKER_STATES.reduce((o, s) => { o[s.key] = s.def; return o; }, {});
 
@@ -360,6 +365,7 @@ const CONDITIONS = [
   { key: "reserved", label: "Enskri (li reserve)", test: (p) => p.stage === "reserved_special" || p.stage === "reserved_after" },
   { key: "special_passed", label: "Special pase, poko reserve", test: (p) => p.stage === "special_passed" },
   { key: "recycle", label: "Enskri poko vini (recycle)", test: (p) => p.stage === "recycle" },
+  { key: "noshow", label: "Reserve men pa vini", test: (p) => p.stage === "noshow" },
 ];
 const CONDITIONS_MAP = CONDITIONS.reduce((o, c) => { o[c.key] = c; return o; }, {});
 
@@ -374,6 +380,7 @@ const DEFAULT_STAGE_CONDS = {
   reserved_sessionday: ["reserved"],
   special_passed: ["special_passed"],
   recycle: ["recycle"],
+  noshow: ["noshow"],
 };
 
 /* Pran adrès yon moun nan repons li yo (kolòn ki gen mo kle adrès) */
@@ -3063,22 +3070,36 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       const sessTxt = session ? formatHtDate(session) : "—";
       const callDay = session ? addDays(session, -2) : "";
       const dayBefore = session ? addDays(session, -1) : "";
+      const canAct = !!session && today >= session; // ka make Vini/Pa vini sèlman apre dat session an rive
+      const viniDrop = {
+        title: `Eske ${name} vini?`,
+        disabled: !canAct,
+        disabledNote: "Dat session an poko rive — ou poko ka fè aksyon sa.",
+        options: [
+          { label: "Vini", value: "came" },
+          { label: "Pa vini", value: "stage:noshow" },
+        ],
+      };
       if (session && today >= session) {
-        return {
-          text: fillTpl("reserved_sessionday", { non: name, dat_session: sessTxt }),
-          tone: "red",
-          dropdown: { title: `Eske ${name} vini nan kou?`, options: [
-            { label: "Vini", value: "came" },
-            { label: "Recycler", value: "stage:recycle" },
-          ] },
-        };
+        return { text: fillTpl("reserved_sessionday", { non: name, dat_session: sessTxt }), tone: "red", dropdown: viniDrop };
       }
       if (dayBefore && today >= dayBefore) {
-        return { text: fillTpl("reserved_daybefore", { etiket: etq || "chè", non: name, dat_session: sessTxt }), tone: "red" };
+        return { text: fillTpl("reserved_daybefore", { etiket: etq || "chè", non: name, dat_session: sessTxt }), tone: "red", dropdown: viniDrop };
       }
       const callArrived = callDay && today >= callDay;
       const callTxt = callDay ? (callArrived ? "JODIA" : formatHtDate(callDay)) : "byento";
-      return { text: fillTpl("reserved", { etiket: etq || "chè", non: name, dat_apel: callTxt, dat_session: sessTxt }), tone: callArrived ? "red" : "none" };
+      return { text: fillTpl("reserved", { etiket: etq || "chè", non: name, dat_apel: callTxt, dat_session: sessTxt }), tone: callArrived ? "red" : "none", dropdown: viniDrop };
+    }
+
+    if (matchConds(p, "noshow")) {
+      return {
+        text: fillTpl("noshow", { etiket: etq || "chè", non: name }),
+        tone: "warn",
+        dropdown: { title: `Aksyon pou ${name}:`, options: [
+          { label: "Li reserve ankò", value: "stage:reserved_special" },
+          { label: "Vini", value: "came" },
+        ] },
+      };
     }
 
     if (matchConds(p, "special_passed")) {
@@ -3228,14 +3249,20 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             </div>
           )}
           {tk && tk.dropdown && (
-            <select
-              value=""
-              onChange={(e) => { const v = e.target.value; if (v) applyTickerAction(p, v); }}
-              style={{ maxWidth: 230, fontSize: 11.5, padding: "3px 6px", borderRadius: 8, border: `1px solid ${bc}66`, background: "#fff", color: PALETTE.cream, fontWeight: 600 }}
-            >
-              <option value="">▾ {tk.dropdown.title}</option>
-              {tk.dropdown.options.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-            </select>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, maxWidth: 230 }}>
+              <select
+                value=""
+                disabled={tk.dropdown.disabled}
+                onChange={(e) => { const v = e.target.value; if (v) applyTickerAction(p, v); }}
+                style={{ maxWidth: 230, fontSize: 11.5, padding: "3px 6px", borderRadius: 8, border: `1px solid ${bc}66`, background: "#fff", color: PALETTE.cream, fontWeight: 600, opacity: tk.dropdown.disabled ? 0.55 : 1, cursor: tk.dropdown.disabled ? "not-allowed" : "pointer" }}
+              >
+                <option value="">▾ {tk.dropdown.title}</option>
+                {tk.dropdown.options.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+              </select>
+              {tk.dropdown.disabled && tk.dropdown.disabledNote && (
+                <span style={{ fontSize: 9.5, color: "#B8860B", lineHeight: 1.2 }}>{tk.dropdown.disabledNote}</span>
+              )}
+            </div>
           )}
         </div>
       );
