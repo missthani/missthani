@@ -497,6 +497,7 @@ async function loadProspects() {
       followup: r.followup || "",
       etiquette: r.etiquette || "",
       contacted: !!r.contacted,
+      contactedAt: r.contacted_at || "",
       updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : 0,
     }));
   } catch (e) {
@@ -564,10 +565,12 @@ async function setProspectEtiquette(id, name) {
 }
 
 /* Make si yon mesaj WhatsApp te voye bay prospè a (vèt = voye, wouj = poko) */
-async function setProspectContacted(id, val) {
+async function setProspectContacted(id, val, atDate) {
   if (!id) return false;
   try {
-    const { data, error } = await supabase.from("prospects").update({ contacted: !!val }).eq("id", id).select();
+    const patch = { contacted: !!val };
+    if (val) patch.contacted_at = atDate || todayStr();
+    const { data, error } = await supabase.from("prospects").update(patch).eq("id", id).select();
     if (error) return false;
     return (data || []).length > 0;
   } catch (e) {
@@ -581,10 +584,10 @@ function loadContactedCache() {
   try { return JSON.parse(localStorage.getItem(CONTACTED_CACHE_KEY) || "{}") || {}; }
   catch (e) { return {}; }
 }
-function saveContactedCache(id, val) {
+function saveContactedCache(id, val, atDate) {
   try {
     const c = loadContactedCache();
-    c[id] = !!val;
+    c[id] = { v: !!val, at: val ? (atDate || todayStr()) : "" };
     localStorage.setItem(CONTACTED_CACHE_KEY, JSON.stringify(c));
   } catch (e) {}
 }
@@ -1037,6 +1040,9 @@ export default function MissThaniApp() {
         * { box-sizing: border-box; }
         @keyframes mt-rise { from { opacity:0; transform: translateY(16px);} to { opacity:1; transform: translateY(0);} }
         @keyframes mt-fade { from { opacity:0;} to { opacity:1;} }
+        @keyframes mt-scroll { 0% { transform: translateX(0);} 100% { transform: translateX(-100%);} }
+        .mt-marquee { display:inline-block; white-space:nowrap; padding-left:100%; animation: mt-scroll 16s linear infinite; }
+        .mt-marquee:hover { animation-play-state: paused; }
         .mt-rise { animation: mt-rise .6s cubic-bezier(.2,.7,.3,1) both; }
         .mt-fade { animation: mt-fade .8s ease both; }
         .mt-btn { transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease; }
@@ -2673,9 +2679,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     setBusy(true);
     const list = await loadProspects();
     const cache = loadContactedCache();
-    const merged = (list || []).map((p) =>
-      Object.prototype.hasOwnProperty.call(cache, p.id) ? { ...p, contacted: cache[p.id] } : p
-    );
+    const merged = (list || []).map((p) => {
+      const c = cache[p.id];
+      if (c && typeof c === "object") return { ...p, contacted: !!c.v, contactedAt: c.at || p.contactedAt || "" };
+      if (typeof c === "boolean") return { ...p, contacted: c };
+      return p;
+    });
     setItems(merged);
     setBusy(false);
   }, []);
@@ -2708,12 +2717,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   // Make si yon mesaj WhatsApp voye (vèt) oswa poko (wouj)
   const markContacted = async (p, val) => {
     if (!p || p.contacted === val) return;
-    setItems((prev) => (prev || []).map((x) => (x.id === p.id ? { ...x, contacted: val } : x)));
-    saveContactedCache(p.id, val); // kenbe l sou aparèy sa a kèlkeswa rezilta Supabase la
-    const ok = await setProspectContacted(p.id, val);
+    const at = val ? todayStr() : "";
+    setItems((prev) => (prev || []).map((x) => (x.id === p.id ? { ...x, contacted: val, contactedAt: val ? at : (x.contactedAt || "") } : x)));
+    saveContactedCache(p.id, val, at); // kenbe l sou aparèy sa a kèlkeswa rezilta Supabase la
+    const ok = await setProspectContacted(p.id, val, at);
     if (!ok) {
-      // Pa retounen wouj: nou kenbe koulè a lokalman. Men nou avèti pou kolòn `contacted` la nan Supabase.
-      setSaveErr("Estati a sove sou aparèy sa a, men li pa rive nan Supabase. Pou l sove pou tout moun, ajoute kolòn `contacted` nan Supabase (gade enstriksyon yo).");
+      setSaveErr("Estati a sove sou aparèy sa a, men li pa rive nan Supabase. Pou l sove pou tout moun, ajoute kolòn `contacted` ak `contacted_at` nan Supabase (gade enstriksyon yo).");
     }
   };
   const toggleContacted = (p) => markContacted(p, !p.contacted);
@@ -2775,7 +2784,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
   // Yon ranje prospè
   const renderRow = (p, idx) => (
-    <tr key={p.id}>
+    <tr key={p.id} style={{ background: rowTint((rowTicker(p) || {}).tone) }}>
       <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 700, whiteSpace: "nowrap" }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
           {!nameCol && contactDot(p)}
@@ -2860,6 +2869,62 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     return d ? formatHtDate(d) : "—";
   };
 
+  // Dat brit yo pou yon prospè (session + rezèvasyon), pou kalkil mesaj yo
+  const resaRawOf = (p) => {
+    const prog = (programs || []).find((pp) => pp.label === p.program);
+    const base = prog ? currentResaBaseAll(prog.steps || []) : "";
+    return { session: base, resa: base ? addDays(base, -10) : "" };
+  };
+
+  // Mesaj ki defile nan kazye chak moun (selon kontak, etikèt, swivi, ak dat yo)
+  const rowTicker = (p) => {
+    if (!p.contacted) return null;
+    const name = prospectName(p) || "moun sa";
+    const etq = (p.etiquette || "").trim();
+    const fu = p.followup || "";
+    const cAt = p.contactedAt || "";
+    const cAtTxt = cAt ? formatHtDate(cAt) : "";
+    const today = todayStr();
+    const { session, resa } = resaRawOf(p);
+    const greet = etq ? `Hello ${etq}` : "Hello";
+
+    // 1) Kontakte men pa gen ni etikèt ni swivi
+    if (!etq && (!fu || fu === "")) {
+      return { text: `Moun sa (${name}) jwenn mesaj WhatsApp deja, men nou pa mete etikèt sou li, epi nou pa make swivi pou li.`, tone: "warn" };
+    }
+    // 2) Swivi fèt — rapèl pou rele
+    if (fu === "done") {
+      const callDay = resa ? addDays(resa, -2) : "";
+      const arrived = callDay && today >= callDay;
+      const callTxt = callDay ? (arrived ? "JODIA" : formatHtDate(callDay)) : "byento";
+      const resaTxt = resa ? formatHtDate(resa) : "—";
+      const sessTxt = session ? formatHtDate(session) : "—";
+      return {
+        text: `${greet}, sonje ou te fè swivi ak ${name} deja${cAtTxt ? " " + cAtTxt : ""}. Dat rezèvasyon an se ${resaTxt} pou sesyon ${sessTxt}. Sonje rele ${name} ${callTxt} pou w raple l sa.`,
+        tone: arrived ? "red" : "none",
+      };
+    }
+    // 3) Sone san repons / pa sone ditou — refè swivi
+    if (fu === "noanswer" || fu === "wrong") {
+      const stat = fu === "noanswer" ? "sone san repons" : "pa sone ditou";
+      const redoDay = cAt ? addDays(cAt, 3) : "";
+      const arrived = redoDay && today >= redoDay;
+      const redoTxt = redoDay ? (arrived ? "JODIA" : formatHtDate(redoDay)) : "byento";
+      return {
+        text: `${greet}, sonje ou te fè swivi ak ${name}${cAtTxt ? " " + cAtTxt : ""}, men li te ${stat}. Sonje refè swivi ak ${name} ${redoTxt}.`,
+        tone: arrived ? "blue" : "none",
+      };
+    }
+    // 4) Gen etikèt men poko gen swivi
+    if (etq) return { text: `${greet}, ou gen pou fè swivi ak ${name}.`, tone: "none" };
+    return null;
+  };
+
+  const tickerColor = (tone) =>
+    tone === "red" ? "#C0392B" : tone === "blue" ? "#2F6FDB" : tone === "warn" ? "#B8860B" : PALETTE.goldSoft;
+  const rowTint = (tone) =>
+    tone === "red" ? "rgba(192,57,43,.13)" : tone === "blue" ? "rgba(47,111,219,.13)" : undefined;
+
   // Kolòn yo: # | Programme | Dat | yon kolòn pou chak kesyon
   const qCols = useMemo(() => {
     const out = [];
@@ -2925,20 +2990,29 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const val = answerFor(p, q);
     const v = validateHaitiPhone(val);
     if (v.ok) {
+      const tk = rowTicker(p);
+      const bc = tk ? tickerColor(tk.tone) : PALETTE.goldSoft;
       return (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
-          <span>{val}</span>
-          <a
-            href={`https://wa.me/${v.e164}?text=${encodeURIComponent(waMessage(p))}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => markContacted(p, true)}
-            title={`Ekri ${val} sou WhatsApp`}
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, background: "#25D366", color: "#fff", textDecoration: "none", fontSize: 11, fontWeight: 700 }}
-          >
-            WhatsApp
-          </a>
-        </span>
+        <div style={{ display: "inline-flex", flexDirection: "column", gap: 4, maxWidth: 230 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
+            <span>{val}</span>
+            <a
+              href={`https://wa.me/${v.e164}?text=${encodeURIComponent(waMessage(p))}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => markContacted(p, true)}
+              title={`Ekri ${val} sou WhatsApp`}
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, background: "#25D366", color: "#fff", textDecoration: "none", fontSize: 11, fontWeight: 700 }}
+            >
+              WhatsApp
+            </a>
+          </span>
+          {tk && tk.text && (
+            <div style={{ overflow: "hidden", width: "100%", maxWidth: 230, height: 18, display: "flex", alignItems: "center", background: `${bc}14`, border: `1px solid ${bc}44`, borderRadius: 6 }}>
+              <span className="mt-marquee" style={{ fontSize: 10.5, color: bc, fontWeight: 700 }}>{tk.text}</span>
+            </div>
+          )}
+        </div>
       );
     }
     return val;
