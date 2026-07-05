@@ -2829,22 +2829,15 @@ function FaqBlock({ block }) {
         ) : (
           <div style={{ fontSize: 13, color: `${PALETTE.cream}88`, marginBottom: 16 }}>Pa gen repons pou kesyon sa a.</div>
         )}
-        <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-          <button onClick={() => setIdx((v) => Math.max(0, v - 1))} disabled={i === 0} style={{ ...ghostBtn, opacity: i === 0 ? 0.5 : 1 }}>← Anvan</button>
-          {i < items.length - 1 ? (
-            (() => {
-              const canNext = opts.length === 0 || chosen.length > 0;
-              return (
-                <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
-                  <button onClick={() => { if (canNext) setIdx((v) => v + 1); }} disabled={!canNext} style={{ ...goldBtn, opacity: canNext ? 1 : 0.5, cursor: canNext ? "pointer" : "not-allowed" }}>Kesyon swivan →</button>
-                  {!canNext && <span style={{ fontSize: 10.5, color: PALETTE.blush }}>Chwazi omwen yon repons pou kontinye</span>}
-                </span>
-              );
-            })()
-          ) : (
-            <span style={{ fontSize: 13, fontWeight: 700, color: PALETTE.goldSoft }}>✓ Fini</span>
-          )}
-        </div>
+        {i < items.length - 1 && (() => {
+          const canNext = opts.length === 0 || chosen.length > 0;
+          return (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+              <button onClick={() => { if (canNext) setIdx((v) => v + 1); }} disabled={!canNext} style={{ ...goldBtn, opacity: canNext ? 1 : 0.5, cursor: canNext ? "pointer" : "not-allowed" }}>Kesyon swivan →</button>
+              {!canNext && <span style={{ fontSize: 10.5, color: PALETTE.blush }}>Chwazi omwen yon repons pou kontinye</span>}
+            </div>
+          );
+        })()}
       </div>
       {items.length > 1 && (
         <div style={{ display: "flex", gap: 5, justifyContent: "center", marginTop: 10, flexWrap: "wrap" }}>
