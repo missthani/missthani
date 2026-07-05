@@ -2577,16 +2577,13 @@ function AdminSpace({ config, onSave, onExit }) {
                                 <>
                                   <input className="mt-input" placeholder="Tit — opsyonèl (egz: Kesyon moun konn poze)" value={b.title || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { title: e.target.value })} />
                                   <div style={{ fontSize: 12, color: `${PALETTE.cream}99`, margin: "6px 0 8px", lineHeight: 1.5 }}>
-                                    Ekri kesyon moun yo ka poze yo ak repons yo. Sou paj la, vizitè a ap klike sou kesyon li vle a pou wè repons lan.
+                                    Ekri kesyon moun yo ka poze yo. Sou paj la, vizitè a ap wè yo youn apre lòt.
                                   </div>
                                   {(b.items || []).map((it, ii) => (
-                                    <div key={it.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 10, padding: 10, marginBottom: 8, background: "rgba(194,35,142,.03)" }}>
-                                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                                        <span style={{ fontSize: 11.5, fontWeight: 700, color: PALETTE.goldSoft }}>Kesyon {ii + 1}</span>
-                                        <button onClick={() => updateBlock(p.id, s.id, b.id, { items: (b.items || []).filter((x) => x.id !== it.id) })} style={{ border: "none", background: "transparent", color: PALETTE.danger, cursor: "pointer", fontSize: 14 }}>✕</button>
-                                      </div>
-                                      <input className="mt-input" placeholder="Kesyon an (egz: Konbyen kou a koute?)" value={it.q || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { items: (b.items || []).map((x) => x.id === it.id ? { ...x, q: e.target.value } : x) })} />
-                                      <textarea className="mt-input" style={{ marginTop: 6, minHeight: 60 }} placeholder="Repons lan…" value={it.a || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { items: (b.items || []).map((x) => x.id === it.id ? { ...x, a: e.target.value } : x) })} />
+                                    <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                                      <span style={{ fontSize: 12, fontWeight: 700, color: PALETTE.goldSoft, width: 18 }}>{ii + 1}</span>
+                                      <input className="mt-input" style={{ flex: 1 }} placeholder="Kesyon an (egz: Konbyen kou a koute?)" value={it.q || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { items: (b.items || []).map((x) => x.id === it.id ? { ...x, q: e.target.value } : x) })} />
+                                      <button onClick={() => updateBlock(p.id, s.id, b.id, { items: (b.items || []).filter((x) => x.id !== it.id) })} style={{ border: "none", background: "transparent", color: PALETTE.danger, cursor: "pointer", fontSize: 14 }}>✕</button>
                                     </div>
                                   ))}
                                   <button onClick={() => updateBlock(p.id, s.id, b.id, { items: [...(b.items || []), { id: Math.random().toString(36).slice(2, 9), q: "", a: "" }] })} style={{ ...ghostBtn, marginTop: 4 }}>+ Ajoute yon kesyon</button>
@@ -2786,30 +2783,35 @@ function StatsView() {
 }
 
 /* Konkou ant ajan yo — Progression des Agents (moun ki make "vini" konte pou ajan yo) */
-/* Blòk FAQ — kesyon moun poze (vizitè klike sou kesyon an pou wè repons lan) */
+/* Blòk Kesyon — kesyon moun poze (vizitè a wè yo youn apre lòt, san repons) */
 function FaqBlock({ block }) {
-  const [open, setOpen] = useState(null);
   const items = (block.items || []).filter((it) => (it.q || "").trim());
+  const [idx, setIdx] = useState(0);
   if (items.length === 0) return null;
+  const i = Math.min(idx, items.length - 1);
+  const cur = items[i];
   return (
     <div style={{ marginBottom: 4 }}>
       {block.title && <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, color: PALETTE.cream, margin: "0 0 12px" }}>{block.title}</h3>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {items.map((it) => {
-          const isOpen = open === it.id;
-          return (
-            <div key={it.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
-              <button onClick={() => setOpen(isOpen ? null : it.id)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "13px 15px", background: isOpen ? "rgba(194,35,142,.05)" : "#fff", border: "none", cursor: "pointer", textAlign: "left" }}>
-                <span style={{ fontSize: 15.5, fontWeight: 600, color: PALETTE.cream }}>{it.q}</span>
-                <span style={{ fontSize: 18, color: PALETTE.goldSoft, transform: isOpen ? "rotate(45deg)" : "none", transition: "transform .15s", flexShrink: 0 }}>+</span>
-              </button>
-              {isOpen && (
-                <div style={{ padding: "0 15px 14px", fontSize: 14.5, lineHeight: 1.6, color: `${PALETTE.cream}dd`, whiteSpace: "pre-wrap" }}>{it.a || ""}</div>
-              )}
-            </div>
-          );
-        })}
+      <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 14, padding: "18px 16px", background: "#fff" }}>
+        <div style={{ fontSize: 12, color: `${PALETTE.cream}88`, fontWeight: 700 }}>Kesyon {i + 1} / {items.length}</div>
+        <div style={{ fontSize: 18, fontWeight: 600, color: PALETTE.cream, margin: "10px 0 16px", lineHeight: 1.4 }}>{cur.q}</div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
+          <button onClick={() => setIdx((v) => Math.max(0, v - 1))} disabled={i === 0} style={{ ...ghostBtn, opacity: i === 0 ? 0.5 : 1 }}>← Anvan</button>
+          {i < items.length - 1 ? (
+            <button onClick={() => setIdx((v) => v + 1)} style={goldBtn}>Kesyon swivan →</button>
+          ) : (
+            <button onClick={() => setIdx(0)} style={ghostBtn}>Rekòmanse</button>
+          )}
+        </div>
       </div>
+      {items.length > 1 && (
+        <div style={{ display: "flex", gap: 5, justifyContent: "center", marginTop: 10, flexWrap: "wrap" }}>
+          {items.map((_, k) => (
+            <button key={k} onClick={() => setIdx(k)} aria-label={`Kesyon ${k + 1}`} style={{ width: 9, height: 9, borderRadius: 999, border: "none", cursor: "pointer", background: k === i ? PALETTE.goldSoft : PALETTE.line, padding: 0 }} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
