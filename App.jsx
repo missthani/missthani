@@ -2093,18 +2093,6 @@ function AdminSpace({ config, onSave, onExit }) {
     setTimeout(() => setSavedAt(null), 2500);
   };
 
-  // Sove otomatikman: chak fwa gen yon chanjman, sove l apre yon ti moman (pou pa pèdi anyen menm si paj la rechaje/deplwaye)
-  const firstDraftRef = useRef(true);
-  useEffect(() => {
-    if (firstDraftRef.current) { firstDraftRef.current = false; return; }
-    const t = setTimeout(async () => {
-      const ok = await onSave(draft);
-      setSavedAt(ok ? "ok" : "fail");
-      setTimeout(() => setSavedAt(null), 2000);
-    }, 1200);
-    return () => clearTimeout(t);
-  }, [draft]);
-
   /* ---- editè aksyon ---- */
   const updateProgram = (pid, patch) =>
     setDraft((d) => ({ ...d, programs: d.programs.map((p) => (p.id === pid ? { ...p, ...patch } : p)) }));
@@ -2640,7 +2628,7 @@ function AdminSpace({ config, onSave, onExit }) {
           {savedAt === "fail" && <span style={{ color: PALETTE.danger, fontSize: 13 }}>Pa t kapab anrejistre</span>}
         </div>
         <p style={{ margin: "8px 0 0", fontSize: 11.5, color: `${PALETTE.cream}88`, textAlign: "center" }}>
-          Chanjman yo sove otomatikman. Tann pou w wè "Anrejistre ✓" anvan ou fèmen oswa deplwaye.
+          Klike "Anrejistre chanjman yo" pou sove. Tann pou w wè "Anrejistre ✓" anvan ou fèmen oswa deplwaye.
         </p>
       </div>
         </>
