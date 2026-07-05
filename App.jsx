@@ -1306,6 +1306,7 @@ function PublicSpace({ config, onAdmin }) {
   const [formDone, setFormDone] = useState(() => !!(saved0 && saved0.formDone)); // vizitè a fin ranpli fòmilè a yon fwa
   const [submittedCampaign, setSubmittedCampaign] = useState(() => (saved0 && saved0.submittedCampaign) || ""); // ki kanpay video li te soumèt anba l
   const [answers, setAnswers] = useState(() => (saved0 && saved0.answers) || {}); // repons fòmilè yo (pa stepId)
+  const [answeredFor, setAnsweredFor] = useState(() => (saved0 && (saved0.answeredFor || saved0.selectedId)) || ""); // ki pwogram repons/formDone yo apatni (kenbe l menm lè moun nan tounen akèy)
   const sessionRef = useRef((saved0 && saved0.sessionId) || null); // idantifyan sesyon vizitè a
 
   // Estati swivi pèsonèl vizitè a (admin nan mete l) + modifikasyon nimewo
@@ -1355,13 +1356,14 @@ function PublicSpace({ config, onAdmin }) {
   useEffect(() => {
     saveVisit({
       selectedId: selected ? selected.id : "",
+      answeredFor,
       screenIndex,
       formDone,
       submittedCampaign,
       answers,
       sessionId: sessionRef.current,
     });
-  }, [selected, screenIndex, formDone, submittedCampaign, answers]);
+  }, [selected, screenIndex, formDone, submittedCampaign, answers, answeredFor]);
 
   useEffect(() => {
     if (selected) return;
@@ -1501,12 +1503,15 @@ function PublicSpace({ config, onAdmin }) {
   }, [screenIndex, selected]);
 
   const choose = (p) => {
-    // Chak pwogram endepandan: si w chwazi yon LÒT pwogram, kòmanse yon fòmilè fre
-    // ak yon nouvo sesyon (konsa enfo yon pwogram pa antre nan yon lòt).
-    const switching = !selected || selected.id !== p.id;
+    // Chak pwogram endepandan. Nou konpare ak pwogram repons yo apatni an (answeredFor),
+    // konsa lè moun nan tounen akèy epi reouvri MENM pwogram lan, nou kenbe fòmilè a
+    // (li pa ka reranpli l, epi anons/swivi yo rete).
+    const currentProgId = selected ? selected.id : answeredFor;
+    const switching = currentProgId !== p.id;
     setSelected(p);
     setScreenIndex(0);
     setFormIdx(0);
+    setAnsweredFor(p.id);
     if (switching) {
       setAnswers({});
       setFormDone(false);
