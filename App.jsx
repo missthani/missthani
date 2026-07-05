@@ -3358,6 +3358,33 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     refresh();
   }, [refresh]);
 
+  // Aktyalize otomatikman chak 5 segond (san flicker) — pou nouvo moun parèt pou kont yo
+  useEffect(() => {
+    const id = setInterval(async () => {
+      const list = await loadProspects();
+      const cache = loadContactedCache();
+      const merged = (list || []).map((p) => {
+        const c = cache[p.id];
+        if (c && typeof c === "object") return { ...p, contacted: !!c.v, contactedAt: c.at || p.contactedAt || "" };
+        if (typeof c === "boolean") return { ...p, contacted: c };
+        return p;
+      });
+      setItems(merged);
+    }, 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Swiv nouvo moun ki moute (pou notifikasyon)
+  const [seen, setSeen] = useState(null); // null = poko inisyalize
+  useEffect(() => {
+    if (items && seen === null) {
+      const o = {}; items.forEach((p) => { o[p.id] = true; });
+      setSeen(o);
+    }
+  }, [items, seen]);
+  const isNew = (p) => seen !== null && !seen[p.id];
+  const markGroupSeen = (rows) => setSeen((s) => { const n = { ...(s || {}) }; (rows || []).forEach((r) => { n[r.id] = true; }); return n; });
+
   const remove = async (id) => {
     await deleteProspect(id);
     setItems((prev) => (prev || []).filter((p) => p.id !== id));
@@ -4136,8 +4163,11 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
-        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, margin: 0 }}>
-          {isStudents ? "Nouvo Etidyan" : isLwen ? "Lwen" : "Nouvo Prospè"} {viewItems ? `(${viewItems.length})` : ""}
+        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, margin: 0, display: "inline-flex", alignItems: "center", gap: 10 }}>
+          <span>{isStudents ? "Nouvo Etidyan" : isLwen ? "Lwen" : "Nouvo Prospè"} {viewItems ? `(${viewItems.length})` : ""}</span>
+          {(() => { const nt = (viewItems || []).filter(isNew).length; return nt > 0 ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: PALETTE.blush, color: "#fff", fontSize: 12.5, fontWeight: 800, padding: "3px 11px", borderRadius: 999 }}>🔔 {nt} nouvo moun</span>
+          ) : null; })()}
         </h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={() => setResaPanel((v) => !v)} style={resaPanel ? goldBtn : ghostBtn}>Dat rezèvasyon</button>
@@ -4403,12 +4433,15 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               <div key={prog} style={{ marginBottom: 12, border: `1px solid ${PALETTE.line}`, borderRadius: 12, overflow: "hidden" }}>
                 <button
                   type="button"
-                  onClick={() => toggleProg(prog)}
+                  onClick={() => { if (!open) markGroupSeen(rows); toggleProg(prog); }}
                   style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 14px", background: "rgba(194,35,142,.06)", border: "none", cursor: "pointer", textAlign: "left" }}
                 >
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
                     <span style={{ fontSize: 12, color: PALETTE.goldSoft, transform: open ? "rotate(90deg)" : "none", transition: "transform .15s", display: "inline-block" }}>▶</span>
                     <strong style={{ fontSize: 15.5, color: PALETTE.cream }}>{prog}</strong>
+                    {(() => { const nc = rows.filter(isNew).length; return nc > 0 ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: PALETTE.blush, color: "#fff", fontSize: 11, fontWeight: 800, padding: "2px 9px", borderRadius: 999 }}>🔔 {nc} nouvo</span>
+                    ) : null; })()}
                   </span>
                   <span style={{ fontSize: 13, color: `${PALETTE.cream}aa`, fontWeight: 600 }}>{rows.length} moun</span>
                 </button>
