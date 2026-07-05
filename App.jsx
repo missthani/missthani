@@ -2831,7 +2831,7 @@ function FaqBlock({ block }) {
             {opts.map((op) => {
               const on = chosen.includes(op.id);
               return (
-                <button key={op.id} onClick={() => toggle(op.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 10, cursor: "pointer", textAlign: "left", border: `1.5px solid ${on ? PALETTE.goldSoft : PALETTE.line}`, background: on ? "rgba(194,35,142,.07)" : "#fff", fontSize: 14.5, color: PALETTE.cream, fontWeight: on ? 600 : 400 }}>
+                <button key={op.id} onClick={() => toggle(op.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", borderRadius: 10, cursor: "pointer", textAlign: "left", border: `1.5px solid ${on ? PALETTE.goldSoft : PALETTE.line}`, background: on ? "rgba(194,35,142,.07)" : "#fff", fontSize: 14.5, color: PALETTE.cream, fontWeight: 500 }}>
                   <span style={{ fontSize: 16, color: on ? PALETTE.goldSoft : `${PALETTE.cream}66` }}>{on ? "☑" : "☐"}</span>
                   {op.text}
                 </button>
@@ -2845,7 +2845,7 @@ function FaqBlock({ block }) {
           const canNext = opts.length === 0 || chosen.length > 0;
           return (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
-              <button onClick={() => { if (canNext) setIdx((v) => v + 1); }} disabled={!canNext} style={{ ...goldBtn, opacity: canNext ? 1 : 0.5, cursor: canNext ? "pointer" : "not-allowed" }}>Kesyon swivan →</button>
+              <button onClick={() => { if (opts.length === 0 || chosen.length > 0) setIdx((v) => v + 1); }} style={{ ...goldBtn, opacity: canNext ? 1 : 0.5 }}>Kesyon swivan →</button>
               {!canNext && <span style={{ fontSize: 10.5, color: PALETTE.blush }}>Chwazi omwen yon repons pou kontinye</span>}
             </div>
           );
