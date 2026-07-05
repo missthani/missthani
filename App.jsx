@@ -3077,7 +3077,10 @@ function AgentSpace({ config, onSave }) {
             <div style={{ fontSize: 12.5, color: `${PALETTE.cream}99` }}>Agent Miss Thani</div>
           </div>
         </div>
-        <button onClick={logout} style={ghostBtn}>Dekonekte</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/formulaire"; }} style={ghostBtn}>← Lis prospè yo</button>
+          <button onClick={logout} style={ghostBtn}>Dekonekte</button>
+        </div>
       </div>
 
       {/* Lien referans */}
