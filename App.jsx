@@ -302,6 +302,28 @@ const TICKER_STATES = [
     dropdown: "Eske ou fè swivi ak {non}?",
     flow: ["Li reserve nan dat special → etap « Li reserve »", "Dat special pase, poko reserve → etap « Special pase »", "Li reserve apre special → etap « Li reserve »", "Li recycler → etap « Recycle »"],
     def: "Hello {etiket}, sonje ou te fè swivi ak {non} deja {dat_swivi}. Dat rezèvasyon an se {dat_rezervasyon} pou sesyon {dat_session}. Sonje rele {non} {dat_apel} pou w raple l sa." },
+  { key: "follow_done_late", label: "Swivi fèt — dat apèl la pase (rapèl, 3 jou)", step: 2, vars: ["{etiket}", "{non}"],
+    cond: "Otomatik: swivi = fèt, dat apèl la (rezèvasyon − 2 jou) pase, epi admin poko chwazi yon etap. Li dire 3 jou.",
+    dateRule: "Otomatik lè jodia depase dat apèl la. Liy WOUJ.",
+    dropdown: "Eske ou fè swivi ak {non}?", flow: ["Chwazi yon etap nan meni an pou avanse"],
+    def: "Salut {etiket}, mwen te anonse w dat limit pou w fè swivi avèk {non} lan te rive, men ou pa note ki swivi ou fè. Klike sou pwosesis swivi a pou w di m kisa ou te fè ak {non} pou dat sa." },
+  { key: "follow_done_lost", label: "Swivi fèt — 3 jou pase san aksyon", step: 2, vars: ["{etiket}", "{non}"],
+    cond: "Otomatik: 3 jou pase apre dat apèl la, admin toujou poko chwazi yon etap.",
+    dateRule: "Otomatik lè jodia depase dat apèl la + 3 jou. Liy WOUJ.",
+    dropdown: "Eske ou fè swivi ak {non}?", flow: ["Chwazi yon etap oswa bay yon lòt ajan swivi a"],
+    def: "Hello {etiket}, ou fè 3 jou san w pa mete sistèm nan ajou pandan dat rezèvasyon an pase deja. Ou riske pèdi moun sa. Yon lòt ajan ap anchaje l de swivi {non}." },
+  { key: "follow_done_late", label: "Swivi fèt — dat rapèl la pase (rapèl 3 jou)", step: 2, vars: ["{etiket}", "{non}"],
+    cond: "Swivi = « Suivi fèt », dat rapèl la pase, ajan an poko chwazi pwochen etap la (jiska 3 jou)",
+    dateRule: "Kòmanse yon jou apre dat rapèl la. Li dire 3 jou. Liy WOUJ.",
+    dropdown: "Eske ou fè swivi ak {non}?",
+    flow: ["Menm opsyon ak « Swivi fèt » — chwazi ki etap moun nan travèse"],
+    def: "Salut {etiket}, mwen te anonse w dat limit pou w fè swivi avèk {non} la te rive, men ou pa note ki swivi ou fè. Klike sou pwosesis swivi a pou m ka di kisa ou te fè ak {non} pou dat sa. Mesaj sa ap dire sèlman 3 jou." },
+  { key: "follow_done_overdue", label: "Swivi fèt — 3 jou pase san mizajou", step: 2, vars: ["{etiket}", "{non}"],
+    cond: "Swivi = « Suivi fèt », 3 jou pase apre dat rapèl la, toujou pa gen mizajou",
+    dateRule: "Kòmanse apre 3 jou. Liy WOUJ.",
+    dropdown: "Eske ou fè swivi ak {non}?",
+    flow: ["Menm opsyon ak « Swivi fèt » — chwazi ki etap moun nan travèse"],
+    def: "Hello {etiket}, ou fè 3 jou san w pa mete sistèm nan ajou pandan dat rezèvasyon an pase deja. Ou riske pèdi moun sa. Yon lòt ajan ap anchaje de swivi {non}." },
   { key: "follow_noanswer", label: "Sone san repons / pa sone ditou", step: 2, vars: ["{etiket}", "{non}", "{dat_swivi}", "{estati}", "{dat_refe}"],
     cond: "Swivi = « Sone san repons » oswa « Pa sone ditou »",
     dateRule: "Refè swivi = dat WhatsApp + 3 jou. Lè jou a rive: « JODIA » + liy BLE.",
@@ -3629,19 +3651,29 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     }
     if (matchConds(p, "follow_done")) {
       const callDay = resa ? addDays(resa, -2) : "";
-      const arrived = callDay && today >= callDay;
-      const callTxt = callDay ? (arrived ? "JODIA" : formatHtDate(callDay)) : "byento";
+      const lostDay = callDay ? addDays(callDay, 3) : "";
       const resaTxt = resa ? formatHtDate(resa) : "—";
       const sessTxt = session ? formatHtDate(session) : "—";
+      const drop = { title: `Eske ou fè swivi ak ${name}?`, options: [
+        { label: "Li reserve nan dat special", value: "stage:reserved_special" },
+        { label: "Dat special la pase, li poko reserve", value: "stage:special_passed" },
+        { label: "Li reserve apre special", value: "stage:reserved_after" },
+        { label: "Li recycler", value: "stage:recycle" },
+      ] };
+      // 3 jou pase apre dat apèl la, admin toujou poko aji
+      if (callDay && today > lostDay) {
+        return { text: fillTpl("follow_done_lost", { etiket: etq || "chè", non: name }), tone: "red", dropdown: drop };
+      }
+      // dat apèl la fin pase (pandan 3 jou), admin poko aji
+      if (callDay && today > callDay) {
+        return { text: fillTpl("follow_done_late", { etiket: etq || "chè", non: name }), tone: "red", dropdown: drop };
+      }
+      const arrived = callDay && today >= callDay;
+      const callTxt = callDay ? (arrived ? "JODIA" : formatHtDate(callDay)) : "byento";
       return {
         text: fillTpl("follow_done", { etiket: etq || "chè", non: name, dat_swivi: cAtTxt, dat_rezervasyon: resaTxt, dat_session: sessTxt, dat_apel: callTxt }),
         tone: arrived ? "red" : "none",
-        dropdown: { title: `Eske ou fè swivi ak ${name}?`, options: [
-          { label: "Li reserve nan dat special", value: "stage:reserved_special" },
-          { label: "Dat special la pase, li poko reserve", value: "stage:special_passed" },
-          { label: "Li reserve apre special", value: "stage:reserved_after" },
-          { label: "Li recycler", value: "stage:recycle" },
-        ] },
+        dropdown: drop,
       };
     }
     if ((fu === "noanswer" || fu === "wrong") && matchConds(p, "follow_noanswer")) {
