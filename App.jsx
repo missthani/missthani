@@ -1815,31 +1815,6 @@ function PublicSpace({ config, onAdmin }) {
         </div>
       ) : (
         <div className="mt-fade" style={{ width: "100%", maxWidth: 460, zIndex: 1 }}>
-          {announcements.length > 0 && !followupText && (
-            <div style={{ position: "sticky", top: 0, zIndex: 40, marginBottom: 16, paddingTop: 8, paddingBottom: 10, background: PALETTE.bgTop, borderRadius: 14, boxShadow: `0 10px 14px -8px ${PALETTE.bgTop}` }}>
-              {announcements.map((a) => (
-                <div
-                  key={a.id}
-                  className="mt-rise"
-                  style={{
-                    marginBottom: 8,
-                    padding: "14px 16px",
-                    borderRadius: 14,
-                    border: `1px solid ${PALETTE.gold}`,
-                    background: `linear-gradient(135deg, rgba(224,165,10,.18), rgba(194,35,142,.14)), #FFFFFF`,
-                    boxShadow: "0 8px 22px rgba(142,44,154,.20)",
-                  }}
-                >
-                  <div style={{ fontSize: 10, letterSpacing: "2px", textTransform: "uppercase", color: PALETTE.gold, fontWeight: 700, marginBottom: 6 }}>
-                    ★ Anons
-                  </div>
-                  <p style={{ fontSize: 14.5, color: PALETTE.cream, margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-                    {a.node}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
           <p style={{ textAlign: "center", fontSize: 12, letterSpacing: "2px", textTransform: "uppercase", color: PALETTE.gold, marginBottom: 14 }}>
             {selected.label}
           </p>
@@ -1891,6 +1866,16 @@ function PublicSpace({ config, onAdmin }) {
                   {btnLabel}
                 </button>
               )}
+            </div>
+          )}
+          {announcements.length > 0 && !followupText && (
+            <div style={{ marginTop: 22 }}>
+              {announcements.map((a) => (
+                <div key={a.id} className="mt-rise" style={{ marginBottom: 8, padding: "14px 16px", borderRadius: 14, border: `1px solid ${PALETTE.gold}`, background: `linear-gradient(135deg, rgba(224,165,10,.18), rgba(194,35,142,.14)), #FFFFFF`, boxShadow: "0 8px 22px rgba(142,44,154,.20)" }}>
+                  <div style={{ fontSize: 10, letterSpacing: "2px", textTransform: "uppercase", color: PALETTE.gold, fontWeight: 700, marginBottom: 6 }}>★ Anons</div>
+                  <p style={{ fontSize: 14.5, color: PALETTE.cream, margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{a.node}</p>
+                </div>
+              ))}
             </div>
           )}
         </div>
