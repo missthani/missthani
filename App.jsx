@@ -71,6 +71,7 @@ function newBlock(kind) {
   if (kind === "form") return { id, kind: "form", title: "" };
   if (kind === "special") return { id, kind: "special", title: "", specialName: "", reserveDate: "", tpl: "", buttonLabel: "", banner: false, videoStep: "" };
   if (kind === "link") return { id, kind: "link", title: "", url: "", label: "", sameTab: false, linkMode: "extern", targetProgram: "", targetStep: "" };
+  if (kind === "faq") return { id, kind: "faq", title: "", items: [] };
   return { id, kind: "text", title: "", text: "" };
 }
 
@@ -1685,6 +1686,9 @@ function PublicSpace({ config, onAdmin }) {
         </>
       );
     }
+    if (b.kind === "faq") {
+      return <FaqBlock key={b.id} block={b} />;
+    }
     if (b.kind === "special") {
       if (b.banner) return null; // anons yo parèt anlè paj la, pa anndan blòk la
       const sName = (b.specialName || "").trim();
@@ -2580,6 +2584,26 @@ function AdminSpace({ config, onSave, onExit }) {
                                   <input className="mt-input" style={{ marginTop: 8 }} placeholder="Tèks bouton an (egz: Kontakte nou, oswa Kontinye)" value={b.label || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { label: e.target.value })} />
                                 </>
                               )}
+
+                              {!collapsed[b.id] && b.kind === "faq" && (
+                                <>
+                                  <input className="mt-input" placeholder="Tit — opsyonèl (egz: Kesyon moun konn poze)" value={b.title || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { title: e.target.value })} />
+                                  <div style={{ fontSize: 12, color: `${PALETTE.cream}99`, margin: "6px 0 8px", lineHeight: 1.5 }}>
+                                    Ekri kesyon moun yo ka poze yo ak repons yo. Sou paj la, vizitè a ap klike sou kesyon li vle a pou wè repons lan.
+                                  </div>
+                                  {(b.items || []).map((it, ii) => (
+                                    <div key={it.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 10, padding: 10, marginBottom: 8, background: "rgba(194,35,142,.03)" }}>
+                                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                                        <span style={{ fontSize: 11.5, fontWeight: 700, color: PALETTE.goldSoft }}>Kesyon {ii + 1}</span>
+                                        <button onClick={() => updateBlock(p.id, s.id, b.id, { items: (b.items || []).filter((x) => x.id !== it.id) })} style={{ border: "none", background: "transparent", color: PALETTE.danger, cursor: "pointer", fontSize: 14 }}>✕</button>
+                                      </div>
+                                      <input className="mt-input" placeholder="Kesyon an (egz: Konbyen kou a koute?)" value={it.q || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { items: (b.items || []).map((x) => x.id === it.id ? { ...x, q: e.target.value } : x) })} />
+                                      <textarea className="mt-input" style={{ marginTop: 6, minHeight: 60 }} placeholder="Repons lan…" value={it.a || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { items: (b.items || []).map((x) => x.id === it.id ? { ...x, a: e.target.value } : x) })} />
+                                    </div>
+                                  ))}
+                                  <button onClick={() => updateBlock(p.id, s.id, b.id, { items: [...(b.items || []), { id: Math.random().toString(36).slice(2, 9), q: "", a: "" }] })} style={{ ...ghostBtn, marginTop: 4 }}>+ Ajoute yon kesyon</button>
+                                </>
+                              )}
                             </div>
                           ))}
 
@@ -2590,6 +2614,7 @@ function AdminSpace({ config, onSave, onExit }) {
                             <button onClick={() => addBlock(p.id, s.id, "form")} style={{ ...ghostBtn, flex: 1, minWidth: 70 }}>+ Fòmilè</button>
                             <button onClick={() => addBlock(p.id, s.id, "special")} style={{ ...ghostBtn, flex: 1, minWidth: 70 }}>+ Special</button>
                             <button onClick={() => addBlock(p.id, s.id, "link")} style={{ ...ghostBtn, flex: 1, minWidth: 70 }}>+ Lyen</button>
+                            <button onClick={() => addBlock(p.id, s.id, "faq")} style={{ ...ghostBtn, flex: 1, minWidth: 70 }}>+ Kesyon</button>
                           </div>
 
                           <input className="mt-input" style={{ marginTop: 10 }} placeholder="Tèks bouton 'Kontinye' — opsyonèl" value={s.buttonLabel || ""} onChange={(e) => updateStep(p.id, s.id, { buttonLabel: e.target.value })} />
@@ -2773,6 +2798,34 @@ function StatsView() {
 }
 
 /* Konkou ant ajan yo — Progression des Agents (moun ki make "vini" konte pou ajan yo) */
+/* Blòk FAQ — kesyon moun poze (vizitè klike sou kesyon an pou wè repons lan) */
+function FaqBlock({ block }) {
+  const [open, setOpen] = useState(null);
+  const items = (block.items || []).filter((it) => (it.q || "").trim());
+  if (items.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 4 }}>
+      {block.title && <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, color: PALETTE.cream, margin: "0 0 12px" }}>{block.title}</h3>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.map((it) => {
+          const isOpen = open === it.id;
+          return (
+            <div key={it.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
+              <button onClick={() => setOpen(isOpen ? null : it.id)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "13px 15px", background: isOpen ? "rgba(194,35,142,.05)" : "#fff", border: "none", cursor: "pointer", textAlign: "left" }}>
+                <span style={{ fontSize: 15.5, fontWeight: 600, color: PALETTE.cream }}>{it.q}</span>
+                <span style={{ fontSize: 18, color: PALETTE.goldSoft, transform: isOpen ? "rotate(45deg)" : "none", transition: "transform .15s", flexShrink: 0 }}>+</span>
+              </button>
+              {isOpen && (
+                <div style={{ padding: "0 15px 14px", fontSize: 14.5, lineHeight: 1.6, color: `${PALETTE.cream}dd`, whiteSpace: "pre-wrap" }}>{it.a || ""}</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* Konkou ant ajan yo — Progression des Agents (moun ki make "vini" konte pou ajan yo) */
 function AgentsProgressView({ items = [], programs = [] }) {
   const OBJ = 60;
