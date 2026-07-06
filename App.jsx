@@ -3799,6 +3799,8 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     };
     const jouResa = daysTo(resaRaw);
     const jouSession = daysTo(sessRaw);
+    const datResaTxt = (resa && resa !== "—") ? resa : "";
+    const datSessionTxt = sessRaw ? formatHtDate(sessRaw) : "";
     // Mesaj ki konekte ak etap prospè a (si admin te konekte youn); sinon mesaj aktif default la
     const key = stageKeyOf(p);
     const connId = (stageWaMsg || {})[key];
@@ -3811,9 +3813,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     let msg = tmpl
       .replace(/\{non\}/g, prospectName(p))
       .replace(/\{program\}/g, p.program || "")
+      .replace(/\{dat_rezervasyon\}/g, datResaTxt)
+      .replace(/\{dat_session\}/g, datSessionTxt)
       .replace(/\{dat\}/g, dat)
       .replace(/\{jou_rezervasyon\}/g, jouResa)
-      .replace(/\{jou_session\}/g, jouSession);
+      .replace(/\{jou_session\}/g, jouSession)
+      .replace(/\{adres\}/g, extractAddress(p.answers) || "");
     // Siyati etikèt la anba nèt lè prospè a gen yon etikèt
     const etq = (p.etiquette || "").trim();
     if (etq) msg = msg + "\n\n" + etq;
@@ -4414,7 +4419,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             <button onClick={() => setMsgPanel(false)} style={ghostBtn}>Fèmen</button>
           </div>
           <p style={{ fontSize: 12.5, color: `${PALETTE.cream}aa`, margin: "0 0 14px", lineHeight: 1.5 }}>
-            Varyab ou ka mete: <b>{"{non}"}</b> (non moun nan), <b>{"{program}"}</b> (pwogram), <b>{"{dat}"}</b> (dat rezèvasyon), <b>{"{jou_rezervasyon}"}</b> (konbyen jou ki rete avan dat rezèvasyon an, egz. 5), <b>{"{jou_session}"}</b> (konbyen jou ki rete avan dat session an). Si prospè a gen yon etikèt, non etikèt la ap ekri otomatikman anba nèt mesaj la (kòm siyati). Modèl ou chwazi nan ti meni an se sa k ap kole nan WhatsApp lè ou klike bouton vèt la.
+            Varyab ou ka mete: <b>{"{non}"}</b> (non moun nan), <b>{"{program}"}</b> (pwogram), <b>{"{dat}"}</b> (dat rezèvasyon), <b>{"{jou_rezervasyon}"}</b> (konbyen jou ki rete avan dat rezèvasyon an, egz. 5), <b>{"{jou_session}"}</b> (konbyen jou ki rete avan dat session an), <b>{"{adres}"}</b> (adrès moun nan). Si prospè a gen yon etikèt, non etikèt la ap ekri otomatikman anba nèt mesaj la (kòm siyati). Modèl ou chwazi nan ti meni an se sa k ap kole nan WhatsApp lè ou klike bouton vèt la.
           </p>
 
           {(msgDraft || []).length === 0 ? (
@@ -4437,6 +4442,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                   rows={7}
                   style={{ width: "100%", fontSize: 13.5, padding: 10, borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: "#fff", color: "#3A0E33", boxSizing: "border-box", resize: "vertical", lineHeight: 1.5 }}
                 />
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: `${PALETTE.cream}88`, fontWeight: 600 }}>+ Varyab:</span>
+                  {[["{non}", "non moun nan"], ["{program}", "pwogram"], ["{adres}", "adrès moun nan"], ["{dat_rezervasyon}", "dat rezèvasyon an"], ["{jou_rezervasyon}", "konbyen jou avan rezèvasyon"], ["{dat_session}", "dat session an"], ["{jou_session}", "konbyen jou avan session"]].map(([v, d]) => (
+                    <button key={v} onClick={() => updateMsg(m.id, { text: (m.text || "") + v })} title={d} style={{ padding: "3px 8px", borderRadius: 6, fontSize: 11.5, fontWeight: 600, cursor: "pointer", border: `1px solid ${PALETTE.line}`, background: "#fff", color: "#25D366" }}>{v}</button>
+                  ))}
+                </div>
               </div>
             ))
           )}
