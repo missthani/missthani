@@ -370,7 +370,9 @@ const ALL_TICKER_VARS = [
   { v: "{etiket}", d: "non etikèt la" },
   { v: "{dat_swivi}", d: "dat WhatsApp la klike" },
   { v: "{dat_rezervasyon}", d: "dat limit rezèvasyon" },
+  { v: "{jou_rezervasyon}", d: "konbyen jou avan rezèvasyon" },
   { v: "{dat_session}", d: "dat session an" },
+  { v: "{jou_session}", d: "konbyen jou avan session" },
   { v: "{dat_apel}", d: "dat pou rele (rapèl)" },
   { v: "{dat_refe}", d: "dat pou refè swivi" },
   { v: "{estati}", d: "sone san repons / pa sone ditou" },
@@ -3255,6 +3257,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [saveErr, setSaveErr] = useState(""); // mesaj erè si anrejistreman echwe
   const [msgPanel, setMsgPanel] = useState(false); // panèl modèl mesaj WhatsApp louvri
   const [resaPanel, setResaPanel] = useState(false); // panèl apèsi dat rezèvasyon yo
+  const [msgFilter, setMsgFilter] = useState(""); // filtre pa mesaj/etap (stage key)
   const [msgDraft, setMsgDraft] = useState(waMessages || []);
   const [activeDraft, setActiveDraft] = useState(activeWaMessage || "");
   const [msgSaved, setMsgSaved] = useState(false);
@@ -3616,6 +3619,10 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const { session, resa } = resaRawOf(p);
     const greet = etq ? `Hello ${etq}` : "Hello";
     const feli = etq ? `Felisitasyon ${etq}` : "Felisitasyon";
+    // Varyab jou entelijan (disponib pou tout mesaj etap yo)
+    const jouOf = (d) => { if (!d) return ""; const diff = Math.round((new Date(d + "T00:00:00") - new Date(today + "T00:00:00")) / 86400000); return String(Math.max(0, diff)); };
+    const baseVars = { jou_rezervasyon: jouOf(resa), jou_session: jouOf(session) };
+    const fill = (key, vars) => fillTpl(key, { ...baseVars, ...vars });
 
     // ===== Machin-eta (stage) =====
     if (matchConds(p, "reserved")) {
@@ -3633,19 +3640,19 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         ],
       };
       if (session && today >= session) {
-        return { text: fillTpl("reserved_sessionday", { non: name, dat_session: sessTxt }), tone: "red", dropdown: viniDrop };
+        return { text: fill("reserved_sessionday", { non: name, dat_session: sessTxt }), tone: "red", dropdown: viniDrop };
       }
       if (dayBefore && today >= dayBefore) {
-        return { text: fillTpl("reserved_daybefore", { etiket: etq || "chè", non: name, dat_session: sessTxt }), tone: "red", dropdown: viniDrop };
+        return { text: fill("reserved_daybefore", { etiket: etq || "chè", non: name, dat_session: sessTxt }), tone: "red", dropdown: viniDrop };
       }
       const callArrived = callDay && today >= callDay;
       const callTxt = callDay ? (callArrived ? "JODIA" : formatHtDate(callDay)) : "byento";
-      return { text: fillTpl("reserved", { etiket: etq || "chè", non: name, dat_apel: callTxt, dat_session: sessTxt }), tone: callArrived ? "red" : "none", dropdown: viniDrop };
+      return { text: fill("reserved", { etiket: etq || "chè", non: name, dat_apel: callTxt, dat_session: sessTxt }), tone: callArrived ? "red" : "none", dropdown: viniDrop };
     }
 
     if (matchConds(p, "noshow")) {
       return {
-        text: fillTpl("noshow", { etiket: etq || "chè", non: name }),
+        text: fill("noshow", { etiket: etq || "chè", non: name }),
         tone: "warn",
         dropdown: { title: `Aksyon pou ${name}:`, options: [
           { label: "Li reserve ankò", value: "stage:reserved_special" },
@@ -3656,7 +3663,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
     if (matchConds(p, "special_passed")) {
       return {
-        text: fillTpl("special_passed", { etiket: etq || "chè", non: name }),
+        text: fill("special_passed", { etiket: etq || "chè", non: name }),
         tone: "none",
         dropdown: { title: `Aksyon pou ${name}:`, options: [
           { label: "Enskri", value: "stage:reserved_special" },
@@ -3667,7 +3674,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
     if (matchConds(p, "recycle")) {
       return {
-        text: fillTpl("recycle", { etiket: etq || "chè", non: name }),
+        text: fill("recycle", { etiket: etq || "chè", non: name }),
         tone: "none",
         dropdown: { title: `Aksyon pou ${name}:`, options: [
           { label: "Li reserve", value: "stage:reserved_special" },
@@ -3678,7 +3685,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
     // ===== Pa gen stage ankò =====
     if (matchConds(p, "no_tag_no_follow")) {
-      return { text: fillTpl("no_tag_no_follow", { non: name }), tone: "warn" };
+      return { text: fill("no_tag_no_follow", { non: name }), tone: "warn" };
     }
     if (matchConds(p, "follow_done")) {
       const callDay = resa ? addDays(resa, -2) : "";
@@ -3693,16 +3700,16 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       ] };
       // 3 jou pase apre dat apèl la, admin toujou poko aji
       if (callDay && today > lostDay) {
-        return { text: fillTpl("follow_done_lost", { etiket: etq || "chè", non: name }), tone: "red", dropdown: drop };
+        return { text: fill("follow_done_lost", { etiket: etq || "chè", non: name }), tone: "red", dropdown: drop };
       }
       // dat apèl la fin pase (pandan 3 jou), admin poko aji
       if (callDay && today > callDay) {
-        return { text: fillTpl("follow_done_late", { etiket: etq || "chè", non: name }), tone: "red", dropdown: drop };
+        return { text: fill("follow_done_late", { etiket: etq || "chè", non: name }), tone: "red", dropdown: drop };
       }
       const arrived = callDay && today >= callDay;
       const callTxt = callDay ? (arrived ? "JODIA" : formatHtDate(callDay)) : "byento";
       return {
-        text: fillTpl("follow_done", { etiket: etq || "chè", non: name, dat_swivi: cAtTxt, dat_rezervasyon: resaTxt, dat_session: sessTxt, dat_apel: callTxt }),
+        text: fill("follow_done", { etiket: etq || "chè", non: name, dat_swivi: cAtTxt, dat_rezervasyon: resaTxt, dat_session: sessTxt, dat_apel: callTxt }),
         tone: arrived ? "red" : "none",
         dropdown: drop,
       };
@@ -3712,9 +3719,9 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       const redoDay = cAt ? addDays(cAt, 3) : "";
       const arrived = redoDay && today >= redoDay;
       const redoTxt = redoDay ? (arrived ? "JODIA" : formatHtDate(redoDay)) : "byento";
-      return { text: fillTpl("follow_noanswer", { etiket: etq || "chè", non: name, dat_swivi: cAtTxt, estati: stat, dat_refe: redoTxt }), tone: arrived ? "blue" : "none" };
+      return { text: fill("follow_noanswer", { etiket: etq || "chè", non: name, dat_swivi: cAtTxt, estati: stat, dat_refe: redoTxt }), tone: arrived ? "blue" : "none" };
     }
-    if (matchConds(p, "tag_no_follow")) return { text: fillTpl("tag_no_follow", { etiket: etq, non: name }), tone: "none" };
+    if (matchConds(p, "tag_no_follow")) return { text: fill("tag_no_follow", { etiket: etq, non: name }), tone: "none" };
     return null;
   };
 
@@ -4215,7 +4222,16 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: PALETTE.blush, color: "#fff", fontSize: 12.5, fontWeight: 800, padding: "3px 11px", borderRadius: 999 }}>🔔 {nt} nouvo moun</span>
           ) : null; })()}
         </h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <select
+            value={msgFilter}
+            onChange={(e) => setMsgFilter(e.target.value)}
+            title="Filtre moun yo dapre mesaj ki nan bwat la"
+            style={{ padding: "8px 12px", fontSize: 13, borderRadius: 999, cursor: "pointer", fontWeight: 600, border: `1px solid ${msgFilter ? PALETTE.goldSoft : PALETTE.line}`, background: msgFilter ? "rgba(194,35,142,.08)" : "#fff", color: msgFilter ? PALETTE.goldSoft : PALETTE.cream }}
+          >
+            <option value="">Filtre: tout mesaj</option>
+            {TICKER_STATES.map((st) => (<option key={st.key} value={st.key}>{st.label}</option>))}
+          </select>
           <button onClick={() => setResaPanel((v) => !v)} style={resaPanel ? goldBtn : ghostBtn}>Dat rezèvasyon</button>
           {isAdmin && (
             <>
@@ -4491,7 +4507,9 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         </div>
       ) : (
         <div>
-          {groups.map(([prog, rows]) => {
+          {groups.map(([prog, allRows]) => {
+            const rows = msgFilter ? allRows.filter((r) => stageKeyOf(r) === msgFilter) : allRows;
+            if (msgFilter && rows.length === 0) return null;
             const open = !!openProg[prog];
             return (
               <div key={prog} style={{ marginBottom: 12, border: `1px solid ${PALETTE.line}`, borderRadius: 12, overflow: "hidden" }}>
