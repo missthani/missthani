@@ -4520,6 +4520,15 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         </div>
       ) : (
         <div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", padding: "10px 14px", marginBottom: 12, border: `1px solid ${PALETTE.line}`, borderRadius: 12, background: "rgba(194,35,142,.03)" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: PALETTE.cream }}>Kòd koulè bwat mesaj yo:</span>
+            {[[1, "Etap 1 — Kontak"], [2, "Etap 2 — Swivi"], [3, "Etap 3 — Rezèvasyon"], [4, "Etap 4 — Recycle"]].map(([n, lbl]) => (
+              <span key={n} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: PALETTE.cream }}>
+                <span style={{ width: 13, height: 13, borderRadius: 4, background: STEP_COLORS[n], flexShrink: 0 }} />
+                {lbl}
+              </span>
+            ))}
+          </div>
           {groups.map(([prog, allRows0]) => {
             const allRows = etqFilter ? allRows0.filter((r) => String(r.etiquette || "").trim() === etqFilter) : allRows0;
             const rows = msgFilter ? allRows.filter((r) => stageKeyOf(r) === msgFilter) : allRows;
