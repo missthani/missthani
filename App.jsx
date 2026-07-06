@@ -562,6 +562,7 @@ const DEFAULT_CONFIG = {
   activeWaMessage: "", // id modèl ki aktif la
   tickerMsgs: {}, // modèl mesaj ki defile nan kazye yo (admin ka modifye — Bwat mesaj)
   stageConditions: {}, // ki kondisyon ki konekte ak chak etap (Koneksyon)
+  stageWaMsg: {}, // ki modèl mesaj WhatsApp ki konekte ak chak etap
   agentInfo: {}, // { [nonEtikèt]: { pin: "1234", photo: "" } } — modpas ak foto ajan yo
   programs: [
     { id: uid(), label: "Onglerie", steps: [] },
@@ -2198,9 +2199,10 @@ function AdminSpace({ config, onSave, onExit }) {
     await onSave(nd);
   };
 
-  const saveTickerMsgs = async (msgs, conds) => {
+  const saveTickerMsgs = async (msgs, conds, waMap) => {
     const nd = { ...draft, tickerMsgs: msgs };
     if (conds) nd.stageConditions = conds;
+    if (waMap) nd.stageWaMsg = waMap;
     setDraft(nd);
     await onSave(nd);
   };
@@ -2268,7 +2270,7 @@ function AdminSpace({ config, onSave, onExit }) {
       </div>
 
       {adminTab === "prospects" ? (
-        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} tickerMsgs={draft.tickerMsgs || {}} onSaveTickerMsgs={saveTickerMsgs} stageConditions={draft.stageConditions || {}} agentInfo={draft.agentInfo || {}} onSaveAgentInfo={saveAgentInfo} onSaveAgentsAndInfo={saveAgentsAndInfo} />
+        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} tickerMsgs={draft.tickerMsgs || {}} onSaveTickerMsgs={saveTickerMsgs} stageConditions={draft.stageConditions || {}} agentInfo={draft.agentInfo || {}} onSaveAgentInfo={saveAgentInfo} onSaveAgentsAndInfo={saveAgentsAndInfo} stageWaMsg={draft.stageWaMsg || {}} />
       ) : adminTab === "stats" ? (
         <StatsView />
       ) : (
@@ -2706,7 +2708,7 @@ function ProspectsGate({ config }) {
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600 }}>Nouvo Prospè</div>
         <a href="/" style={{ ...ghostBtn, textDecoration: "none" }}>Tounen sou sit la</a>
       </div>
-      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} programs={(config && config.programs) || []} waMessages={(config && config.waMessages) || []} activeWaMessage={(config && config.activeWaMessage) || ""} tickerMsgs={(config && config.tickerMsgs) || {}} stageConditions={(config && config.stageConditions) || {}} />
+      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} programs={(config && config.programs) || []} waMessages={(config && config.waMessages) || []} activeWaMessage={(config && config.activeWaMessage) || ""} tickerMsgs={(config && config.tickerMsgs) || {}} stageConditions={(config && config.stageConditions) || {}} stageWaMsg={(config && config.stageWaMsg) || {}} />
     </div>
   );
 }
@@ -3228,7 +3230,7 @@ function AgentSpace({ config, onSave }) {
   );
 }
 
-function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages, tickerMsgs = {}, onSaveTickerMsgs, stageConditions = {}, agentInfo = {}, onSaveAgentInfo, onSaveAgentsAndInfo }) {
+function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages, tickerMsgs = {}, onSaveTickerMsgs, stageConditions = {}, agentInfo = {}, onSaveAgentInfo, onSaveAgentsAndInfo, stageWaMsg = {} }) {
   const fillTpl = (key, vars) => {
     let t = (tickerMsgs && tickerMsgs[key]) || TICKER_DEFAULTS[key] || "";
     Object.keys(vars || {}).forEach((k) => { t = t.split(`{${k}}`).join(vars[k] == null ? "" : vars[k]); });
@@ -3263,6 +3265,8 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [boxPanel, setBoxPanel] = useState(false);
   const [boxDraft, setBoxDraft] = useState(tickerMsgs || {});
   const [condDraft, setCondDraft] = useState(stageConditions || {});
+  const [waDraft, setWaDraft] = useState(stageWaMsg || {});
+  useEffect(() => { setWaDraft(stageWaMsg || {}); }, [stageWaMsg]);
   const [openInsert, setOpenInsert] = useState(""); // ki etap ki gen meni "+" louvri
   const [openConn, setOpenConn] = useState(""); // ki etap ki gen panèl Koneksyon louvri
   const [boxSaved, setBoxSaved] = useState(false);
@@ -3279,7 +3283,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     return { ...d, [key]: next };
   });
   const saveBox = async () => {
-    if (onSaveTickerMsgs) await onSaveTickerMsgs(boxDraft, condDraft);
+    if (onSaveTickerMsgs) await onSaveTickerMsgs(boxDraft, condDraft, waDraft);
     setBoxSaved(true); setTimeout(() => setBoxSaved(false), 2000);
   };
 
@@ -3768,11 +3772,32 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   };
 
   // Mesaj WhatsApp ki ranpli otomatikman
+  // Ki etap yon prospè ye (menm lòd ak rowTicker) — pou chwazi mesaj WhatsApp ki konekte a
+  const stageKeyOf = (p) => {
+    if (!p.contacted) return "";
+    if (matchConds(p, "reserved")) return "reserved";
+    if (matchConds(p, "noshow")) return "noshow";
+    if (matchConds(p, "special_passed")) return "special_passed";
+    if (matchConds(p, "recycle")) return "recycle";
+    if (matchConds(p, "no_tag_no_follow")) return "no_tag_no_follow";
+    if (matchConds(p, "follow_done")) return "follow_done";
+    if ((p.followup === "noanswer" || p.followup === "wrong") && matchConds(p, "follow_noanswer")) return "follow_noanswer";
+    if (matchConds(p, "tag_no_follow")) return "tag_no_follow";
+    return "";
+  };
+
   const waMessage = (p) => {
     const resa = resaDate(p);
     const dat = (resa && resa !== "—") ? resa : "pi vit posib";
-    const active = (waMessages || []).find((m) => m && m.id === activeWaMessage);
-    const tmpl = (active && active.text) || DEFAULT_WA_TEMPLATE;
+    // Mesaj ki konekte ak etap prospè a (si admin te konekte youn); sinon mesaj aktif default la
+    const key = stageKeyOf(p);
+    const connId = (stageWaMsg || {})[key];
+    let tmpl = "";
+    if (connId) { const cm = (waMessages || []).find((m) => m && m.id === connId); if (cm && cm.text) tmpl = cm.text; }
+    if (!tmpl) {
+      const active = (waMessages || []).find((m) => m && m.id === activeWaMessage);
+      tmpl = (active && active.text) || DEFAULT_WA_TEMPLATE;
+    }
     return tmpl
       .replace(/\{non\}/g, prospectName(p))
       .replace(/\{program\}/g, p.program || "")
@@ -4342,6 +4367,18 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                       </div>
                     )}
                     <textarea className="mt-input" style={{ minHeight: 64 }} value={boxVal(st.key)} onChange={(e) => setBoxVal(st.key, e.target.value)} />
+                    <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#25D366" }}>Mesaj WhatsApp konekte:</span>
+                      <select
+                        value={waDraft[st.key] || ""}
+                        onChange={(e) => setWaDraft((d) => ({ ...d, [st.key]: e.target.value }))}
+                        style={{ flex: 1, minWidth: 150, fontSize: 12.5, padding: "5px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: "#fff", color: PALETTE.cream }}
+                      >
+                        <option value="">(Mesaj WhatsApp default la)</option>
+                        {(waMessages || []).map((m) => (<option key={m.id} value={m.id}>{m.name || "Mesaj san non"}</option>))}
+                      </select>
+                    </div>
+                    <p style={{ fontSize: 10.5, color: `${PALETTE.cream}77`, margin: "3px 0 0" }}>Lè yon prospè nan etap sa a, se mesaj WhatsApp sa a bouton WhatsApp la ap sèvi.</p>
                   </div>
                 ))}
               </div>
