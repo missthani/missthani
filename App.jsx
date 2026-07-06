@@ -3789,6 +3789,16 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const waMessage = (p) => {
     const resa = resaDate(p);
     const dat = (resa && resa !== "—") ? resa : "pi vit posib";
+    // Jou ki rete avan dat rezèvasyon ak dat session (dat entelijan)
+    const { session: sessRaw, resa: resaRaw } = resaRawOf(p);
+    const today = todayStr();
+    const daysTo = (d) => {
+      if (!d) return "";
+      const diff = Math.round((new Date(d + "T00:00:00") - new Date(today + "T00:00:00")) / 86400000);
+      return String(Math.max(0, diff));
+    };
+    const jouResa = daysTo(resaRaw);
+    const jouSession = daysTo(sessRaw);
     // Mesaj ki konekte ak etap prospè a (si admin te konekte youn); sinon mesaj aktif default la
     const key = stageKeyOf(p);
     const connId = (stageWaMsg || {})[key];
@@ -3798,10 +3808,16 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       const active = (waMessages || []).find((m) => m && m.id === activeWaMessage);
       tmpl = (active && active.text) || DEFAULT_WA_TEMPLATE;
     }
-    return tmpl
+    let msg = tmpl
       .replace(/\{non\}/g, prospectName(p))
       .replace(/\{program\}/g, p.program || "")
-      .replace(/\{dat\}/g, dat);
+      .replace(/\{dat\}/g, dat)
+      .replace(/\{jou_rezervasyon\}/g, jouResa)
+      .replace(/\{jou_session\}/g, jouSession);
+    // Siyati etikèt la anba nèt lè prospè a gen yon etikèt
+    const etq = (p.etiquette || "").trim();
+    if (etq) msg = msg + "\n\n" + etq;
+    return msg;
   };
 
   // Afiche yon repons; si se yon nimewo Ayiti valab, mete yon bouton WhatsApp bò kote l
@@ -4398,7 +4414,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             <button onClick={() => setMsgPanel(false)} style={ghostBtn}>Fèmen</button>
           </div>
           <p style={{ fontSize: 12.5, color: `${PALETTE.cream}aa`, margin: "0 0 14px", lineHeight: 1.5 }}>
-            Sèvi ak <b>{"{non}"}</b> pou non moun nan, <b>{"{program}"}</b> pou pwogram nan, ak <b>{"{dat}"}</b> pou dat rezèvasyon an. Modèl ou chwazi nan ti meni an se sa k ap kole otomatikman nan WhatsApp lè ou klike bouton vèt la.
+            Varyab ou ka mete: <b>{"{non}"}</b> (non moun nan), <b>{"{program}"}</b> (pwogram), <b>{"{dat}"}</b> (dat rezèvasyon), <b>{"{jou_rezervasyon}"}</b> (konbyen jou ki rete avan dat rezèvasyon an, egz. 5), <b>{"{jou_session}"}</b> (konbyen jou ki rete avan dat session an). Si prospè a gen yon etikèt, non etikèt la ap ekri otomatikman anba nèt mesaj la (kòm siyati). Modèl ou chwazi nan ti meni an se sa k ap kole nan WhatsApp lè ou klike bouton vèt la.
           </p>
 
           {(msgDraft || []).length === 0 ? (
