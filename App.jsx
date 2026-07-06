@@ -363,6 +363,8 @@ const TICKER_STATES = [
     def: "Hello {etiket}, sonje {non} te reserve deja men li poko vini." },
 ];
 const TICKER_DEFAULTS = TICKER_STATES.reduce((o, s) => { o[s.key] = s.def; return o; }, {});
+// Koulè pa etap: Etap 1 wouj, Etap 2 ble, Etap 3 mòv, Etap 4 vèt
+const STEP_COLORS = { 1: "#C0392B", 2: "#2E86C1", 3: "#8E44AD", 4: "#1E8449" };
 
 /* Tout varyab ki disponib pou bouton "+" nan editè mesaj yo */
 const ALL_TICKER_VARS = [
@@ -3258,6 +3260,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [msgPanel, setMsgPanel] = useState(false); // panèl modèl mesaj WhatsApp louvri
   const [resaPanel, setResaPanel] = useState(false); // panèl apèsi dat rezèvasyon yo
   const [msgFilter, setMsgFilter] = useState(""); // filtre pa mesaj/etap (stage key)
+  const [etqFilter, setEtqFilter] = useState(""); // filtre pa etikèt (ajan)
   const [msgDraft, setMsgDraft] = useState(waMessages || []);
   const [activeDraft, setActiveDraft] = useState(activeWaMessage || "");
   const [msgSaved, setMsgSaved] = useState(false);
@@ -3838,7 +3841,8 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const v = validateHaitiPhone(val);
     if (v.ok) {
       const tk = rowTicker(p);
-      const bc = tk ? tickerColor(tk.tone) : PALETTE.goldSoft;
+      const stStep = tk ? ((TICKER_STATES.find((s) => s.key === stageKeyOf(p)) || {}).step || 0) : 0;
+      const bc = STEP_COLORS[stStep] || (tk ? tickerColor(tk.tone) : PALETTE.goldSoft);
       return (
         <div style={{ display: "inline-flex", flexDirection: "column", gap: 4, maxWidth: 230 }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
@@ -4232,6 +4236,15 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             <option value="">Filtre: tout mesaj</option>
             {TICKER_STATES.map((st) => (<option key={st.key} value={st.key}>{st.label}</option>))}
           </select>
+          <select
+            value={etqFilter}
+            onChange={(e) => setEtqFilter(e.target.value)}
+            title="Filtre moun yo dapre etikèt (ajan)"
+            style={{ padding: "8px 12px", fontSize: 13, borderRadius: 999, cursor: "pointer", fontWeight: 600, border: `1px solid ${etqFilter ? PALETTE.goldSoft : PALETTE.line}`, background: etqFilter ? "rgba(194,35,142,.08)" : "#fff", color: etqFilter ? PALETTE.goldSoft : PALETTE.cream }}
+          >
+            <option value="">Filtre: tout etikèt</option>
+            {agentNames.map((n) => (<option key={n} value={n}>{n}</option>))}
+          </select>
           <button onClick={() => setResaPanel((v) => !v)} style={resaPanel ? goldBtn : ghostBtn}>Dat rezèvasyon</button>
           {isAdmin && (
             <>
@@ -4507,9 +4520,10 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         </div>
       ) : (
         <div>
-          {groups.map(([prog, allRows]) => {
+          {groups.map(([prog, allRows0]) => {
+            const allRows = etqFilter ? allRows0.filter((r) => String(r.etiquette || "").trim() === etqFilter) : allRows0;
             const rows = msgFilter ? allRows.filter((r) => stageKeyOf(r) === msgFilter) : allRows;
-            if (msgFilter && rows.length === 0) return null;
+            if ((msgFilter || etqFilter) && rows.length === 0) return null;
             const open = !!openProg[prog];
             return (
               <div key={prog} style={{ marginBottom: 12, border: `1px solid ${PALETTE.line}`, borderRadius: 12, overflow: "hidden" }}>
