@@ -4234,7 +4234,16 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             style={{ padding: "8px 12px", fontSize: 13, borderRadius: 999, cursor: "pointer", fontWeight: 600, border: `1px solid ${msgFilter ? PALETTE.goldSoft : PALETTE.line}`, background: msgFilter ? "rgba(194,35,142,.08)" : "#fff", color: msgFilter ? PALETTE.goldSoft : PALETTE.cream }}
           >
             <option value="">Filtre: tout mesaj</option>
-            {TICKER_STATES.map((st) => (<option key={st.key} value={st.key}>{st.label}</option>))}
+            {[1, 2, 3, 4].map((step) => {
+              const inStep = TICKER_STATES.filter((s) => s.step === step);
+              if (inStep.length === 0) return null;
+              const stepName = { 1: "Kontak", 2: "Swivi", 3: "Rezèvasyon", 4: "Recycle" }[step];
+              return (
+                <optgroup key={step} label={`━━ ETAP ${step} — ${stepName} ━━`}>
+                  {inStep.map((st) => (<option key={st.key} value={st.key}>{st.label}</option>))}
+                </optgroup>
+              );
+            })}
           </select>
           <select
             value={etqFilter}
