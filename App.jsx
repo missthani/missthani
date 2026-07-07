@@ -3272,12 +3272,11 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [boxDraft, setBoxDraft] = useState(tickerMsgs || {});
   const [condDraft, setCondDraft] = useState(stageConditions || {});
   const [waDraft, setWaDraft] = useState(stageWaMsg || {});
-  useEffect(() => { setWaDraft(stageWaMsg || {}); }, [stageWaMsg]);
   const [openInsert, setOpenInsert] = useState(""); // ki etap ki gen meni "+" louvri
   const [openConn, setOpenConn] = useState(""); // ki etap ki gen panèl Koneksyon louvri
   const [boxSaved, setBoxSaved] = useState(false);
-  useEffect(() => { setBoxDraft(tickerMsgs || {}); }, [tickerMsgs]);
-  useEffect(() => { setCondDraft(stageConditions || {}); }, [stageConditions]);
+  useEffect(() => { if (boxPanel) return; setBoxDraft(tickerMsgs || {}); }, [tickerMsgs, boxPanel]);
+  useEffect(() => { if (boxPanel) return; setCondDraft(stageConditions || {}); }, [stageConditions, boxPanel]);
   const boxVal = (key) => (boxDraft[key] != null ? boxDraft[key] : TICKER_DEFAULTS[key] || "");
   const setBoxVal = (key, v) => setBoxDraft((d) => ({ ...d, [key]: v }));
   const resetBoxVal = (key) => setBoxDraft((d) => { const n = { ...d }; delete n[key]; return n; });
