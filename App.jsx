@@ -389,6 +389,7 @@ const CONDITIONS = [
   { key: "swivi_done", label: "Swivi = Suivi fèt", test: (p) => p.followup === "done" },
   { key: "swivi_noanswer", label: "Swivi = Sone san repons", test: (p) => p.followup === "noanswer" },
   { key: "swivi_wrong", label: "Swivi = Pa sone ditou", test: (p) => p.followup === "wrong" },
+  { key: "swivi_nr", label: "Swivi = Sone san repons OSWA pa sone ditou", test: (p) => p.followup === "noanswer" || p.followup === "wrong" },
   { key: "reserved", label: "Enskri (li reserve)", test: (p) => p.stage === "reserved_special" || p.stage === "reserved_after" },
   { key: "special_passed", label: "Special pase, poko reserve", test: (p) => p.stage === "special_passed" },
   { key: "recycle", label: "Enskri poko vini (recycle)", test: (p) => p.stage === "recycle" },
@@ -400,8 +401,8 @@ const CONDITIONS_MAP = CONDITIONS.reduce((o, c) => { o[c.key] = c; return o; }, 
 const DEFAULT_STAGE_CONDS = {
   no_tag_no_follow: ["green", "no_etiquette", "no_swivi"],
   tag_no_follow: ["green", "etiquette", "no_swivi"],
-  follow_done: ["green", "swivi_done"],
-  follow_noanswer: ["green"],
+  follow_done: ["swivi_done"],
+  follow_noanswer: ["swivi_nr"],
   reserved: ["reserved"],
   reserved_daybefore: ["reserved"],
   reserved_sessionday: ["reserved"],
@@ -3241,7 +3242,11 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     return t;
   };
   // Kondisyon ki konekte ak yon etap (default = konpòtman natirèl la)
-  const condsOf = (key) => (stageConditions && stageConditions[key]) || DEFAULT_STAGE_CONDS[key] || [];
+  const condsOf = (key) => {
+    const c = stageConditions && stageConditions[key];
+    if (Array.isArray(c) && c.length > 0) return c; // itilize sa admin chwazi
+    return DEFAULT_STAGE_CONDS[key] || []; // yon lis vid tounen nan default (pa matche tout moun)
+  };
   const matchConds = (p, key) => condsOf(key).every((ck) => (CONDITIONS_MAP[ck] ? CONDITIONS_MAP[ck].test(p) : true));
   const [items, setItems] = useState(null); // null = ap chaje
   const [busy, setBusy] = useState(false);
@@ -3610,7 +3615,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
   // Mesaj ki defile nan kazye chak moun (selon kontak, etikèt, swivi, stage, ak dat yo)
   const rowTicker = (p) => {
-    if (!p.contacted) return null;
+    if (!p.contacted && !p.followup && !p.stage) return null;
     const name = prospectName(p) || "moun sa";
     const etq = (p.etiquette || "").trim();
     const fu = p.followup || "";
@@ -3783,7 +3788,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   // Mesaj WhatsApp ki ranpli otomatikman
   // Ki etap yon prospè ye (menm lòd ak rowTicker) — pou chwazi mesaj WhatsApp ki konekte a
   const stageKeyOf = (p) => {
-    if (!p.contacted) return "";
+    if (!p.contacted && !p.followup && !p.stage) return "";
     if (matchConds(p, "reserved")) return "reserved";
     if (matchConds(p, "noshow")) return "noshow";
     if (matchConds(p, "special_passed")) return "special_passed";
