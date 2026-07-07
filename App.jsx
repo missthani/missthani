@@ -3243,9 +3243,10 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   };
   // Kondisyon ki konekte ak yon etap (default = konpòtman natirèl la)
   const condsOf = (key) => {
-    const c = stageConditions && stageConditions[key];
-    if (Array.isArray(c) && c.length > 0) return c; // itilize sa admin chwazi
-    return DEFAULT_STAGE_CONDS[key] || []; // yon lis vid tounen nan default (pa matche tout moun)
+    // Detèksyon etap la sèvi SÈLMAN ak lojik estanda fyab la (nou inyore nenpòt ansyen
+    // done kondisyon ki te ka kòwonpi ak ansyen bug yo). Sa garanti chak etap detekte
+    // kòrèkteman: "swivi fèt" = swivi==done sèlman; "sone/pa sone" pa mande kontakte.
+    return DEFAULT_STAGE_CONDS[key] || [];
   };
   const matchConds = (p, key) => condsOf(key).every((ck) => (CONDITIONS_MAP[ck] ? CONDITIONS_MAP[ck].test(p) : true));
   const [items, setItems] = useState(null); // null = ap chaje
