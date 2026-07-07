@@ -324,7 +324,7 @@ const TICKER_STATES = [
     dropdown: "Eske ou fè swivi ak {non}?",
     flow: ["Menm opsyon ak « Swivi fèt » — chwazi ki etap moun nan travèse"],
     def: "Hello {etiket}, ou fè 3 jou san w pa mete sistèm nan ajou pandan dat rezèvasyon an pase deja. Ou riske pèdi moun sa. Yon lòt ajan ap anchaje de swivi {non}." },
-  { key: "follow_noanswer", label: "Sone san repons / pa sone ditou", step: 2, vars: ["{etiket}", "{non}", "{dat_swivi}", "{estati}", "{dat_refe}"],
+  { key: "follow_noanswer", label: "Sone san repons / pa sone ditou", step: 1, vars: ["{etiket}", "{non}", "{dat_swivi}", "{estati}", "{dat_refe}"],
     cond: "Swivi = « Sone san repons » oswa « Pa sone ditou »",
     dateRule: "Refè swivi = dat WhatsApp + 3 jou. Lè jou a rive: « JODIA » + liy BLE.",
     dropdown: "", flow: ["Rele ankò, epi chanje swivi a lè w jwenn moun nan"],
