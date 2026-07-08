@@ -647,6 +647,7 @@ async function loadProspects() {
       contactedAt: r.contacted_at || "",
       stage: r.stage || "",
       cameAt: r.came_at || "",
+      remindAt: r.remind_at || "",
       updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : 0,
     }));
   } catch (e) {
@@ -693,7 +694,7 @@ async function loadEvents(limit = 5000) {
 async function setProspectFollowup(id, status) {
   if (!id) return false;
   try {
-    const patch = { followup: status };
+    const patch = { followup: status, remind_at: "" };
     if (status === "vini") patch.came_at = todayStr(); // dat moun nan make "vini" (pou konkou ajan yo)
     const { data, error } = await supabase.from("prospects").update(patch).eq("id", id).select();
     if (error) return false;
@@ -719,9 +720,20 @@ async function setProspectEtiquette(id, name) {
 async function setProspectStage(id, stage) {
   if (!id) return false;
   try {
-    const { data, error } = await supabase.from("prospects").update({ stage: stage || "" }).eq("id", id).select();
+    const { data, error } = await supabase.from("prospects").update({ stage: stage || "", remind_at: "" }).eq("id", id).select();
     if (error) return false;
     return (data || []).length > 0;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* Ranvwaye dat rapèl la (snooze) pou yon prospè — "mwen fè swivi jodia men poko gen update" */
+async function setProspectRemind(id, date) {
+  if (!id) return false;
+  try {
+    const { error } = await supabase.from("prospects").update({ remind_at: date || "" }).eq("id", id);
+    return !error;
   } catch (e) {
     return false;
   }
@@ -731,7 +743,7 @@ async function setProspectStage(id, stage) {
 async function resetProspectProcess(id) {
   if (!id) return false;
   try {
-    const { error } = await supabase.from("prospects").update({ stage: "", followup: "", contacted: false, contacted_at: "" }).eq("id", id);
+    const { error } = await supabase.from("prospects").update({ stage: "", followup: "", contacted: false, contacted_at: "", remind_at: "" }).eq("id", id);
     return !error;
   } catch (e) {
     return false;
@@ -3448,6 +3460,13 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     }
   };
 
+  // "Mwen fè swivi jodia men poko gen update" — relanse etap la ak 3 jou anplis
+  const snoozeProspect = async (p) => {
+    const nd = addDays(todayStr(), 3);
+    setItems((prev) => (prev || []).map((x) => (x.id === p.id ? { ...x, remindAt: nd } : x)));
+    await setProspectRemind(p.id, nd);
+  };
+
   // Reset tout pwosesis bwat mesaj la pou yon prospè (admin sèlman)
   const resetProcess = async (p) => {
     if (typeof window !== "undefined" && !window.confirm(`Reset pwosesis mesaj la pou ${prospectName(p) || "moun sa"}? Sa ap remete swivi a, estati kontak la (boul vèt), ak etap la nan kòmansman. (Etikèt la ap rete.)`)) return;
@@ -3668,9 +3687,10 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       if (dayBefore && today >= dayBefore) {
         return { text: fill("reserved_daybefore", { etiket: etq || "chè", non: name, dat_session: sessTxt }), tone: "red", dropdown: viniDrop };
       }
-      const callArrived = callDay && today >= callDay;
-      const callTxt = callDay ? (callArrived ? "JODIA" : formatHtDate(callDay)) : "byento";
-      return { text: fill("reserved", { etiket: etq || "chè", non: name, dat_apel: callTxt, dat_session: sessTxt }), tone: callArrived ? "red" : "none", dropdown: viniDrop };
+      const effCall = p.remindAt || callDay; // dat apèl efektif (apre snooze)
+      const callArrived = effCall && today >= effCall;
+      const callTxt = effCall ? (callArrived ? "JODIA" : formatHtDate(effCall)) : "byento";
+      return { text: fill("reserved", { etiket: etq || "chè", non: name, dat_apel: callTxt, dat_session: sessTxt }), tone: callArrived ? "red" : "none", dropdown: viniDrop, snooze: callArrived };
     }
 
     if (matchConds(p, "noshow")) {
@@ -3712,6 +3732,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     }
     if (matchConds(p, "follow_done")) {
       const callDay = resa ? addDays(resa, -2) : "";
+      const eff = p.remindAt || callDay; // dat rapèl efektif (apre "snooze 3 jou" si genyen)
       const lostDay = callDay ? addDays(callDay, 3) : "";
       const resaTxt = resa ? formatHtDate(resa) : "—";
       const sessTxt = session ? formatHtDate(session) : "—";
@@ -3721,28 +3742,31 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         { label: "Li reserve apre special", value: "stage:reserved_after" },
         { label: "Li recycler", value: "stage:recycle" },
       ] };
-      // 3 jou pase apre dat apèl la, admin toujou poko aji
-      if (callDay && today > lostDay) {
-        return { text: fill("follow_done_lost", { etiket: etq || "chè", non: name }), tone: "red", dropdown: drop };
+      // Si li poko snooze: kenbe eskalasyon late/lost la
+      if (!p.remindAt) {
+        if (callDay && today > lostDay) {
+          return { text: fill("follow_done_lost", { etiket: etq || "chè", non: name }), tone: "red", dropdown: drop, snooze: true };
+        }
+        if (callDay && today > callDay) {
+          return { text: fill("follow_done_late", { etiket: etq || "chè", non: name }), tone: "red", dropdown: drop, snooze: true };
+        }
       }
-      // dat apèl la fin pase (pandan 3 jou), admin poko aji
-      if (callDay && today > callDay) {
-        return { text: fill("follow_done_late", { etiket: etq || "chè", non: name }), tone: "red", dropdown: drop };
-      }
-      const arrived = callDay && today >= callDay;
-      const callTxt = callDay ? (arrived ? "JODIA" : formatHtDate(callDay)) : "byento";
+      const arrived = eff && today >= eff;
+      const callTxt = eff ? (arrived ? "JODIA" : formatHtDate(eff)) : "byento";
       return {
         text: fill("follow_done", { etiket: etq || "chè", non: name, dat_swivi: cAtTxt, dat_rezervasyon: resaTxt, dat_session: sessTxt, dat_apel: callTxt }),
         tone: arrived ? "red" : "none",
         dropdown: drop,
+        snooze: arrived,
       };
     }
     if ((fu === "noanswer" || fu === "wrong") && matchConds(p, "follow_noanswer")) {
       const stat = fu === "noanswer" ? "sone san repons" : "pa sone ditou";
-      const redoDay = cAt ? addDays(cAt, 3) : "";
+      const baseRedo = cAt ? addDays(cAt, 3) : "";
+      const redoDay = p.remindAt || baseRedo; // dat efektif (apre snooze)
       const arrived = redoDay && today >= redoDay;
       const redoTxt = redoDay ? (arrived ? "JODIA" : formatHtDate(redoDay)) : "byento";
-      return { text: fill("follow_noanswer", { etiket: etq || "chè", non: name, dat_swivi: cAtTxt, estati: stat, dat_refe: redoTxt }), tone: arrived ? "blue" : "none" };
+      return { text: fill("follow_noanswer", { etiket: etq || "chè", non: name, dat_swivi: cAtTxt, estati: stat, dat_refe: redoTxt }), tone: arrived ? "blue" : "none", snooze: arrived };
     }
     if (matchConds(p, "tag_no_follow")) return { text: fill("tag_no_follow", { etiket: etq, non: name }), tone: "none" };
     return null;
@@ -3900,6 +3924,15 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                 <span style={{ fontSize: 9.5, color: "#B8860B", lineHeight: 1.2 }}>{tk.dropdown.disabledNote}</span>
               )}
             </div>
+          )}
+          {tk && tk.snooze && (
+            <button
+              onClick={() => snoozeProspect(p)}
+              title="Relanse etap la ak 3 jou anplis"
+              style={{ alignSelf: "flex-start", marginTop: 2, padding: "4px 10px", borderRadius: 999, fontSize: 10.5, fontWeight: 800, cursor: "pointer", border: "none", background: "#2E86C1", color: "#fff", lineHeight: 1.3, textAlign: "left" }}
+            >
+              Mwen fè swivi a jodia, men poko gen update
+            </button>
           )}
           {tk && tk.text && isAdmin && (
             <button
