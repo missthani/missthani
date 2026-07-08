@@ -648,6 +648,8 @@ async function loadProspects() {
       stage: r.stage || "",
       cameAt: r.came_at || "",
       remindAt: r.remind_at || "",
+      enrolled: !!r.enrolled,
+      enrollInfo: (() => { try { return r.enroll_info ? JSON.parse(r.enroll_info) : null; } catch (e) { return null; } })(),
       updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : 0,
     }));
   } catch (e) {
@@ -734,6 +736,22 @@ async function setProspectRemind(id, date) {
   try {
     const { error } = await supabase.from("prospects").update({ remind_at: date || "" }).eq("id", id);
     return !error;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* Enskri yon elèv: si id bay, mete ajou prospè ki egziste a; sinon kreye yon nouvo antre */
+async function enrollProspect({ id, program, answers, enrollInfo }) {
+  try {
+    const base = { enrolled: true, enroll_info: JSON.stringify(enrollInfo || {}), updated_at: new Date().toISOString() };
+    if (id) {
+      const { error } = await supabase.from("prospects").update(base).eq("id", id);
+      return !error ? id : false;
+    }
+    const newId = Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+    const { error } = await supabase.from("prospects").insert({ id: newId, program: program || "", answers: answers || [], ...base });
+    return !error ? newId : false;
   } catch (e) {
     return false;
   }
@@ -1189,6 +1207,8 @@ export default function MissThaniApp() {
   const isFormulaire = typeof window !== "undefined" && /^\/formulaire\/?$/i.test(window.location.pathname || "");
   // Èske nou sou paj /agent la? (espas ajan yo — Progression des Agents)
   const isAgent = typeof window !== "undefined" && /^\/agent\/?$/i.test(window.location.pathname || "");
+  // Èske nou sou paj /inscription la? (fòm enskripsyon elèv yo)
+  const isInscription = typeof window !== "undefined" && /^\/inscription\/?$/i.test(window.location.pathname || "");
 
   // Chaje konfigirasyon an o depa
   useEffect(() => {
@@ -1261,6 +1281,8 @@ export default function MissThaniApp() {
         </Centered>
       ) : isAgent ? (
         <AgentSpace config={config} onSave={persist} />
+      ) : isInscription ? (
+        <InscriptionSpace config={config} />
       ) : isFormulaire ? (
         <ProspectsGate config={config} />
       ) : view === "admin" ? (
@@ -3071,6 +3093,151 @@ function AgentsProgressView({ items = [], programs = [] }) {
   );
 }
 /* Espas Ajan yo — paj /agent (login ak etikèt + modpas 4 chif, pwofil, tablo de bòd, rémunération, lien referans) */
+/* Paj /inscription — fòm enskripsyon elèv yo (resepsyon). Konekte ak lis prospè yo:
+   chèche pa non OSWA telefòn; si jwenn, make prospè a enskri; sinon kreye yon nouvo antre. */
+function InscriptionSpace({ config }) {
+  const programs = (config && config.programs) || [];
+  const [authed, setAuthed] = useState(false);
+  const [pw, setPw] = useState("");
+  const [pwErr, setPwErr] = useState("");
+
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [program, setProgram] = useState("");
+  const [date, setDate] = useState(todayStr());
+  const [paid, setPaid] = useState("");
+  const [total, setTotal] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState("");
+  const [err, setErr] = useState("");
+
+  const balance = (() => {
+    const t = parseFloat(String(total).replace(/[^\d.]/g, "")) || 0;
+    const p = parseFloat(String(paid).replace(/[^\d.]/g, "")) || 0;
+    return Math.max(0, t - p);
+  })();
+
+  const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, "").trim();
+  const digits = (s) => String(s || "").replace(/\D/g, "");
+  const getField = (p, re) => { for (const a of p.answers || []) { if (re.test(a.question || "")) return a.answer || ""; } return ""; };
+  const nameRe = /non|nom|name|prénom|prenom/i;
+  const phoneRe = /tel|phone|nimewo|numero|whatsapp|kontak/i;
+
+  const submit = async () => {
+    setErr(""); setDone("");
+    if (!name.trim()) { setErr("Mete non elèv la."); return; }
+    if (!program) { setErr("Chwazi yon programme."); return; }
+    setBusy(true);
+    try {
+      const all = (await loadProspects()) || [];
+      const nName = norm(name);
+      const nPhone = digits(phone).slice(-8);
+      const match = all.find((p) => {
+        const pn = norm(getField(p, nameRe) || "");
+        const pp = digits(getField(p, phoneRe) || "").slice(-8);
+        return (nName && pn && pn === nName) || (nPhone && pp && pp === nPhone);
+      });
+      const enrollInfo = { paid: String(paid || ""), total: String(total || ""), balance: String(balance), date, note };
+      let res;
+      if (match) {
+        res = await enrollProspect({ id: match.id, enrollInfo });
+      } else {
+        const answers = [
+          { question: "Non konplè", answer: name.trim() },
+          { question: "Telefòn", answer: phone.trim() },
+          { question: "Adrès", answer: address.trim() },
+        ];
+        res = await enrollProspect({ program, answers, enrollInfo });
+      }
+      if (res) {
+        setDone(match ? `${name} te deja nan lis la — nou make l ENSKRI.` : `${name} enskri epi ajoute nan lis prospè yo (ENSKRI).`);
+        setName(""); setPhone(""); setAddress(""); setPaid(""); setTotal(""); setNote(""); setDate(todayStr());
+      } else {
+        setErr("Pa rive anrejistre. Tcheke koneksyon an epi eseye ankò.");
+      }
+    } catch (e) {
+      setErr("Yon erè rive. Eseye ankò.");
+    }
+    setBusy(false);
+  };
+
+  const wrap = { maxWidth: 560, margin: "0 auto", padding: "24px 18px 60px" };
+  const label = { fontSize: 12.5, fontWeight: 700, color: PALETTE.cream, display: "block", margin: "10px 0 4px" };
+
+  if (!authed) {
+    return (
+      <div style={wrap}>
+        <div style={{ textAlign: "center", marginTop: 20, marginBottom: 22 }}>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 700, color: PALETTE.goldSoft, letterSpacing: "1px" }}>MISS THANI</div>
+          <div style={{ fontSize: 12, letterSpacing: "3px", color: `${PALETTE.cream}99`, fontWeight: 600 }}>ENSKRIPSYON ELÈV</div>
+        </div>
+        <div style={{ maxWidth: 360, margin: "0 auto", background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 22 }}>
+          <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 12px", color: PALETTE.cream }}>Antre modpas resepsyon</h2>
+          <input className="mt-input" type="password" value={pw} onChange={(e) => { setPw(e.target.value); setPwErr(""); }} onKeyDown={(e) => { if (e.key === "Enter") { if (pw === PROSPECTS_PASSWORD) setAuthed(true); else setPwErr("Modpas la pa kòrèk."); } }} placeholder="Modpas" />
+          {pwErr && <p style={{ color: PALETTE.danger, fontSize: 13, margin: "8px 0 0" }}>{pwErr}</p>}
+          <button onClick={() => { if (pw === PROSPECTS_PASSWORD) setAuthed(true); else setPwErr("Modpas la pa kòrèk."); }} style={{ ...goldBtn, width: "100%", marginTop: 14 }}>Antre</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={wrap}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+        <div>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: 0, color: PALETTE.cream }}>Enskripsyon elèv</h2>
+          <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Ranpli fòm nan lè yon elèv vini enskri.</p>
+        </div>
+        <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/formulaire"; }} style={ghostBtn}>← Lis prospè yo</button>
+      </div>
+
+      <div style={{ background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 18 }}>
+        <label style={label}>Non konplè *</label>
+        <input className="mt-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Non ak siyati elèv la" />
+
+        <label style={label}>Telefòn</label>
+        <input className="mt-input" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Egz: 3xxxxxxx" />
+
+        <label style={label}>Adrès</label>
+        <input className="mt-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Kote l rete" />
+
+        <label style={label}>Programme *</label>
+        <select className="mt-input" value={program} onChange={(e) => setProgram(e.target.value)}>
+          <option value="">Chwazi programme…</option>
+          {programs.map((pr) => (<option key={pr.id || pr.label} value={pr.label}>{pr.label}</option>))}
+        </select>
+
+        <label style={label}>Dat enskripsyon</label>
+        <input className="mt-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 130 }}>
+            <label style={label}>Pri total (gdes)</label>
+            <input className="mt-input" inputMode="numeric" value={total} onChange={(e) => setTotal(e.target.value)} placeholder="0" />
+          </div>
+          <div style={{ flex: 1, minWidth: 130 }}>
+            <label style={label}>Montan peye (gdes)</label>
+            <input className="mt-input" inputMode="numeric" value={paid} onChange={(e) => setPaid(e.target.value)} placeholder="0" />
+          </div>
+        </div>
+        <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, background: balance > 0 ? "rgba(192,57,43,.08)" : "rgba(30,132,73,.08)", border: `1px solid ${balance > 0 ? PALETTE.danger : "#1E8449"}44` }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: balance > 0 ? PALETTE.danger : "#1E8449" }}>Balans ki rete: {balance.toLocaleString("fr-FR")} gdes</span>
+        </div>
+
+        <label style={label}>Nòt (opsyonèl)</label>
+        <textarea className="mt-input" style={{ minHeight: 60 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nenpòt enfo anplis…" />
+
+        {err && <p style={{ color: PALETTE.danger, fontSize: 13, margin: "12px 0 0" }}>{err}</p>}
+        {done && <p style={{ color: "#1E8449", fontSize: 13.5, fontWeight: 700, margin: "12px 0 0" }}>{done}</p>}
+
+        <button onClick={submit} disabled={busy} style={{ ...goldBtn, width: "100%", marginTop: 16, opacity: busy ? 0.6 : 1 }}>{busy ? "Ap anrejistre…" : "Enskri elèv la"}</button>
+      </div>
+    </div>
+  );
+}
+
 function AgentSpace({ config, onSave }) {
   const agentsList = (config && config.agents) || [];
   const names = [...new Set(agentsList.map((a) => (typeof a === "string" ? a : (a && a.name) || "")).filter(Boolean))];
@@ -3567,6 +3734,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               {contactDot(p)}
               {renderAnswer(p, q)}
+              {p.enrolled && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: "#1E8449", padding: "2px 7px", borderRadius: 999, whiteSpace: "nowrap" }} title={p.enrollInfo ? `Peye: ${p.enrollInfo.paid || 0} · Balans: ${p.enrollInfo.balance || 0}` : "Enskri"}>ENSKRI</span>}
             </span>
           ) : (
             renderAnswer(p, q)
