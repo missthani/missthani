@@ -3095,6 +3095,8 @@ function AgentsProgressView({ items = [], programs = [] }) {
 /* Espas Ajan yo — paj /agent (login ak etikèt + modpas 4 chif, pwofil, tablo de bòd, rémunération, lien referans) */
 /* Paj /inscription — fòm enskripsyon elèv yo (resepsyon). Konekte ak lis prospè yo:
    chèche pa non OSWA telefòn; si jwenn, make prospè a enskri; sinon kreye yon nouvo antre. */
+/* Page /inscription — formulaire d'inscription des élèves (réception). Connecté à la liste des prospects:
+   recherche par nom OU téléphone; si trouvé, marque le prospect comme inscrit; sinon crée une nouvelle entrée. */
 function InscriptionSpace({ config }) {
   const programs = (config && config.programs) || [];
   const [authed, setAuthed] = useState(false);
@@ -3112,6 +3114,13 @@ function InscriptionSpace({ config }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState("");
   const [err, setErr] = useState("");
+  const [matchedId, setMatchedId] = useState("");
+
+  // Recherche
+  const [searchBy, setSearchBy] = useState("nom"); // "nom" | "numero"
+  const [searchVal, setSearchVal] = useState("");
+  const [searchMsg, setSearchMsg] = useState("");
+  const [searching, setSearching] = useState(false);
 
   const balance = (() => {
     const t = parseFloat(String(total).replace(/[^\d.]/g, "")) || 0;
@@ -3124,41 +3133,80 @@ function InscriptionSpace({ config }) {
   const getField = (p, re) => { for (const a of p.answers || []) { if (re.test(a.question || "")) return a.answer || ""; } return ""; };
   const nameRe = /non|nom|name|prénom|prenom/i;
   const phoneRe = /tel|phone|nimewo|numero|whatsapp|kontak/i;
+  const addrRe = /rete|adr|kote|z[oò]n|vil|abite|kominote|address|lokalite|komin|katye/i;
+
+  const doSearch = async () => {
+    setSearchMsg(""); setDone(""); setErr("");
+    const q = searchVal.trim();
+    if (!q) { setSearchMsg("Entrez une valeur à rechercher."); return; }
+    setSearching(true);
+    try {
+      const all = (await loadProspects()) || [];
+      let match;
+      if (searchBy === "numero") {
+        const d = digits(q).slice(-8);
+        match = all.find((p) => { const pp = digits(getField(p, phoneRe)).slice(-8); return d && pp && pp === d; });
+      } else {
+        const n = norm(q);
+        match = all.find((p) => { const pn = norm(getField(p, nameRe)); return n && pn && pn.includes(n); });
+      }
+      if (match) {
+        setName(getField(match, nameRe) || "");
+        setPhone(getField(match, phoneRe) || "");
+        setAddress(getField(match, addrRe) || "");
+        setProgram(match.program || "");
+        setMatchedId(match.id);
+        setSearchMsg(`Trouvé : ${getField(match, nameRe) || "prospect"} — les champs ont été remplis automatiquement.`);
+      } else {
+        setMatchedId("");
+        setSearchMsg("Aucun prospect trouvé. Vous pouvez remplir le formulaire manuellement.");
+      }
+    } catch (e) {
+      setSearchMsg("Erreur lors de la recherche. Réessayez.");
+    }
+    setSearching(false);
+  };
 
   const submit = async () => {
     setErr(""); setDone("");
-    if (!name.trim()) { setErr("Mete non elèv la."); return; }
-    if (!program) { setErr("Chwazi yon programme."); return; }
+    if (!name.trim()) { setErr("Veuillez saisir le nom de l'élève."); return; }
+    if (!program) { setErr("Veuillez choisir un programme."); return; }
     setBusy(true);
     try {
-      const all = (await loadProspects()) || [];
-      const nName = norm(name);
-      const nPhone = digits(phone).slice(-8);
-      const match = all.find((p) => {
-        const pn = norm(getField(p, nameRe) || "");
-        const pp = digits(getField(p, phoneRe) || "").slice(-8);
-        return (nName && pn && pn === nName) || (nPhone && pp && pp === nPhone);
-      });
       const enrollInfo = { paid: String(paid || ""), total: String(total || ""), balance: String(balance), date, note };
       let res;
-      if (match) {
-        res = await enrollProspect({ id: match.id, enrollInfo });
+      let matched = false;
+      if (matchedId) {
+        res = await enrollProspect({ id: matchedId, enrollInfo });
+        matched = true;
       } else {
-        const answers = [
-          { question: "Non konplè", answer: name.trim() },
-          { question: "Telefòn", answer: phone.trim() },
-          { question: "Adrès", answer: address.trim() },
-        ];
-        res = await enrollProspect({ program, answers, enrollInfo });
+        const all = (await loadProspects()) || [];
+        const nName = norm(name);
+        const nPhone = digits(phone).slice(-8);
+        const m = all.find((p) => {
+          const pn = norm(getField(p, nameRe) || "");
+          const pp = digits(getField(p, phoneRe) || "").slice(-8);
+          return (nName && pn && pn === nName) || (nPhone && pp && pp === nPhone);
+        });
+        if (m) { res = await enrollProspect({ id: m.id, enrollInfo }); matched = true; }
+        else {
+          const answers = [
+            { question: "Nom complet", answer: name.trim() },
+            { question: "Téléphone", answer: phone.trim() },
+            { question: "Adresse", answer: address.trim() },
+          ];
+          res = await enrollProspect({ program, answers, enrollInfo });
+        }
       }
       if (res) {
-        setDone(match ? `${name} te deja nan lis la — nou make l ENSKRI.` : `${name} enskri epi ajoute nan lis prospè yo (ENSKRI).`);
+        setDone(matched ? `${name} était déjà dans la liste — marqué(e) INSCRIT.` : `${name} inscrit(e) et ajouté(e) à la liste des prospects (INSCRIT).`);
         setName(""); setPhone(""); setAddress(""); setPaid(""); setTotal(""); setNote(""); setDate(todayStr());
+        setProgram(""); setMatchedId(""); setSearchVal(""); setSearchMsg("");
       } else {
-        setErr("Pa rive anrejistre. Tcheke koneksyon an epi eseye ankò.");
+        setErr("Échec de l'enregistrement. Vérifiez la connexion et réessayez.");
       }
     } catch (e) {
-      setErr("Yon erè rive. Eseye ankò.");
+      setErr("Une erreur est survenue. Réessayez.");
     }
     setBusy(false);
   };
@@ -3171,13 +3219,13 @@ function InscriptionSpace({ config }) {
       <div style={wrap}>
         <div style={{ textAlign: "center", marginTop: 20, marginBottom: 22 }}>
           <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 700, color: PALETTE.goldSoft, letterSpacing: "1px" }}>MISS THANI</div>
-          <div style={{ fontSize: 12, letterSpacing: "3px", color: `${PALETTE.cream}99`, fontWeight: 600 }}>ENSKRIPSYON ELÈV</div>
+          <div style={{ fontSize: 12, letterSpacing: "3px", color: `${PALETTE.cream}99`, fontWeight: 600 }}>INSCRIPTION ÉLÈVE</div>
         </div>
         <div style={{ maxWidth: 360, margin: "0 auto", background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 22 }}>
-          <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 12px", color: PALETTE.cream }}>Antre modpas resepsyon</h2>
-          <input className="mt-input" type="password" value={pw} onChange={(e) => { setPw(e.target.value); setPwErr(""); }} onKeyDown={(e) => { if (e.key === "Enter") { if (pw === PROSPECTS_PASSWORD) setAuthed(true); else setPwErr("Modpas la pa kòrèk."); } }} placeholder="Modpas" />
+          <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 12px", color: PALETTE.cream }}>Mot de passe réception</h2>
+          <input className="mt-input" type="password" value={pw} onChange={(e) => { setPw(e.target.value); setPwErr(""); }} onKeyDown={(e) => { if (e.key === "Enter") { if (pw === PROSPECTS_PASSWORD) setAuthed(true); else setPwErr("Mot de passe incorrect."); } }} placeholder="Mot de passe" />
           {pwErr && <p style={{ color: PALETTE.danger, fontSize: 13, margin: "8px 0 0" }}>{pwErr}</p>}
-          <button onClick={() => { if (pw === PROSPECTS_PASSWORD) setAuthed(true); else setPwErr("Modpas la pa kòrèk."); }} style={{ ...goldBtn, width: "100%", marginTop: 14 }}>Antre</button>
+          <button onClick={() => { if (pw === PROSPECTS_PASSWORD) setAuthed(true); else setPwErr("Mot de passe incorrect."); }} style={{ ...goldBtn, width: "100%", marginTop: 14 }}>Entrer</button>
         </div>
       </div>
     );
@@ -3187,52 +3235,66 @@ function InscriptionSpace({ config }) {
     <div style={wrap}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: 0, color: PALETTE.cream }}>Enskripsyon elèv</h2>
-          <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Ranpli fòm nan lè yon elèv vini enskri.</p>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: 0, color: PALETTE.cream }}>Inscription élève</h2>
+          <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Remplissez le formulaire lorsqu'un élève vient s'inscrire.</p>
         </div>
-        <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/formulaire"; }} style={ghostBtn}>← Lis prospè yo</button>
+        <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/formulaire"; }} style={ghostBtn}>← Liste des prospects</button>
+      </div>
+
+      {/* Recherche */}
+      <div style={{ background: "rgba(224,165,10,.06)", border: `1px solid ${PALETTE.lineStrong}`, borderRadius: 16, padding: 14, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: PALETTE.goldSoft, marginBottom: 8 }}>🔍 Rechercher un prospect existant</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <button onClick={() => setSearchBy("nom")} style={{ flex: 1, padding: "7px 10px", borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: "pointer", border: `1.5px solid ${searchBy === "nom" ? PALETTE.goldSoft : PALETTE.line}`, background: searchBy === "nom" ? PALETTE.goldSoft : "#fff", color: searchBy === "nom" ? "#fff" : PALETTE.cream }}>Par nom</button>
+          <button onClick={() => setSearchBy("numero")} style={{ flex: 1, padding: "7px 10px", borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: "pointer", border: `1.5px solid ${searchBy === "numero" ? PALETTE.goldSoft : PALETTE.line}`, background: searchBy === "numero" ? PALETTE.goldSoft : "#fff", color: searchBy === "numero" ? "#fff" : PALETTE.cream }}>Par numéro</button>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input className="mt-input" style={{ flex: 1, minWidth: 160 }} value={searchVal} onChange={(e) => setSearchVal(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") doSearch(); }} placeholder={searchBy === "nom" ? "Entrez le nom…" : "Entrez le numéro…"} inputMode={searchBy === "numero" ? "tel" : "text"} />
+          <button onClick={doSearch} disabled={searching} style={{ ...goldBtn, opacity: searching ? 0.6 : 1 }}>{searching ? "…" : "Rechercher"}</button>
+        </div>
+        {searchMsg && <p style={{ fontSize: 12.5, color: matchedId ? "#1E8449" : `${PALETTE.cream}aa`, margin: "8px 0 0" }}>{searchMsg}</p>}
       </div>
 
       <div style={{ background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 18 }}>
-        <label style={label}>Non konplè *</label>
-        <input className="mt-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Non ak siyati elèv la" />
+        <label style={label}>Nom complet *</label>
+        <input className="mt-input" value={name} onChange={(e) => { setName(e.target.value); setMatchedId(""); }} placeholder="Nom et prénom de l'élève" />
 
-        <label style={label}>Telefòn</label>
-        <input className="mt-input" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Egz: 3xxxxxxx" />
+        <label style={label}>Téléphone</label>
+        <input className="mt-input" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Ex : 3xxxxxxx" />
 
-        <label style={label}>Adrès</label>
-        <input className="mt-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Kote l rete" />
+        <label style={label}>Adresse</label>
+        <input className="mt-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Lieu de résidence" />
 
         <label style={label}>Programme *</label>
         <select className="mt-input" value={program} onChange={(e) => setProgram(e.target.value)}>
-          <option value="">Chwazi programme…</option>
+          <option value="">Choisir un programme…</option>
           {programs.map((pr) => (<option key={pr.id || pr.label} value={pr.label}>{pr.label}</option>))}
         </select>
 
-        <label style={label}>Dat enskripsyon</label>
+        <label style={label}>Date d'inscription</label>
         <input className="mt-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 130 }}>
-            <label style={label}>Pri total (gdes)</label>
+            <label style={label}>Prix total (gdes)</label>
             <input className="mt-input" inputMode="numeric" value={total} onChange={(e) => setTotal(e.target.value)} placeholder="0" />
           </div>
           <div style={{ flex: 1, minWidth: 130 }}>
-            <label style={label}>Montan peye (gdes)</label>
+            <label style={label}>Montant payé (gdes)</label>
             <input className="mt-input" inputMode="numeric" value={paid} onChange={(e) => setPaid(e.target.value)} placeholder="0" />
           </div>
         </div>
         <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, background: balance > 0 ? "rgba(192,57,43,.08)" : "rgba(30,132,73,.08)", border: `1px solid ${balance > 0 ? PALETTE.danger : "#1E8449"}44` }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: balance > 0 ? PALETTE.danger : "#1E8449" }}>Balans ki rete: {balance.toLocaleString("fr-FR")} gdes</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: balance > 0 ? PALETTE.danger : "#1E8449" }}>Solde restant : {balance.toLocaleString("fr-FR")} gdes</span>
         </div>
 
-        <label style={label}>Nòt (opsyonèl)</label>
-        <textarea className="mt-input" style={{ minHeight: 60 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nenpòt enfo anplis…" />
+        <label style={label}>Note (optionnel)</label>
+        <textarea className="mt-input" style={{ minHeight: 60 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Toute information supplémentaire…" />
 
         {err && <p style={{ color: PALETTE.danger, fontSize: 13, margin: "12px 0 0" }}>{err}</p>}
         {done && <p style={{ color: "#1E8449", fontSize: 13.5, fontWeight: 700, margin: "12px 0 0" }}>{done}</p>}
 
-        <button onClick={submit} disabled={busy} style={{ ...goldBtn, width: "100%", marginTop: 16, opacity: busy ? 0.6 : 1 }}>{busy ? "Ap anrejistre…" : "Enskri elèv la"}</button>
+        <button onClick={submit} disabled={busy} style={{ ...goldBtn, width: "100%", marginTop: 16, opacity: busy ? 0.6 : 1 }}>{busy ? "Enregistrement…" : "Inscrire l'élève"}</button>
       </div>
     </div>
   );
