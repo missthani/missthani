@@ -568,6 +568,8 @@ const DEFAULT_CONFIG = {
   tickerMsgs: {}, // modèl mesaj ki defile nan kazye yo (admin ka modifye — Bwat mesaj)
   stageConditions: {}, // ki kondisyon ki konekte ak chak etap (Koneksyon)
   stageWaMsg: {}, // ki modèl mesaj WhatsApp ki konekte ak chak etap
+  waGroups: {}, // lien gwoup WhatsApp pa programme { [programLabel]: url }
+  waGroups: {}, // { [programme]: lien gwoup WhatsApp } — pou varyab {groupe_whatsapp}
   agentInfo: {}, // { [nonEtikèt]: { pin: "1234", photo: "" } } — modpas ak foto ajan yo
   programs: [
     { id: uid(), label: "Onglerie", steps: [] },
@@ -2218,6 +2220,12 @@ function AdminSpace({ config, onSave, onExit }) {
     await onSave(nd);
   };
 
+  const saveWaGroups = async (groups) => {
+    const nd = { ...draft, waGroups: groups };
+    setDraft(nd);
+    await onSave(nd);
+  };
+
   const saveAgentsAndInfo = async (names, info) => {
     const nd = { ...draft, agents: names, agentInfo: info };
     setDraft(nd);
@@ -2275,7 +2283,7 @@ function AdminSpace({ config, onSave, onExit }) {
       </div>
 
       {adminTab === "prospects" ? (
-        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} tickerMsgs={draft.tickerMsgs || {}} onSaveTickerMsgs={saveTickerMsgs} stageConditions={draft.stageConditions || {}} agentInfo={draft.agentInfo || {}} onSaveAgentInfo={saveAgentInfo} onSaveAgentsAndInfo={saveAgentsAndInfo} stageWaMsg={draft.stageWaMsg || {}} />
+        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} tickerMsgs={draft.tickerMsgs || {}} onSaveTickerMsgs={saveTickerMsgs} stageConditions={draft.stageConditions || {}} agentInfo={draft.agentInfo || {}} onSaveAgentInfo={saveAgentInfo} onSaveAgentsAndInfo={saveAgentsAndInfo} stageWaMsg={draft.stageWaMsg || {}} waGroups={draft.waGroups || {}} onSaveWaGroups={saveWaGroups} />
       ) : adminTab === "stats" ? (
         <StatsView />
       ) : (
@@ -2713,7 +2721,7 @@ function ProspectsGate({ config }) {
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600 }}>Nouvo Prospè</div>
         <a href="/" style={{ ...ghostBtn, textDecoration: "none" }}>Tounen sou sit la</a>
       </div>
-      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} programs={(config && config.programs) || []} waMessages={(config && config.waMessages) || []} activeWaMessage={(config && config.activeWaMessage) || ""} tickerMsgs={(config && config.tickerMsgs) || {}} stageConditions={(config && config.stageConditions) || {}} stageWaMsg={(config && config.stageWaMsg) || {}} />
+      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} programs={(config && config.programs) || []} waMessages={(config && config.waMessages) || []} activeWaMessage={(config && config.activeWaMessage) || ""} tickerMsgs={(config && config.tickerMsgs) || {}} stageConditions={(config && config.stageConditions) || {}} stageWaMsg={(config && config.stageWaMsg) || {}} waGroups={(config && config.waGroups) || {}} />
     </div>
   );
 }
@@ -3235,7 +3243,7 @@ function AgentSpace({ config, onSave }) {
   );
 }
 
-function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages, tickerMsgs = {}, onSaveTickerMsgs, stageConditions = {}, agentInfo = {}, onSaveAgentInfo, onSaveAgentsAndInfo, stageWaMsg = {} }) {
+function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = [], waMessages = [], activeWaMessage = "", onSaveWaMessages, tickerMsgs = {}, onSaveTickerMsgs, stageConditions = {}, agentInfo = {}, onSaveAgentInfo, onSaveAgentsAndInfo, stageWaMsg = {}, waGroups = {}, onSaveWaGroups }) {
   const fillTpl = (key, vars) => {
     let t = (tickerMsgs && tickerMsgs[key]) || TICKER_DEFAULTS[key] || "";
     Object.keys(vars || {}).forEach((k) => { t = t.split(`{${k}}`).join(vars[k] == null ? "" : vars[k]); });
@@ -3266,6 +3274,13 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [msgPanel, setMsgPanel] = useState(false); // panèl modèl mesaj WhatsApp louvri
   const [resaPanel, setResaPanel] = useState(false); // panèl apèsi dat rezèvasyon yo
   const [msgFilter, setMsgFilter] = useState(""); // filtre pa mesaj/etap (stage key)
+  const [grpPanel, setGrpPanel] = useState(false); // panèl Groupe WhatsApp
+  const [grpDraft, setGrpDraft] = useState(waGroups || {});
+  const [grpSaved, setGrpSaved] = useState(false);
+  const saveGrp = async () => {
+    if (onSaveWaGroups) await onSaveWaGroups(grpDraft);
+    setGrpSaved(true); setTimeout(() => setGrpSaved(false), 2000);
+  };
   const [etqFilter, setEtqFilter] = useState(""); // filtre pa etikèt (ajan)
   const [msgDraft, setMsgDraft] = useState(waMessages || []);
   const [activeDraft, setActiveDraft] = useState(activeWaMessage || "");
@@ -3834,6 +3849,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       .replace(/\{dat\}/g, dat)
       .replace(/\{jou_rezervasyon\}/g, jouResa)
       .replace(/\{jou_session\}/g, jouSession)
+      .replace(/\{groupe_whatsapp\}/g, (waGroups && waGroups[p.program]) || "")
       .replace(/\{adres\}/g, extractAddress(p.answers) || "");
     // Siyati etikèt la anba nèt lè prospè a gen yon etikèt
     const etq = (p.etiquette || "").trim();
@@ -4265,6 +4281,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             <>
               <button onClick={() => setMsgPanel((v) => !v)} style={msgPanel ? goldBtn : ghostBtn}>Mesaj WhatsApp</button>
               <button onClick={() => setBoxPanel((v) => !v)} style={boxPanel ? goldBtn : ghostBtn}>Chèn pwosesis</button>
+              <button onClick={() => setGrpPanel((v) => !v)} style={grpPanel ? goldBtn : ghostBtn}>Groupe WhatsApp</button>
             </>
           )}
           <button onClick={refresh} style={ghostBtn} disabled={busy}>{busy ? "Ap chaje…" : "Aktyalize"}</button>
@@ -4456,6 +4473,35 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         </div>
       )}
 
+      {isAdmin && grpPanel && (
+        <div style={{ marginBottom: 18, padding: 16, border: `1px solid ${PALETTE.lineStrong}`, borderRadius: 14, background: "rgba(37,211,102,.06)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 10, flexWrap: "wrap" }}>
+            <strong style={{ fontSize: 15 }}>Groupe WhatsApp — lien pa programme</strong>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {grpSaved && <span style={{ color: "#1E8449", fontSize: 13 }}>Anrejistre ✓</span>}
+              <button onClick={saveGrp} style={goldBtn}>Anrejistre lien yo</button>
+              <button onClick={() => setGrpPanel(false)} style={ghostBtn}>Fèmen</button>
+            </div>
+          </div>
+          <p style={{ fontSize: 12.5, color: `${PALETTE.cream}aa`, margin: "0 0 14px", lineHeight: 1.5 }}>
+            Mete lien gwoup WhatsApp chak programme. Answit nan yon mesaj, sèvi ak varyab <b>{"{groupe_whatsapp}"}</b> — sistèm nan ap voye lien gwoup ki matche ak programme prospè a otomatikman (Onglerie → gwoup Onglerie, Tresse → gwoup Tresse, elatriye).
+          </p>
+          {(programs || []).map((pr) => (
+            <div key={pr.id || pr.label} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+              <span style={{ width: 130, fontSize: 13, fontWeight: 700, color: PALETTE.cream, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{pr.label}</span>
+              <input
+                className="mt-input"
+                style={{ flex: 1, minWidth: 180 }}
+                placeholder="https://chat.whatsapp.com/..."
+                value={grpDraft[pr.label] || ""}
+                onChange={(e) => setGrpDraft((d) => ({ ...d, [pr.label]: e.target.value }))}
+              />
+            </div>
+          ))}
+          {(programs || []).length === 0 && <p style={{ fontSize: 12, color: `${PALETTE.cream}88` }}>Poko gen programme.</p>}
+        </div>
+      )}
+
       {isAdmin && msgPanel && (
         <div style={{ marginBottom: 18, padding: 16, border: `1px solid ${PALETTE.lineStrong}`, borderRadius: 14, background: "rgba(194,35,142,.05)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 10, flexWrap: "wrap" }}>
@@ -4489,7 +4535,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                 />
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6, alignItems: "center" }}>
                   <span style={{ fontSize: 11, color: `${PALETTE.cream}88`, fontWeight: 600 }}>+ Varyab:</span>
-                  {[["{non}", "non moun nan"], ["{program}", "pwogram"], ["{adres}", "adrès moun nan"], ["{dat_rezervasyon}", "dat rezèvasyon an"], ["{jou_rezervasyon}", "konbyen jou avan rezèvasyon"], ["{dat_session}", "dat session an"], ["{jou_session}", "konbyen jou avan session"]].map(([v, d]) => (
+                  {[["{non}", "non moun nan"], ["{program}", "pwogram"], ["{adres}", "adrès moun nan"], ["{dat_rezervasyon}", "dat rezèvasyon an"], ["{jou_rezervasyon}", "konbyen jou avan rezèvasyon"], ["{dat_session}", "dat session an"], ["{jou_session}", "konbyen jou avan session"], ["{groupe_whatsapp}", "lien gwoup WhatsApp programme nan"]].map(([v, d]) => (
                     <button key={v} onClick={() => updateMsg(m.id, { text: (m.text || "") + v })} title={d} style={{ padding: "3px 8px", borderRadius: 6, fontSize: 11.5, fontWeight: 600, cursor: "pointer", border: `1px solid ${PALETTE.line}`, background: "#fff", color: "#25D366" }}>{v}</button>
                   ))}
                 </div>
