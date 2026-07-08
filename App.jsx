@@ -3816,14 +3816,15 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const jouSession = daysTo(sessRaw);
     const datResaTxt = (resa && resa !== "—") ? resa : "";
     const datSessionTxt = sessRaw ? formatHtDate(sessRaw) : "";
-    // Mesaj ki konekte ak etap prospè a (si admin te konekte youn); sinon mesaj aktif default la
+    // PRIYORITE: mesaj ki konekte ak etap prospè a (nan Chèn pwosesis).
+    // Si etap la pa konekte ak okenn mesaj → premye modèl la sèvi kòm default.
     const key = stageKeyOf(p);
     const connId = (stageWaMsg || {})[key];
     let tmpl = "";
     if (connId) { const cm = (waMessages || []).find((m) => m && m.id === connId); if (cm && cm.text) tmpl = cm.text; }
     if (!tmpl) {
-      const active = (waMessages || []).find((m) => m && m.id === activeWaMessage);
-      tmpl = (active && active.text) || DEFAULT_WA_TEMPLATE;
+      const first = (waMessages || [])[0];
+      tmpl = (first && first.text) || DEFAULT_WA_TEMPLATE;
     }
     let msg = tmpl
       .replace(/\{non\}/g, prospectName(p))
@@ -4468,9 +4469,10 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           {(msgDraft || []).length === 0 ? (
             <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: "0 0 12px" }}>Poko gen modèl. Klike "+ Ajoute yon modèl" pou kreye youn. (Si pa gen modèl, app la sèvi ak yon mesaj default.)</p>
           ) : (
-            (msgDraft || []).map((m) => (
-              <div key={m.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 12, marginBottom: 10, background: "#fff" }}>
+            (msgDraft || []).map((m, mi) => (
+              <div key={m.id} style={{ border: `1px solid ${mi === 0 ? PALETTE.goldSoft : PALETTE.line}`, borderRadius: 12, padding: 12, marginBottom: 10, background: "#fff" }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                  {mi === 0 && <span style={{ fontSize: 10.5, fontWeight: 800, color: "#fff", background: PALETTE.goldSoft, padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap" }}>★ DEFAULT</span>}
                   <input
                     value={m.name || ""}
                     onChange={(e) => updateMsg(m.id, { name: e.target.value })}
@@ -4497,21 +4499,11 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
             <button onClick={addMsg} style={ghostBtn}>+ Ajoute yon modèl</button>
-            <label style={{ fontSize: 13, color: `${PALETTE.cream}cc`, display: "inline-flex", alignItems: "center", gap: 6 }}>
-              Mesaj k ap voye:
-              <select
-                value={activeDraft || ""}
-                onChange={(e) => setActiveDraft(e.target.value)}
-                style={{ fontSize: 13, padding: "8px 10px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer" }}
-              >
-                <option value="">Mesaj default</option>
-                {(msgDraft || []).map((m) => (
-                  <option key={m.id} value={m.id}>{m.name || "(san non)"}</option>
-                ))}
-              </select>
-            </label>
             <button onClick={saveMsgs} style={goldBtn}>{msgSaved ? "✓ Anrejistre" : "Anrejistre modèl yo"}</button>
           </div>
+          <p style={{ fontSize: 11.5, color: `${PALETTE.cream}88`, margin: "8px 0 0", lineHeight: 1.5 }}>
+            <b>Premye modèl la (anlè a) = mesaj default la</b> — se li k ap sèvi pou tout etap ki pa konekte ak yon mesaj espesifik nan Chèn pwosesis la. Pou konekte yon mesaj ak yon etap, ale nan <b>Chèn pwosesis</b>.
+          </p>
         </div>
       )}
 
