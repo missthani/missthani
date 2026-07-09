@@ -3417,45 +3417,44 @@ function InscriptionSpace({ config }) {
   const openPdfPreview = () => {
     const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     const chk = (v) => (v ? "\u2611" : "\u2610");
-    const fullName = (esc(nom) + " " + esc(prenom)).trim();
-    const respStr = (n, li, t) => (esc(n) + (li ? " (" + esc(li) + ")" : "") + (t ? " \u2014 Tel : " + esc(t) : "")) || "\u2026";
+    const respStr = (n, li, t) => (esc(n) + (li ? " (" + esc(li) + ")" : "") + (t ? " \u2014 Tel : " + esc(t) : "")) || "&nbsp;";
     const bc = barcode || genBarcode();
-    const svg = barcode39Svg(bc, 46, 1.5);
+    const svg = barcode39Svg(bc, 40, 1.3);
     const F = (l, v) => '<div class="fld"><span class="fl">' + esc(l) + '</span><span class="fv">' + (esc(v) || "&nbsp;") + '</span></div>';
-    const html = '<!doctype html><html><head><meta charset="utf-8"><title>Fiche inscription — ' + fullName + '</title><style>' +
+    const F2 = (l1, v1, l2, v2) => '<div class="fld2"><div class="cl"><span class="fl">' + esc(l1) + '</span><span class="fv">' + (esc(v1) || "&nbsp;") + '</span></div><div class="cl"><span class="fl">' + esc(l2) + '</span><span class="fv">' + (esc(v2) || "&nbsp;") + '</span></div></div>';
+    const html = '<!doctype html><html><head><meta charset="utf-8"><title>Fiche inscription</title><style>' +
       '@page{size:A4 landscape;margin:0}*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0}' +
-      '.page{width:297mm;height:210mm;display:flex}.half{width:50%;height:100%;padding:8mm}.left{border-right:1px dashed #bbb}' +
-      '.fiche{position:relative;border:1.5px solid #333;height:100%;padding:6mm 6mm 5mm}' +
-      '.photo{position:absolute;top:5mm;right:5mm;width:26mm;height:32mm;border:1.2px solid #333;display:flex;align-items:center;justify-content:center;color:#666;font-size:8pt}' +
-      '.brand{font-family:Georgia,serif;color:#C2238E;font-size:15pt;font-weight:700}.title{display:inline-block;border:1.5px solid #333;padding:2mm 5mm;font-size:13pt;font-weight:700;margin-top:1mm}' +
-      '.sect{background:#dcdcdc;border:1px solid #333;font-weight:800;font-size:8.5pt;padding:1.2mm 3mm;margin:3.5mm 0 0}' +
-      '.box{border:1px solid #333;border-top:none;padding:2mm 3mm}' +
-      '.fld{display:flex;font-size:8.2pt;padding:0.7mm 0}.fl{color:#333;white-space:nowrap;margin-right:2mm}.fv{flex:1;font-weight:600;border-bottom:0.4pt dotted #888}' +
-      '.chks{font-size:8pt;line-height:1.7}.sign{margin-top:5mm;font-size:7.5pt;color:#333}.sigline{margin-top:8mm;border-top:0.5pt solid #333;width:60mm;padding-top:1mm;font-size:8pt}' +
-      '.bc{position:absolute;bottom:4mm;right:5mm;text-align:center}.bc .num{font-family:monospace;font-size:7pt;letter-spacing:1px}' +
+      '.page{width:297mm;height:210mm;display:flex}.half{width:50%;height:100%;padding:7mm}.left{border-right:1px dashed #bbb}' +
+      '.fiche{position:relative;border:1.5px solid #333;height:100%;padding:5mm;display:flex;flex-direction:column}' +
+      '.photo{position:absolute;top:4mm;right:4mm;width:25mm;height:30mm;border:1.2px solid #333;display:flex;align-items:center;justify-content:center;color:#666;font-size:8pt}' +
+      '.head{min-height:33mm;padding-right:28mm}.brand{font-family:Georgia,serif;color:#C2238E;font-size:15pt;font-weight:700}.title{display:inline-block;border:1.5px solid #333;padding:2mm 5mm;font-size:12.5pt;font-weight:700;margin-top:1.5mm}' +
+      '.sect{background:#dcdcdc;border:1px solid #333;font-weight:800;font-size:8.3pt;padding:1mm 3mm;margin:2.5mm 0 0}' +
+      '.box{border:1px solid #333;border-top:none;padding:1.6mm 3mm}' +
+      '.fld{display:flex;font-size:8pt;padding:0.6mm 0}.fld2{display:flex;gap:6mm;padding:0.6mm 0}.fld2 .cl{flex:1;display:flex;min-width:0}' +
+      '.fl{color:#333;margin-right:1.5mm;white-space:nowrap}.fv{flex:1;font-weight:600;border-bottom:0.4pt dotted #888;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+      '.chks{font-size:8pt;line-height:1.75}.foot{margin-top:auto;padding-top:3mm}.sign{font-size:7.3pt;color:#333;line-height:1.4}' +
+      '.frow{display:flex;justify-content:space-between;align-items:flex-end;margin-top:5mm}.sigline{border-top:0.5pt solid #333;width:52mm;padding-top:1mm;font-size:8pt}.bc{text-align:center}.bc .num{font-family:monospace;font-size:6.5pt;letter-spacing:1px;margin-top:0.5mm}' +
       '.pb{position:fixed;top:8px;right:8px;padding:9px 16px;background:#C2238E;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}@media print{.pb{display:none}}' +
       '</style></head><body><button class="pb" onclick="window.print()">Imprimer / T\u00e9l\u00e9charger PDF</button>' +
       '<div class="page"><div class="half left"></div><div class="half"><div class="fiche">' +
       '<div class="photo">PHOTO</div>' +
-      '<div class="brand">MISS THANI</div><div class="title">FICHE D\'INSCRIPTION</div>' +
+      '<div class="head"><div class="brand">MISS THANI</div><div class="title">FICHE D\'INSCRIPTION</div></div>' +
       '<div class="sect">1. IDENTIT\u00c9 DE L\'\u00c9L\u00c8VE</div><div class="box">' +
-      F("Nom &amp; Pr\u00e9nom :", fullName) + F("Date de naissance :", dob) + F("CIN / NIF :", cin) + F("Adresse :", address) + '</div>' +
+      F2("Nom :", nom, "Pr\u00e9nom :", prenom) + F2("Naissance :", dob, "CIN / NIF :", cin) + F("Adresse :", address) + '</div>' +
       '<div class="sect">2. CONTACTS &amp; SCOLARIT\u00c9</div><div class="box">' +
-      F("WhatsApp :", whatsapp) + F("Appel :", appel) + F("Programme :", program) + F("Session :", session) + F("Niveau d\'\u00e9tude :", niveau) + F("Dernier \u00e9tablissement :", etablissement) + F("R\u00e9f\u00e9rence :", reference) + '</div>' +
+      F2("WhatsApp :", whatsapp, "Appel :", appel) + F2("Programme :", program, "Session :", session) + F2("Niveau :", niveau, "Dern. \u00e9tab. :", etablissement) + F("R\u00e9f\u00e9rence :", reference) + '</div>' +
       '<div class="sect">3. PERSONNES RESPONSABLES</div><div class="box">' +
-      F("Responsable 1 :", respStr(r1Nom, r1Lien, r1Tel)) + F("Responsable 2 :", respStr(r2Nom, r2Lien, r2Tel)) + '</div>' +
+      F("Resp. 1 :", respStr(r1Nom, r1Lien, r1Tel)) + F("Resp. 2 :", respStr(r2Nom, r2Lien, r2Tel)) + '</div>' +
       '<div class="sect">4. SANT\u00c9</div><div class="box">' + F("Maladie :", hasMaladie ? (maladie || "Oui") : "Non") + '</div>' +
       '<div class="sect">5. R\u00c8GLEMENT INT\u00c9RIEUR</div><div class="box chks">' +
-      chk(pMateriel) + ' Politique concernant le mat\u00e9riel<br>' + chk(pCertificat) + ' Politique de remise de certificat<br>' + chk(pReglement) + ' Autre r\u00e8glement int\u00e9rieur</div>' +
-      '<div class="sign">En signant cette fiche, je reconnais avoir <b>lu et approuv\u00e9</b> l\'ensemble du r\u00e8glement int\u00e9rieur de l\'\u00e9tablissement.</div>' +
-      '<div class="sigline">Signature</div>' +
-      '<div class="bc">' + svg + '<div class="num">' + esc(bc) + '</div></div>' +
+      chk(pMateriel) + ' Politique mat\u00e9riel &nbsp;&nbsp; ' + chk(pCertificat) + ' Remise de certificat &nbsp;&nbsp; ' + chk(pReglement) + ' Autre r\u00e8glement</div>' +
+      '<div class="foot"><div class="sign">En signant cette fiche, je reconnais avoir <b>lu et approuv\u00e9</b> l\'ensemble du r\u00e8glement int\u00e9rieur de l\'\u00e9tablissement.</div>' +
+      '<div class="frow"><div class="sigline">Signature</div><div class="bc">' + svg + '<div class="num">' + esc(bc) + '</div></div></div></div>' +
       '</div></div></div></body></html>';
     const w = window.open("", "_blank");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
     else { setErr("Le navigateur a bloqué la fenêtre. Autorisez les pop-ups pour voir l'aperçu PDF."); }
   };
-
   const wrap = { maxWidth: 620, margin: "0 auto", padding: "24px 18px 60px" };
   const label = { fontSize: 12.5, fontWeight: 700, color: PALETTE.cream, display: "block", margin: "10px 0 4px" };
   const sect = { fontSize: 13, fontWeight: 800, color: PALETTE.goldSoft, margin: "18px 0 4px", letterSpacing: ".3px" };
