@@ -3131,6 +3131,18 @@ function InscriptionSpace({ config }) {
   const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, "").trim();
   const digits = (s) => String(s || "").replace(/\D/g, "");
   const getField = (p, re) => { for (const a of p.answers || []) { if (re.test(a.question || "")) return a.answer || ""; } return ""; };
+  // Non an: premye repons ki pa yon telefòn ni yon imel (menm lojik ak lis prospè a)
+  const getName = (p) => {
+    for (const a of (p.answers || [])) {
+      const val = String(a.answer || "").trim();
+      if (!val) continue;
+      const dg = digits(val);
+      if (dg.length >= 8 && dg.length <= 12 && /^[\d\s()+-]+$/.test(val)) continue; // sote nimewo
+      if (/\S+@\S+\.\S+/.test(val)) continue; // sote imel
+      return val;
+    }
+    return "";
+  };
   const nameRe = /non|nom|name|prénom|prenom/i;
   const phoneRe = /tel|phone|nimewo|numero|whatsapp|kontak/i;
   const addrRe = /rete|adr|kote|z[oò]n|vil|abite|kominote|address|lokalite|komin|katye/i;
@@ -3148,15 +3160,15 @@ function InscriptionSpace({ config }) {
         match = all.find((p) => { const pp = digits(getField(p, phoneRe)).slice(-8); return d && pp && pp === d; });
       } else {
         const n = norm(q);
-        match = all.find((p) => { const pn = norm(getField(p, nameRe)); return n && pn && pn.includes(n); });
+        match = all.find((p) => { const pn = norm(getName(p)); return n && pn && pn.includes(n); });
       }
       if (match) {
-        setName(getField(match, nameRe) || "");
+        setName(getName(match) || "");
         setPhone(getField(match, phoneRe) || "");
         setAddress(getField(match, addrRe) || "");
         setProgram(match.program || "");
         setMatchedId(match.id);
-        setSearchMsg(`Trouvé : ${getField(match, nameRe) || "prospect"} — les champs ont été remplis automatiquement.`);
+        setSearchMsg(`Trouvé : ${getName(match) || "prospect"} — les champs ont été remplis automatiquement.`);
       } else {
         setMatchedId("");
         setSearchMsg("Aucun prospect trouvé. Vous pouvez remplir le formulaire manuellement.");
@@ -3184,7 +3196,7 @@ function InscriptionSpace({ config }) {
         const nName = norm(name);
         const nPhone = digits(phone).slice(-8);
         const m = all.find((p) => {
-          const pn = norm(getField(p, nameRe) || "");
+          const pn = norm(getName(p) || "");
           const pp = digits(getField(p, phoneRe) || "").slice(-8);
           return (nName && pn && pn === nName) || (nPhone && pp && pp === nPhone);
         });
