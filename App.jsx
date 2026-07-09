@@ -3109,6 +3109,7 @@ function InscriptionSpace({ config }) {
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
   const [dob, setDob] = useState("");
+  const [cin, setCin] = useState("");
   const [address, setAddress] = useState("");
   // Contacts
   const [whatsapp, setWhatsapp] = useState("");
@@ -3167,15 +3168,29 @@ function InscriptionSpace({ config }) {
   };
   const phoneRe = /tel|phone|nimewo|numero|whatsapp|kontak/i;
   const addrRe = /rete|adr|kote|z[oò]n|vil|abite|kominote|address|lokalite|komin|katye/i;
+  const nameQRe = /non|nom|name|prenon|prénom|prenom|rele/i;
+  // Detekte kolòn yo menm jan ak lis prospè a (pa etikèt kesyon, sinon premye repons ki pa telefòn)
+  const detectCols = (p) => {
+    let nameA = "", phoneA = "", addrA = "";
+    for (const a of (p.answers || [])) {
+      const ql = (a.question || "").toLowerCase();
+      const val = String(a.answer || "").trim();
+      if (!val) continue;
+      if (!nameA && nameQRe.test(ql)) { nameA = val; continue; }
+      if (!phoneA && phoneRe.test(ql)) { phoneA = val; continue; }
+      if (!addrA && addrRe.test(ql)) { addrA = val; continue; }
+    }
+    if (!nameA) nameA = getName(p); // fallback: premye repons ki pa telefòn/imel
+    return { nameA, phoneA, addrA };
+  };
 
   const fillFromMatch = (m) => {
-    const full = (getName(m) || "").trim();
-    const parts = full.split(/\s+/);
+    const { nameA, phoneA, addrA } = detectCols(m);
+    const parts = (nameA || "").trim().split(/\s+/);
     setNom(parts[0] || "");
     setPrenom(parts.slice(1).join(" ") || "");
-    const ph = getField(m, phoneRe) || "";
-    setWhatsapp(ph); setAppel("");
-    setAddress(getField(m, addrRe) || "");
+    setWhatsapp(phoneA || ""); setAppel("");
+    setAddress(addrA || "");
     setProgram(m.program || "");
     setMatchedId(m.id);
   };
@@ -3211,7 +3226,7 @@ function InscriptionSpace({ config }) {
   const swapNames = () => { setNom(prenom); setPrenom(nom); };
 
   const resetForm = () => {
-    setNom(""); setPrenom(""); setDob(""); setAddress(""); setWhatsapp(""); setAppel("");
+    setNom(""); setPrenom(""); setDob(""); setCin(""); setAddress(""); setWhatsapp(""); setAppel("");
     setProgram(""); setNiveau(""); setEtablissement(""); setReference("");
     setHasMaladie(false); setMaladie("");
     setR1Nom(""); setR1Lien(""); setR1Tel(""); setR2Nom(""); setR2Lien(""); setR2Tel("");
@@ -3228,7 +3243,7 @@ function InscriptionSpace({ config }) {
     try {
       const fullName = `${nom.trim()} ${prenom.trim()}`.trim();
       const enrollInfo = {
-        nom: nom.trim(), prenom: prenom.trim(), dob, address: address.trim(),
+        nom: nom.trim(), prenom: prenom.trim(), dob, cin: cin.trim(), address: address.trim(),
         whatsapp: whatsapp.trim(), appel: appel.trim(),
         niveau: niveau.trim(), etablissement: etablissement.trim(), reference: reference.trim(),
         maladie: hasMaladie ? (maladie.trim() || "Oui") : "",
@@ -3266,6 +3281,36 @@ function InscriptionSpace({ config }) {
       } else { setErr("Échec de l'enregistrement. Vérifiez la connexion et réessayez."); }
     } catch (e) { setErr("Une erreur est survenue. Réessayez."); }
     setBusy(false);
+  };
+
+  const openPdfPreview = () => {
+    const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const bal = balance.toLocaleString("fr-FR");
+    const rline = (l, v) => `<div class="fld"><span class="lbl">${esc(l)}</span><span class="val">${esc(v) || "&nbsp;"}</span></div>`;
+    const chk = (v) => (v ? "\u2611" : "\u2610");
+    const respStr = (n, li, t) => `${esc(n)}${li ? " (" + esc(li) + ")" : ""}${t ? " \u2014 " + esc(t) : ""}` || "&nbsp;";
+    const html = '<!doctype html><html><head><meta charset="utf-8"><title>Fiche inscription</title><style>' +
+      '@page{size:A4 landscape;margin:0}*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}body{margin:0}' +
+      '.page{width:297mm;height:210mm;display:flex}.half{width:50%;height:100%;padding:9mm}.left{border-right:1px dashed #bbb}' +
+      '.fiche{position:relative}.photo{position:absolute;top:7mm;right:7mm;width:27mm;height:33mm;border:1.5px solid #C2238E;border-radius:2mm;display:flex;align-items:center;justify-content:center;color:#C2238E;font-size:7pt;text-align:center}' +
+      'h1{font-family:Georgia,serif;color:#C2238E;font-size:15pt;margin:0}.sub{color:#7B2D8E;font-size:7.5pt;letter-spacing:2px;margin:1mm 0 3mm}' +
+      '.sect{color:#B8860B;font-weight:800;font-size:8.5pt;margin:3mm 0 1mm;border-bottom:1px solid #eee;padding-bottom:0.7mm}' +
+      '.fld{display:flex;font-size:8pt;padding:0.6mm 0}.lbl{width:34mm;color:#555}.val{flex:1;color:#111;font-weight:600;border-bottom:0.3pt dotted #ccc}' +
+      '.pb{position:fixed;top:8px;right:8px;padding:9px 16px;background:#C2238E;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}@media print{.pb{display:none}}' +
+      '</style></head><body><button class="pb" onclick="window.print()">Imprimer / T\u00e9l\u00e9charger PDF</button>' +
+      '<div class="page"><div class="half left"></div><div class="half fiche">' +
+      '<div class="photo">PHOTO</div><h1>MISS THANI</h1><div class="sub">FICHE D\'INSCRIPTION</div>' +
+      '<div class="sect">Identit\u00e9</div>' + rline("Nom", nom) + rline("Pr\u00e9nom", prenom) + rline("Date de naissance", dob) + rline("CIN / NIF", cin) + rline("Adresse", address) +
+      '<div class="sect">Contacts</div>' + rline("WhatsApp", whatsapp) + rline("Appel", appel) +
+      '<div class="sect">Scolarit\u00e9</div>' + rline("Programme", program) + rline("Niveau d\'\u00e9tude", niveau) + rline("Dernier \u00e9tablissement", etablissement) + rline("R\u00e9f\u00e9rence", reference) +
+      '<div class="sect">Sant\u00e9</div>' + rline("Maladie", hasMaladie ? (maladie || "Oui") : "Non") +
+      '<div class="sect">Personnes responsables</div>' + '<div class="fld"><span class="lbl">Resp. 1</span><span class="val">' + respStr(r1Nom, r1Lien, r1Tel) + '</span></div>' + '<div class="fld"><span class="lbl">Resp. 2</span><span class="val">' + respStr(r2Nom, r2Lien, r2Tel) + '</span></div>' +
+      '<div class="sect">Inscription &amp; paiement</div>' + rline("Date", date) + rline("Prix total", total) + rline("Pay\u00e9", paid) + rline("Solde restant", bal) +
+      '<div class="sect">R\u00e8glement int\u00e9rieur</div>' + '<div class="fld"><span class="val">' + chk(pMateriel) + ' Politique mat\u00e9riel &nbsp; ' + chk(pCertificat) + ' Remise certificat &nbsp; ' + chk(pReglement) + ' R\u00e8glement int\u00e9rieur</span></div>' +
+      '</div></div></body></html>';
+    const w = window.open("", "_blank");
+    if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+    else { setErr("Le navigateur a bloqué la fenêtre. Autorisez les pop-ups pour voir l'aperçu PDF."); }
   };
 
   const wrap = { maxWidth: 620, margin: "0 auto", padding: "24px 18px 60px" };
@@ -3331,8 +3376,10 @@ function InscriptionSpace({ config }) {
         <button onClick={swapNames} style={{ ...ghostBtn, padding: "5px 12px", fontSize: 12, marginTop: 6 }}>⇄ Inverser Nom / Prénom</button>
         <div style={row2}>
           <div style={col}><label style={label}>Date de naissance</label><input className="mt-input" type="date" value={dob} onChange={(e) => setDob(e.target.value)} /></div>
-          <div style={col}><label style={label}>Adresse</label><input className="mt-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Lieu de résidence" /></div>
+          <div style={col}><label style={label}>CIN / NIF</label><input className="mt-input" value={cin} onChange={(e) => setCin(e.target.value)} placeholder="Numéro CIN ou NIF" /></div>
         </div>
+        <label style={label}>Adresse</label>
+        <input className="mt-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Lieu de résidence" />
 
         {/* Contacts */}
         <div style={sect}>Contacts</div>
@@ -3403,7 +3450,10 @@ function InscriptionSpace({ config }) {
         {err && <p style={{ color: PALETTE.danger, fontSize: 13, margin: "12px 0 0" }}>{err}</p>}
         {done && <p style={{ color: "#1E8449", fontSize: 13.5, fontWeight: 700, margin: "12px 0 0" }}>{done}</p>}
 
-        <button onClick={submit} disabled={busy} style={{ ...goldBtn, width: "100%", marginTop: 16, opacity: busy ? 0.6 : 1 }}>{busy ? "Enregistrement…" : "Inscrire l'élève"}</button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
+          <button onClick={openPdfPreview} style={{ ...ghostBtn, flex: 1, minWidth: 150 }}>Aperçu PDF</button>
+          <button onClick={submit} disabled={busy} style={{ ...goldBtn, flex: 2, minWidth: 180, opacity: busy ? 0.6 : 1 }}>{busy ? "Enregistrement…" : "Inscrire l'élève"}</button>
+        </div>
       </div>
     </div>
   );
