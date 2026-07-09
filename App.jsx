@@ -3255,10 +3255,11 @@ function InscriptionSpace({ config }) {
   // Inscription / paiement
   const [date, setDate] = useState(todayStr());
   const [session, setSession] = useState("");
+  const [sessionTouched, setSessionTouched] = useState(false);
   const [barcode, setBarcode] = useState("");
   const genBarcode = () => "MT" + (Date.now().toString(36) + Math.random().toString(36).slice(2, 5)).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(-9);
   useEffect(() => { setBarcode(genBarcode()); }, []);
-  const [total, setTotal] = useState("");
+  const [total, setTotal] = useState("1500");
   const [paid, setPaid] = useState("");
   const [note, setNote] = useState("");
   // Règlement
@@ -3315,6 +3316,17 @@ function InscriptionSpace({ config }) {
     return { nameA, phoneA, addrA };
   };
 
+  // Detekte dat nouvo session ki an kou pou yon programme (menm sistèm ak rezèvasyon yo)
+  const sessionForProgram = (lbl) => {
+    const pr = programs.find((p) => p.label === lbl);
+    const base = pr ? currentResaBaseAll(pr.steps || []) : "";
+    return base ? formatHtDate(base) : "";
+  };
+  const chooseProgram = (lbl) => {
+    setProgram(lbl);
+    if (!sessionTouched) { const s = sessionForProgram(lbl); if (s) setSession(s); }
+  };
+
   const fillFromMatch = (m) => {
     const { nameA, phoneA, addrA } = detectCols(m);
     const parts = (nameA || "").trim().split(/\s+/);
@@ -3322,7 +3334,7 @@ function InscriptionSpace({ config }) {
     setPrenom(parts.slice(1).join(" ") || "");
     setWhatsapp(phoneA || ""); setAppel("");
     setAddress(addrA || "");
-    setProgram(m.program || "");
+    chooseProgram(m.program || "");
     setMatchedId(m.id);
   };
 
@@ -3361,7 +3373,7 @@ function InscriptionSpace({ config }) {
     setProgram(""); setNiveau(""); setEtablissement(""); setReference("");
     setHasMaladie(false); setMaladie("");
     setR1Nom(""); setR1Lien(""); setR1Tel(""); setR2Nom(""); setR2Lien(""); setR2Tel("");
-    setDate(todayStr()); setSession(""); setBarcode(genBarcode()); setTotal(""); setPaid(""); setNote("");
+    setDate(todayStr()); setSession(""); setSessionTouched(false); setBarcode(genBarcode()); setTotal("1500"); setPaid(""); setNote("");
     setPMateriel(false); setPCertificat(false); setPReglement(false);
     setMatchedId(""); setSearchVal(""); setSearchMsg("");
   };
@@ -3417,43 +3429,47 @@ function InscriptionSpace({ config }) {
   const openPdfPreview = () => {
     const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     const chk = (v) => (v ? "\u2611" : "\u2610");
-    const respStr = (n, li, t) => (esc(n) + (li ? " (" + esc(li) + ")" : "") + (t ? " \u2014 Tel : " + esc(t) : "")) || "&nbsp;";
+    const fullName = (esc(nom) + " " + esc(prenom)).trim();
+    const respStr = (n, li, t) => (esc(n) + (li ? " \u2014 " + esc(li) : "") + (t ? " \u2014 Tel : " + esc(t) : "")) || "\u2026";
     const bc = barcode || genBarcode();
-    const svg = barcode39Svg(bc, 40, 1.3);
+    const svg = barcode39Svg(bc, 40, 1.4);
     const F = (l, v) => '<div class="fld"><span class="fl">' + esc(l) + '</span><span class="fv">' + (esc(v) || "&nbsp;") + '</span></div>';
-    const F2 = (l1, v1, l2, v2) => '<div class="fld2"><div class="cl"><span class="fl">' + esc(l1) + '</span><span class="fv">' + (esc(v1) || "&nbsp;") + '</span></div><div class="cl"><span class="fl">' + esc(l2) + '</span><span class="fv">' + (esc(v2) || "&nbsp;") + '</span></div></div>';
+    const F2 = (l1, v1, l2, v2) => '<div class="g2">' + F(l1, v1) + F(l2, v2) + '</div>';
     const html = '<!doctype html><html><head><meta charset="utf-8"><title>Fiche inscription</title><style>' +
-      '@page{size:A4 landscape;margin:0}*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0}' +
+      '@page{size:A4 landscape;margin:0}*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}html,body{margin:0}' +
       '.page{width:297mm;height:210mm;display:flex}.half{width:50%;height:100%;padding:7mm}.left{border-right:1px dashed #bbb}' +
-      '.fiche{position:relative;border:1.5px solid #333;height:100%;padding:5mm;display:flex;flex-direction:column}' +
-      '.photo{position:absolute;top:4mm;right:4mm;width:25mm;height:30mm;border:1.2px solid #333;display:flex;align-items:center;justify-content:center;color:#666;font-size:8pt}' +
-      '.head{min-height:33mm;padding-right:28mm}.brand{font-family:Georgia,serif;color:#C2238E;font-size:15pt;font-weight:700}.title{display:inline-block;border:1.5px solid #333;padding:2mm 5mm;font-size:12.5pt;font-weight:700;margin-top:1.5mm}' +
-      '.sect{background:#dcdcdc;border:1px solid #333;font-weight:800;font-size:8.3pt;padding:1mm 3mm;margin:2.5mm 0 0}' +
+      '.fiche{border:1.5px solid #333;height:100%;padding:5mm;display:flex;flex-direction:column;overflow:hidden}' +
+      '.hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:4mm;margin-bottom:1mm}' +
+      '.brand{font-family:Georgia,serif;color:#C2238E;font-size:13pt;font-weight:700;line-height:1}' +
+      '.bsub{color:#7B2D8E;font-size:8pt;font-weight:600;margin-top:0.5mm}' +
+      '.title{display:inline-block;border:1.4px solid #333;padding:1.6mm 4mm;font-size:11pt;font-weight:700;margin-top:2mm}' +
+      '.photo{width:23mm;height:29mm;border:1.1px solid #333;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#777;font-size:7pt}' +
+      '.sect{background:#dcdcdc;border:1px solid #333;font-weight:800;font-size:8pt;padding:1mm 3mm;margin:2.6mm 0 0}' +
       '.box{border:1px solid #333;border-top:none;padding:1.6mm 3mm}' +
-      '.fld{display:flex;font-size:8pt;padding:0.6mm 0}.fld2{display:flex;gap:6mm;padding:0.6mm 0}.fld2 .cl{flex:1;display:flex;min-width:0}' +
-      '.fl{color:#333;margin-right:1.5mm;white-space:nowrap}.fv{flex:1;font-weight:600;border-bottom:0.4pt dotted #888;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
-      '.chks{font-size:8pt;line-height:1.75}.foot{margin-top:auto;padding-top:3mm}.sign{font-size:7.3pt;color:#333;line-height:1.4}' +
-      '.frow{display:flex;justify-content:space-between;align-items:flex-end;margin-top:5mm}.sigline{border-top:0.5pt solid #333;width:52mm;padding-top:1mm;font-size:8pt}.bc{text-align:center}.bc .num{font-family:monospace;font-size:6.5pt;letter-spacing:1px;margin-top:0.5mm}' +
+      '.g2{display:flex;gap:5mm}.g2>.fld{flex:1;min-width:0}' +
+      '.fld{display:flex;font-size:8pt;padding:0.5mm 0;min-width:0}.fl{color:#333;margin-right:1.5mm;white-space:nowrap}.fv{flex:1;font-weight:600;border-bottom:0.4pt dotted #888;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}' +
+      '.chks{font-size:8pt;line-height:1.6}.sign{margin-top:2.6mm;font-size:7.3pt;color:#333}.sigrow{display:flex;justify-content:space-between;align-items:flex-end;margin-top:auto;padding-top:3mm}' +
+      '.sigline{border-top:0.6pt solid #333;width:52mm;padding-top:1mm;font-size:8pt}.bc{text-align:center}.bc .num{font-family:monospace;font-size:7pt;letter-spacing:1px;margin-top:0.5mm}' +
       '.pb{position:fixed;top:8px;right:8px;padding:9px 16px;background:#C2238E;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}@media print{.pb{display:none}}' +
       '</style></head><body><button class="pb" onclick="window.print()">Imprimer / T\u00e9l\u00e9charger PDF</button>' +
       '<div class="page"><div class="half left"></div><div class="half"><div class="fiche">' +
-      '<div class="photo">PHOTO</div>' +
-      '<div class="head"><div class="brand">MISS THANI</div><div class="title">FICHE D\'INSCRIPTION</div></div>' +
+      '<div class="hdr"><div><div class="brand">MISS THANI</div><div class="bsub">Make-up &amp; Lace Club</div><div class="title">FICHE D\'INSCRIPTION</div></div><div class="photo">PHOTO</div></div>' +
       '<div class="sect">1. IDENTIT\u00c9 DE L\'\u00c9L\u00c8VE</div><div class="box">' +
-      F2("Nom :", nom, "Pr\u00e9nom :", prenom) + F2("Naissance :", dob, "CIN / NIF :", cin) + F("Adresse :", address) + '</div>' +
+      F2("Nom :", nom, "Pr\u00e9nom :", prenom) + F2("Naissance :", dob, "CIN/NIF :", cin) + F("Adresse :", address) + '</div>' +
       '<div class="sect">2. CONTACTS &amp; SCOLARIT\u00c9</div><div class="box">' +
-      F2("WhatsApp :", whatsapp, "Appel :", appel) + F2("Programme :", program, "Session :", session) + F2("Niveau :", niveau, "Dern. \u00e9tab. :", etablissement) + F("R\u00e9f\u00e9rence :", reference) + '</div>' +
+      F2("WhatsApp :", whatsapp, "Appel :", appel) + F2("Programme :", program, "Session :", session) + F2("Niveau :", niveau, "Dernier \u00e9tab. :", etablissement) + F("R\u00e9f\u00e9rence :", reference) + '</div>' +
       '<div class="sect">3. PERSONNES RESPONSABLES</div><div class="box">' +
       F("Resp. 1 :", respStr(r1Nom, r1Lien, r1Tel)) + F("Resp. 2 :", respStr(r2Nom, r2Lien, r2Tel)) + '</div>' +
       '<div class="sect">4. SANT\u00c9</div><div class="box">' + F("Maladie :", hasMaladie ? (maladie || "Oui") : "Non") + '</div>' +
       '<div class="sect">5. R\u00c8GLEMENT INT\u00c9RIEUR</div><div class="box chks">' +
-      chk(pMateriel) + ' Politique mat\u00e9riel &nbsp;&nbsp; ' + chk(pCertificat) + ' Remise de certificat &nbsp;&nbsp; ' + chk(pReglement) + ' Autre r\u00e8glement</div>' +
-      '<div class="foot"><div class="sign">En signant cette fiche, je reconnais avoir <b>lu et approuv\u00e9</b> l\'ensemble du r\u00e8glement int\u00e9rieur de l\'\u00e9tablissement.</div>' +
-      '<div class="frow"><div class="sigline">Signature</div><div class="bc">' + svg + '<div class="num">' + esc(bc) + '</div></div></div></div>' +
+      chk(pMateriel) + ' Politique mat\u00e9riel &nbsp;&nbsp; ' + chk(pCertificat) + ' Remise certificat &nbsp;&nbsp; ' + chk(pReglement) + ' R\u00e8glement int\u00e9rieur</div>' +
+      (note.trim() ? '<div class="sect">6. NOTE</div><div class="box"><div class="fld"><span class="fv" style="white-space:normal">' + esc(note) + '</span></div></div>' : '') +
+      '<div class="sign">En signant cette fiche, je reconnais avoir <b>lu et approuv\u00e9</b> l\'ensemble du r\u00e8glement int\u00e9rieur de l\'\u00e9tablissement.</div>' +
+      '<div class="sigrow"><div class="sigline">Signature</div><div class="bc">' + svg + '<div class="num">' + esc(bc) + '</div></div></div>' +
       '</div></div></div></body></html>';
     const w = window.open("", "_blank");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
-    else { setErr("Le navigateur a bloqué la fenêtre. Autorisez les pop-ups pour voir l'aperçu PDF."); }
+    else { setErr("Le navigateur a bloqu\u00e9 la fen\u00eatre. Autorisez les pop-ups pour voir l'aper\u00e7u PDF."); }
   };
   const wrap = { maxWidth: 620, margin: "0 auto", padding: "24px 18px 60px" };
   const label = { fontSize: 12.5, fontWeight: 700, color: PALETTE.cream, display: "block", margin: "10px 0 4px" };
@@ -3536,12 +3552,26 @@ function InscriptionSpace({ config }) {
         {/* Scolarité */}
         <div style={sect}>Scolarité</div>
         <label style={label}>Programme *</label>
-        <select className="mt-input" value={program} onChange={(e) => setProgram(e.target.value)}>
+        <select className="mt-input" value={program} onChange={(e) => chooseProgram(e.target.value)}>
           <option value="">Choisir un programme…</option>
           {programs.map((pr) => (<option key={pr.id || pr.label} value={pr.label}>{pr.label}</option>))}
         </select>
         <div style={row2}>
-          <div style={col}><label style={label}>Niveau d'étude</label><input className="mt-input" value={niveau} onChange={(e) => setNiveau(e.target.value)} placeholder="Ex : Secondaire, Universitaire…" /></div>
+          <div style={col}><label style={label}>Niveau d'étude</label>
+            <select className="mt-input" value={niveau} onChange={(e) => setNiveau(e.target.value)}>
+              <option value="">Choisir…</option>
+              <option value="Primaire / Fondamental">Primaire / Fondamental</option>
+              <option value="Secondaire (7e - 9e AF)">Secondaire (7e - 9e AF)</option>
+              <option value="Seconde (NS1)">Seconde (NS1)</option>
+              <option value="Rhéto (NS3)">Rhéto (NS3)</option>
+              <option value="Philo (NS4)">Philo (NS4)</option>
+              <option value="Baccalauréat">Baccalauréat</option>
+              <option value="Universitaire">Universitaire</option>
+              <option value="Professionnel / Technique">Professionnel / Technique</option>
+              <option value="Aucun">Aucun</option>
+              <option value="Autre">Autre</option>
+            </select>
+          </div>
           <div style={col}><label style={label}>Dernier établissement fréquenté</label><input className="mt-input" value={etablissement} onChange={(e) => setEtablissement(e.target.value)} placeholder="Nom de l'établissement" /></div>
         </div>
         <label style={label}>Référence (qui l'a référé(e) à l'école)</label>
@@ -3575,7 +3605,7 @@ function InscriptionSpace({ config }) {
         <div style={{ ...sect }}>Inscription</div>
         <div style={row2}>
           <div style={col}><label style={label}>Date d'inscription</label><input className="mt-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-          <div style={col}><label style={label}>Session (cohorte)</label><input className="mt-input" value={session} onChange={(e) => setSession(e.target.value)} placeholder="Ex : Août 2026" /></div>
+          <div style={col}><label style={label}>Session (cohorte)</label><input className="mt-input" value={session} onChange={(e) => { setSession(e.target.value); setSessionTouched(true); }} placeholder="Ex : Août 2026" /></div>
         </div>
         <div style={{ fontSize: 11.5, color: `${PALETTE.cream}88`, marginTop: 6 }}>Code élève : <b style={{ color: PALETTE.goldSoft, fontFamily: "monospace" }}>{barcode}</b></div>
         <div style={{ ...sect }}>Paiement</div>
