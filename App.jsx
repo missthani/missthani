@@ -3867,6 +3867,19 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [msgFilter, setMsgFilter] = useState(""); // filtre pa mesaj/etap (stage key)
   const [grpPanel, setGrpPanel] = useState(false); // panèl Groupe WhatsApp
   const [accOpen, setAccOpen] = useState(""); // etikèt ki gen panèl aksè louvri
+  const [accDraft, setAccDraft] = useState({}); // chwa aksè k ap edite pou etikèt ki louvri a
+  const [accSaved, setAccSaved] = useState(false);
+  const openAccess = (n) => {
+    if (accOpen === n) { setAccOpen(""); return; }
+    const cur = ((agentInfo || {})[n] && (agentInfo || {})[n].access) || {};
+    setAccDraft({ ...cur }); setAccOpen(n); setAccSaved(false);
+  };
+  const saveAccess = async (n) => {
+    if (!onSaveAgentInfo) return;
+    const cur = (agentInfo || {})[n] || {};
+    await onSaveAgentInfo({ ...(agentInfo || {}), [n]: { ...cur, access: { ...accDraft } } });
+    setAccSaved(true); setTimeout(() => setAccSaved(false), 2500);
+  };
   const [grpDraft, setGrpDraft] = useState(waGroups || {});
   const [grpSaved, setGrpSaved] = useState(false);
   const saveGrp = async () => {
@@ -4852,19 +4865,20 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                       onBlur={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 4); if (v && v.length === 4) setAgentPin(n, v); }}
                     />
                     <span style={{ fontSize: 12, color: hasPin ? "#1E7E34" : `${PALETTE.cream}77` }}>{hasPin ? "✓ modpas mete" : "pa gen modpas"}</span>
-                    <button onClick={() => setAccOpen((v) => (v === n ? "" : n))} style={{ ...ghostBtn, padding: "4px 10px", fontSize: 12 }}>Accès {accOpen === n ? "▲" : "▼"}</button>
+                    <button onClick={() => openAccess(n)} style={{ ...ghostBtn, padding: "4px 10px", fontSize: 12 }}>Accès {accOpen === n ? "▲" : "▼"}</button>
                     {accOpen === n && (
-                      <div style={{ flexBasis: "100%", marginTop: 4, marginLeft: 130, padding: "8px 10px", border: `1px solid ${PALETTE.line}`, borderRadius: 10, background: "rgba(194,35,142,.03)" }}>
+                      <div style={{ flexBasis: "100%", marginTop: 4, marginLeft: 130, padding: "10px 12px", border: `1px solid ${PALETTE.line}`, borderRadius: 10, background: "rgba(194,35,142,.03)" }}>
                         <div style={{ fontSize: 11.5, fontWeight: 700, color: `${PALETTE.cream}aa`, marginBottom: 6 }}>Interfaces {n} gen aksè:</div>
-                        {INTERFACES.map((itf) => {
-                          const on = !!((agentInfo || {})[n] && (agentInfo || {})[n].access && (agentInfo || {})[n].access[itf.key]);
-                          return (
-                            <label key={itf.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: PALETTE.cream, padding: "4px 0", cursor: "pointer" }}>
-                              <input type="checkbox" checked={on} onChange={(e) => setAgentAccess(n, itf.key, e.target.checked)} style={{ width: 16, height: 16, accentColor: PALETTE.goldSoft }} />
-                              {itf.label}
-                            </label>
-                          );
-                        })}
+                        {INTERFACES.map((itf) => (
+                          <label key={itf.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: PALETTE.cream, padding: "4px 0", cursor: "pointer" }}>
+                            <input type="checkbox" checked={!!accDraft[itf.key]} onChange={(e) => setAccDraft((d) => ({ ...d, [itf.key]: e.target.checked }))} style={{ width: 16, height: 16, accentColor: PALETTE.goldSoft }} />
+                            {itf.label}
+                          </label>
+                        ))}
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+                          <button onClick={() => saveAccess(n)} style={{ ...goldBtn, padding: "6px 16px", fontSize: 13 }}>Valider l'accès</button>
+                          {accSaved && <span style={{ color: "#1E8449", fontSize: 12.5, fontWeight: 700 }}>Enregistré ✓</span>}
+                        </div>
                       </div>
                     )}
                   </div>
