@@ -2713,45 +2713,8 @@ function AdminSpace({ config, onSave, onExit }) {
 /* ===================== PAJ NOUVO PROSPECT ===================== */
 /* Paj /formulaire — modpas pou wè lis prospè yo dirèkteman (san antre nan admin) */
 function ProspectsGate({ config }) {
-  const [authed, setAuthed] = useState(false);
-  const [pwd, setPwd] = useState("");
-  const [err, setErr] = useState("");
-
-  const tryLogin = () => {
-    if (pwd === PROSPECTS_PASSWORD) { setAuthed(true); setErr(""); }
-    else setErr("Modpas la pa kòrèk.");
-  };
-
-  if (!authed) {
-    return (
-      <Centered>
-        <div className="mt-fade" style={{ width: "100%", maxWidth: 360, padding: "0 20px" }}>
-          <div style={{ marginBottom: 28 }}>
-            <Brand small />
-          </div>
-          <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 500, textAlign: "center", margin: "0 0 18px" }}>
-            Lis Prospè yo
-          </h1>
-          <input
-            className="mt-input"
-            type="password"
-            placeholder="Modpas"
-            value={pwd}
-            onChange={(e) => setPwd(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && tryLogin()}
-            autoFocus
-          />
-          {err && <p style={{ color: PALETTE.danger, fontSize: 13, margin: "10px 0 0" }}>{err}</p>}
-          <button className="mt-btn" onClick={tryLogin} style={{ ...goldBtn, width: "100%", marginTop: 14 }}>
-            Antre
-          </button>
-          <a href="/" style={{ ...ghostBtn, width: "100%", marginTop: 10, display: "block", textAlign: "center", textDecoration: "none" }}>
-            Tounen sou sit la
-          </a>
-        </div>
-      </Centered>
-    );
-  }
+  const { authed, gate } = useInterfaceAuth(config, "formulaire", "Liste des prospects");
+  if (!authed) return gate;
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px 60px" }}>
@@ -3103,9 +3066,7 @@ function AgentsProgressView({ items = [], programs = [] }) {
    recherche par nom OU téléphone; si trouvé, marque le prospect comme inscrit; sinon crée une nouvelle entrée. */
 /* Page /eleves — liste des élèves inscrits, regroupés par programme. */
 function EnrolledListSpace({ config }) {
-  const [authed, setAuthed] = useState(false);
-  const [pw, setPw] = useState("");
-  const [pwErr, setPwErr] = useState("");
+  const { authed, gate } = useInterfaceAuth(config, "eleves", "Élèves inscrits");
   const [items, setItems] = useState(null);
 
   useEffect(() => { if (authed) (async () => setItems(await loadProspects()))(); }, [authed]);
@@ -3137,22 +3098,7 @@ function EnrolledListSpace({ config }) {
 
   const wrap = { maxWidth: 900, margin: "0 auto", padding: "24px 18px 60px" };
 
-  if (!authed) {
-    return (
-      <div style={wrap}>
-        <div style={{ textAlign: "center", marginTop: 20, marginBottom: 22 }}>
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 700, color: PALETTE.goldSoft, letterSpacing: "1px" }}>MISS THANI</div>
-          <div style={{ fontSize: 12, letterSpacing: "3px", color: `${PALETTE.cream}99`, fontWeight: 600 }}>ÉLÈVES INSCRITS</div>
-        </div>
-        <div style={{ maxWidth: 360, margin: "0 auto", background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 22 }}>
-          <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 12px", color: PALETTE.cream }}>Mot de passe</h2>
-          <input className="mt-input" type="password" value={pw} onChange={(e) => { setPw(e.target.value); setPwErr(""); }} onKeyDown={(e) => { if (e.key === "Enter") { if (pw === PROSPECTS_PASSWORD) setAuthed(true); else setPwErr("Mot de passe incorrect."); } }} placeholder="Mot de passe" />
-          {pwErr && <p style={{ color: PALETTE.danger, fontSize: 13, margin: "8px 0 0" }}>{pwErr}</p>}
-          <button onClick={() => { if (pw === PROSPECTS_PASSWORD) setAuthed(true); else setPwErr("Mot de passe incorrect."); }} style={{ ...goldBtn, width: "100%", marginTop: 14 }}>Entrer</button>
-        </div>
-      </div>
-    );
-  }
+  if (!authed) return gate;
 
   const th = { textAlign: "left", fontSize: 11.5, fontWeight: 800, color: `${PALETTE.cream}aa`, padding: "8px 10px", borderBottom: `1px solid ${PALETTE.line}`, whiteSpace: "nowrap" };
   const td = { fontSize: 13, color: PALETTE.cream, padding: "8px 10px", borderBottom: `1px solid ${PALETTE.line}` };
@@ -3206,6 +3152,89 @@ function EnrolledListSpace({ config }) {
   );
 }
 
+/* Entèfas yo ki ka gen kontwòl aksè pa etikèt */
+const INTERFACES = [
+  { key: "formulaire", label: "Liste des prospects" },
+  { key: "inscription", label: "Inscription" },
+  { key: "eleves", label: "Élèves inscrits" },
+];
+
+/* Hook koneksyon pataje: konekte pa etikèt (+ PIN) ak pèmisyon aksè, oswa "Accéder autrement" ak modpas.
+   Sesyon an sove nan localStorage pou moun nan pa bezwen rekonekte lè l navige ant entèfas yo. */
+function useInterfaceAuth(config, interfaceKey, title) {
+  const agentInfo = (config && config.agentInfo) || {};
+  const agents = (config && config.agents) || [];
+  const [authed, setAuthed] = useState(false);
+  const [mode, setMode] = useState("connexion"); // "connexion" | "password"
+  const [etq, setEtq] = useState("");
+  const [pin, setPin] = useState("");
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    try {
+      const pwS = parseInt(localStorage.getItem("missthani_pw") || "0", 10);
+      if (pwS && Date.now() - pwS < 12 * 3600 * 1000) { setAuthed(true); return; }
+      const c = JSON.parse(localStorage.getItem("missthani_conn") || "null");
+      if (c && c.agent && Date.now() - c.ts < 12 * 3600 * 1000) {
+        const acc = (agentInfo[c.agent] && agentInfo[c.agent].access) || {};
+        if (acc[interfaceKey]) setAuthed(true);
+      }
+    } catch (e) {}
+  }, [config]);
+
+  const loginEtq = () => {
+    setErr("");
+    const info = agentInfo[etq];
+    if (!etq || !info) { setErr("Choisissez votre étiquette."); return; }
+    if (String(info.pin || "") !== String(pin).trim()) { setErr("Mot de passe incorrect."); return; }
+    if (!((info.access || {})[interfaceKey])) { setErr("Vous n'avez pas l'autorisation d'accéder à cette interface."); return; }
+    try { localStorage.setItem("missthani_conn", JSON.stringify({ agent: etq, ts: Date.now() })); } catch (e) {}
+    setAuthed(true);
+  };
+  const loginPw = () => {
+    setErr("");
+    if (pw === PROSPECTS_PASSWORD) { try { localStorage.setItem("missthani_pw", String(Date.now())); } catch (e) {} setAuthed(true); }
+    else setErr("Mot de passe incorrect.");
+  };
+
+  const gate = (
+    <div style={{ maxWidth: 560, margin: "0 auto", padding: "24px 18px 60px" }}>
+      <div style={{ textAlign: "center", marginTop: 20, marginBottom: 22 }}>
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 700, color: PALETTE.goldSoft, letterSpacing: "1px" }}>MISS THANI</div>
+        <div style={{ fontSize: 11, letterSpacing: "2px", color: `${PALETTE.cream}88`, fontWeight: 600 }}>MAKE-UP &amp; LACE CLUB</div>
+        <div style={{ fontSize: 12, letterSpacing: "2px", color: `${PALETTE.cream}99`, fontWeight: 700, marginTop: 6, textTransform: "uppercase" }}>{title}</div>
+      </div>
+      <div style={{ maxWidth: 370, margin: "0 auto", background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 22 }}>
+        {mode === "connexion" ? (
+          <>
+            <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 12px", color: PALETTE.cream }}>Connexion</h2>
+            <label style={{ fontSize: 12.5, fontWeight: 700, color: PALETTE.cream, display: "block", marginBottom: 4 }}>Votre étiquette</label>
+            <select className="mt-input" value={etq} onChange={(e) => { setEtq(e.target.value); setErr(""); }}>
+              <option value="">Choisir…</option>
+              {agents.map((n) => (<option key={n} value={n}>{n}</option>))}
+            </select>
+            <label style={{ fontSize: 12.5, fontWeight: 700, color: PALETTE.cream, display: "block", margin: "10px 0 4px" }}>Mot de passe (4 chiffres)</label>
+            <input className="mt-input" type="password" inputMode="numeric" value={pin} onChange={(e) => { setPin(e.target.value.replace(/\D/g, "").slice(0, 4)); setErr(""); }} onKeyDown={(e) => { if (e.key === "Enter") loginEtq(); }} placeholder="••••" style={{ letterSpacing: "4px", textAlign: "center" }} />
+            {err && <p style={{ color: PALETTE.danger, fontSize: 13, margin: "8px 0 0" }}>{err}</p>}
+            <button onClick={loginEtq} style={{ ...goldBtn, width: "100%", marginTop: 14 }}>Se connecter</button>
+            <button onClick={() => { setMode("password"); setErr(""); }} style={{ background: "none", border: "none", color: PALETTE.goldSoft, fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginTop: 12, textDecoration: "underline", padding: 0 }}>Accéder autrement</button>
+          </>
+        ) : (
+          <>
+            <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 12px", color: PALETTE.cream }}>Mot de passe réception</h2>
+            <input className="mt-input" type="password" value={pw} onChange={(e) => { setPw(e.target.value); setErr(""); }} onKeyDown={(e) => { if (e.key === "Enter") loginPw(); }} placeholder="Mot de passe" />
+            {err && <p style={{ color: PALETTE.danger, fontSize: 13, margin: "8px 0 0" }}>{err}</p>}
+            <button onClick={loginPw} style={{ ...goldBtn, width: "100%", marginTop: 14 }}>Entrer</button>
+            <button onClick={() => { setMode("connexion"); setErr(""); }} style={{ background: "none", border: "none", color: PALETTE.goldSoft, fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginTop: 12, textDecoration: "underline", padding: 0 }}>← Connexion avec étiquette</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+  return { authed, gate };
+}
+
 /* Jeneratè kòd bar Code39 (eskanab) — retounen yon SVG */
 const CODE39_MAP = { "0": "nnnwwnwnn", "1": "wnnwnnnnw", "2": "nnwwnnnnw", "3": "wnwwnnnnn", "4": "nnnwwnnnw", "5": "wnnwwnnnn", "6": "nnwwwnnnn", "7": "nnnwnnwnw", "8": "wnnwnnwnn", "9": "nnwwnnwnn", "A": "wnnnnwnnw", "B": "nnwnnwnnw", "C": "wnwnnwnnn", "D": "nnnnwwnnw", "E": "wnnnwwnnn", "F": "nnwnwwnnn", "G": "nnnnnwwnw", "H": "wnnnnwwnn", "I": "nnwnnwwnn", "J": "nnnnwwwnn", "K": "wnnnnnnww", "L": "nnwnnnnww", "M": "wnwnnnnwn", "N": "nnnnwnnww", "O": "wnnnwnnwn", "P": "nnwnwnnwn", "Q": "nnnnnnwww", "R": "wnnnnnwwn", "S": "nnwnnnwwn", "T": "nnnnwnwwn", "U": "wwnnnnnnw", "V": "nwwnnnnnw", "W": "wwwnnnnnn", "X": "nwnnwnnnw", "Y": "wwnnwnnnn", "Z": "nwwnwnnnn", "-": "nwnnnnwnw", ".": "wwnnnnwnn", " ": "nwwnnnwnn", "*": "nwnnwnwnn" };
 function barcode39Svg(text, height, narrow) {
@@ -3228,9 +3257,7 @@ function barcode39Svg(text, height, narrow) {
    (auto-remplissage), connecté à la liste des prospects. */
 function InscriptionSpace({ config }) {
   const programs = (config && config.programs) || [];
-  const [authed, setAuthed] = useState(false);
-  const [pw, setPw] = useState("");
-  const [pwErr, setPwErr] = useState("");
+  const { authed, gate } = useInterfaceAuth(config, "inscription", "Inscription élève");
 
   // Identité
   const [nom, setNom] = useState("");
@@ -3483,22 +3510,7 @@ function InscriptionSpace({ config }) {
     </button>
   );
 
-  if (!authed) {
-    return (
-      <div style={wrap}>
-        <div style={{ textAlign: "center", marginTop: 20, marginBottom: 22 }}>
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 700, color: PALETTE.goldSoft, letterSpacing: "1px" }}>MISS THANI</div>
-          <div style={{ fontSize: 12, letterSpacing: "3px", color: `${PALETTE.cream}99`, fontWeight: 600 }}>INSCRIPTION ÉLÈVE</div>
-        </div>
-        <div style={{ maxWidth: 360, margin: "0 auto", background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 22 }}>
-          <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 12px", color: PALETTE.cream }}>Mot de passe réception</h2>
-          <input className="mt-input" type="password" value={pw} onChange={(e) => { setPw(e.target.value); setPwErr(""); }} onKeyDown={(e) => { if (e.key === "Enter") { if (pw === PROSPECTS_PASSWORD) setAuthed(true); else setPwErr("Mot de passe incorrect."); } }} placeholder="Mot de passe" />
-          {pwErr && <p style={{ color: PALETTE.danger, fontSize: 13, margin: "8px 0 0" }}>{pwErr}</p>}
-          <button onClick={() => { if (pw === PROSPECTS_PASSWORD) setAuthed(true); else setPwErr("Mot de passe incorrect."); }} style={{ ...goldBtn, width: "100%", marginTop: 14 }}>Entrer</button>
-        </div>
-      </div>
-    );
-  }
+  if (!authed) return gate;
 
   return (
     <div style={wrap}>
@@ -3854,6 +3866,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [resaPanel, setResaPanel] = useState(false); // panèl apèsi dat rezèvasyon yo
   const [msgFilter, setMsgFilter] = useState(""); // filtre pa mesaj/etap (stage key)
   const [grpPanel, setGrpPanel] = useState(false); // panèl Groupe WhatsApp
+  const [accOpen, setAccOpen] = useState(""); // etikèt ki gen panèl aksè louvri
   const [grpDraft, setGrpDraft] = useState(waGroups || {});
   const [grpSaved, setGrpSaved] = useState(false);
   const saveGrp = async () => {
@@ -3933,6 +3946,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const setAgentPin = async (name, pin) => {
     if (!onSaveAgentInfo) return;
     await onSaveAgentInfo({ ...(agentInfo || {}), [name]: { ...((agentInfo || {})[name] || {}), pin } });
+  };
+  const setAgentAccess = async (name, key, val) => {
+    if (!onSaveAgentInfo) return;
+    const cur = (agentInfo || {})[name] || {};
+    const access = { ...(cur.access || {}), [key]: val };
+    await onSaveAgentInfo({ ...(agentInfo || {}), [name]: { ...cur, access } });
   };
   const removeEtiquetteName = async (name) => {
     if (!onSaveAgents) return;
@@ -4833,6 +4852,21 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                       onBlur={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 4); if (v && v.length === 4) setAgentPin(n, v); }}
                     />
                     <span style={{ fontSize: 12, color: hasPin ? "#1E7E34" : `${PALETTE.cream}77` }}>{hasPin ? "✓ modpas mete" : "pa gen modpas"}</span>
+                    <button onClick={() => setAccOpen((v) => (v === n ? "" : n))} style={{ ...ghostBtn, padding: "4px 10px", fontSize: 12 }}>Accès {accOpen === n ? "▲" : "▼"}</button>
+                    {accOpen === n && (
+                      <div style={{ flexBasis: "100%", marginTop: 4, marginLeft: 130, padding: "8px 10px", border: `1px solid ${PALETTE.line}`, borderRadius: 10, background: "rgba(194,35,142,.03)" }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: `${PALETTE.cream}aa`, marginBottom: 6 }}>Interfaces {n} gen aksè:</div>
+                        {INTERFACES.map((itf) => {
+                          const on = !!((agentInfo || {})[n] && (agentInfo || {})[n].access && (agentInfo || {})[n].access[itf.key]);
+                          return (
+                            <label key={itf.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: PALETTE.cream, padding: "4px 0", cursor: "pointer" }}>
+                              <input type="checkbox" checked={on} onChange={(e) => setAgentAccess(n, itf.key, e.target.checked)} style={{ width: 16, height: 16, accentColor: PALETTE.goldSoft }} />
+                              {itf.label}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
