@@ -3097,27 +3097,50 @@ function AgentsProgressView({ items = [], programs = [] }) {
    chèche pa non OSWA telefòn; si jwenn, make prospè a enskri; sinon kreye yon nouvo antre. */
 /* Page /inscription — formulaire d'inscription des élèves (réception). Connecté à la liste des prospects:
    recherche par nom OU téléphone; si trouvé, marque le prospect comme inscrit; sinon crée une nouvelle entrée. */
+/* Page /inscription — formulaire d'inscription des élèves (réception). Recherche par nom/téléphone
+   (auto-remplissage), connecté à la liste des prospects. */
 function InscriptionSpace({ config }) {
   const programs = (config && config.programs) || [];
   const [authed, setAuthed] = useState(false);
   const [pw, setPw] = useState("");
   const [pwErr, setPwErr] = useState("");
 
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  // Identité
+  const [nom, setNom] = useState("");
+  const [prenom, setPrenom] = useState("");
+  const [dob, setDob] = useState("");
   const [address, setAddress] = useState("");
+  // Contacts
+  const [whatsapp, setWhatsapp] = useState("");
+  const [appel, setAppel] = useState("");
+  // Scolarité
   const [program, setProgram] = useState("");
+  const [niveau, setNiveau] = useState("");
+  const [etablissement, setEtablissement] = useState("");
+  const [reference, setReference] = useState("");
+  // Santé
+  const [hasMaladie, setHasMaladie] = useState(false);
+  const [maladie, setMaladie] = useState("");
+  // Responsables
+  const [r1Nom, setR1Nom] = useState(""); const [r1Lien, setR1Lien] = useState(""); const [r1Tel, setR1Tel] = useState("");
+  const [r2Nom, setR2Nom] = useState(""); const [r2Lien, setR2Lien] = useState(""); const [r2Tel, setR2Tel] = useState("");
+  // Inscription / paiement
   const [date, setDate] = useState(todayStr());
-  const [paid, setPaid] = useState("");
   const [total, setTotal] = useState("");
+  const [paid, setPaid] = useState("");
   const [note, setNote] = useState("");
+  // Règlement
+  const [pMateriel, setPMateriel] = useState(false);
+  const [pCertificat, setPCertificat] = useState(false);
+  const [pReglement, setPReglement] = useState(false);
+
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState("");
   const [err, setErr] = useState("");
   const [matchedId, setMatchedId] = useState("");
 
   // Recherche
-  const [searchBy, setSearchBy] = useState("nom"); // "nom" | "numero"
+  const [searchBy, setSearchBy] = useState("nom");
   const [searchVal, setSearchVal] = useState("");
   const [searchMsg, setSearchMsg] = useState("");
   const [searching, setSearching] = useState(false);
@@ -3131,21 +3154,31 @@ function InscriptionSpace({ config }) {
   const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, "").trim();
   const digits = (s) => String(s || "").replace(/\D/g, "");
   const getField = (p, re) => { for (const a of p.answers || []) { if (re.test(a.question || "")) return a.answer || ""; } return ""; };
-  // Non an: premye repons ki pa yon telefòn ni yon imel (menm lojik ak lis prospè a)
   const getName = (p) => {
     for (const a of (p.answers || [])) {
       const val = String(a.answer || "").trim();
       if (!val) continue;
       const dg = digits(val);
-      if (dg.length >= 8 && dg.length <= 12 && /^[\d\s()+-]+$/.test(val)) continue; // sote nimewo
-      if (/\S+@\S+\.\S+/.test(val)) continue; // sote imel
+      if (dg.length >= 8 && dg.length <= 12 && /^[\d\s()+-]+$/.test(val)) continue;
+      if (/\S+@\S+\.\S+/.test(val)) continue;
       return val;
     }
     return "";
   };
-  const nameRe = /non|nom|name|prénom|prenom/i;
   const phoneRe = /tel|phone|nimewo|numero|whatsapp|kontak/i;
   const addrRe = /rete|adr|kote|z[oò]n|vil|abite|kominote|address|lokalite|komin|katye/i;
+
+  const fillFromMatch = (m) => {
+    const full = (getName(m) || "").trim();
+    const parts = full.split(/\s+/);
+    setNom(parts[0] || "");
+    setPrenom(parts.slice(1).join(" ") || "");
+    const ph = getField(m, phoneRe) || "";
+    setWhatsapp(ph); setAppel("");
+    setAddress(getField(m, addrRe) || "");
+    setProgram(m.program || "");
+    setMatchedId(m.id);
+  };
 
   const doSearch = async () => {
     setSearchMsg(""); setDone(""); setErr("");
@@ -3163,11 +3196,7 @@ function InscriptionSpace({ config }) {
         match = all.find((p) => { const pn = norm(getName(p)); return n && pn && pn.includes(n); });
       }
       if (match) {
-        setName(getName(match) || "");
-        setPhone(getField(match, phoneRe) || "");
-        setAddress(getField(match, addrRe) || "");
-        setProgram(match.program || "");
-        setMatchedId(match.id);
+        fillFromMatch(match);
         setSearchMsg(`Trouvé : ${getName(match) || "prospect"} — les champs ont été remplis automatiquement.`);
       } else {
         setMatchedId("");
@@ -3179,22 +3208,43 @@ function InscriptionSpace({ config }) {
     setSearching(false);
   };
 
+  const swapNames = () => { setNom(prenom); setPrenom(nom); };
+
+  const resetForm = () => {
+    setNom(""); setPrenom(""); setDob(""); setAddress(""); setWhatsapp(""); setAppel("");
+    setProgram(""); setNiveau(""); setEtablissement(""); setReference("");
+    setHasMaladie(false); setMaladie("");
+    setR1Nom(""); setR1Lien(""); setR1Tel(""); setR2Nom(""); setR2Lien(""); setR2Tel("");
+    setDate(todayStr()); setTotal(""); setPaid(""); setNote("");
+    setPMateriel(false); setPCertificat(false); setPReglement(false);
+    setMatchedId(""); setSearchVal(""); setSearchMsg("");
+  };
+
   const submit = async () => {
     setErr(""); setDone("");
-    if (!name.trim()) { setErr("Veuillez saisir le nom de l'élève."); return; }
+    if (!nom.trim() && !prenom.trim()) { setErr("Veuillez saisir le nom et/ou le prénom de l'élève."); return; }
     if (!program) { setErr("Veuillez choisir un programme."); return; }
     setBusy(true);
     try {
-      const enrollInfo = { paid: String(paid || ""), total: String(total || ""), balance: String(balance), date, note };
-      let res;
-      let matched = false;
-      if (matchedId) {
-        res = await enrollProspect({ id: matchedId, enrollInfo });
-        matched = true;
-      } else {
+      const fullName = `${nom.trim()} ${prenom.trim()}`.trim();
+      const enrollInfo = {
+        nom: nom.trim(), prenom: prenom.trim(), dob, address: address.trim(),
+        whatsapp: whatsapp.trim(), appel: appel.trim(),
+        niveau: niveau.trim(), etablissement: etablissement.trim(), reference: reference.trim(),
+        maladie: hasMaladie ? (maladie.trim() || "Oui") : "",
+        responsables: [
+          { nom: r1Nom.trim(), lien: r1Lien.trim(), tel: r1Tel.trim() },
+          { nom: r2Nom.trim(), lien: r2Lien.trim(), tel: r2Tel.trim() },
+        ],
+        date, total: String(total || ""), paid: String(paid || ""), balance: String(balance), note: note.trim(),
+        reglements: { materiel: pMateriel, certificat: pCertificat, interieur: pReglement },
+      };
+      let res, matched = false;
+      if (matchedId) { res = await enrollProspect({ id: matchedId, enrollInfo }); matched = true; }
+      else {
         const all = (await loadProspects()) || [];
-        const nName = norm(name);
-        const nPhone = digits(phone).slice(-8);
+        const nName = norm(fullName);
+        const nPhone = digits(whatsapp || appel).slice(-8);
         const m = all.find((p) => {
           const pn = norm(getName(p) || "");
           const pp = digits(getField(p, phoneRe) || "").slice(-8);
@@ -3203,28 +3253,32 @@ function InscriptionSpace({ config }) {
         if (m) { res = await enrollProspect({ id: m.id, enrollInfo }); matched = true; }
         else {
           const answers = [
-            { question: "Nom complet", answer: name.trim() },
-            { question: "Téléphone", answer: phone.trim() },
+            { question: "Nom complet", answer: fullName },
+            { question: "Téléphone (WhatsApp)", answer: whatsapp.trim() || appel.trim() },
             { question: "Adresse", answer: address.trim() },
           ];
           res = await enrollProspect({ program, answers, enrollInfo });
         }
       }
       if (res) {
-        setDone(matched ? `${name} était déjà dans la liste — marqué(e) INSCRIT.` : `${name} inscrit(e) et ajouté(e) à la liste des prospects (INSCRIT).`);
-        setName(""); setPhone(""); setAddress(""); setPaid(""); setTotal(""); setNote(""); setDate(todayStr());
-        setProgram(""); setMatchedId(""); setSearchVal(""); setSearchMsg("");
-      } else {
-        setErr("Échec de l'enregistrement. Vérifiez la connexion et réessayez.");
-      }
-    } catch (e) {
-      setErr("Une erreur est survenue. Réessayez.");
-    }
+        setDone(matched ? `${fullName} était déjà dans la liste — marqué(e) INSCRIT.` : `${fullName} inscrit(e) et ajouté(e) à la liste (INSCRIT).`);
+        resetForm();
+      } else { setErr("Échec de l'enregistrement. Vérifiez la connexion et réessayez."); }
+    } catch (e) { setErr("Une erreur est survenue. Réessayez."); }
     setBusy(false);
   };
 
-  const wrap = { maxWidth: 560, margin: "0 auto", padding: "24px 18px 60px" };
+  const wrap = { maxWidth: 620, margin: "0 auto", padding: "24px 18px 60px" };
   const label = { fontSize: 12.5, fontWeight: 700, color: PALETTE.cream, display: "block", margin: "10px 0 4px" };
+  const sect = { fontSize: 13, fontWeight: 800, color: PALETTE.goldSoft, margin: "18px 0 4px", letterSpacing: ".3px" };
+  const row2 = { display: "flex", gap: 12, flexWrap: "wrap" };
+  const col = { flex: 1, minWidth: 150 };
+  const Check = ({ v, set, children }) => (
+    <button onClick={() => set(!v)} style={{ display: "flex", alignItems: "flex-start", gap: 8, width: "100%", textAlign: "left", padding: "9px 11px", marginBottom: 6, borderRadius: 10, cursor: "pointer", border: `1.5px solid ${v ? PALETTE.goldSoft : PALETTE.line}`, background: v ? "rgba(194,35,142,.06)" : "#fff", color: PALETTE.cream, fontSize: 13.5, fontWeight: 500, lineHeight: 1.4 }}>
+      <span style={{ fontSize: 15, color: v ? PALETTE.goldSoft : `${PALETTE.cream}66` }}>{v ? "☑" : "☐"}</span>
+      <span>{children}</span>
+    </button>
+  );
 
   if (!authed) {
     return (
@@ -3268,37 +3322,80 @@ function InscriptionSpace({ config }) {
       </div>
 
       <div style={{ background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 18 }}>
-        <label style={label}>Nom complet *</label>
-        <input className="mt-input" value={name} onChange={(e) => { setName(e.target.value); setMatchedId(""); }} placeholder="Nom et prénom de l'élève" />
+        {/* Identité */}
+        <div style={{ ...sect, marginTop: 0 }}>Identité</div>
+        <div style={row2}>
+          <div style={col}><label style={label}>Nom *</label><input className="mt-input" value={nom} onChange={(e) => { setNom(e.target.value); setMatchedId(""); }} placeholder="Nom" /></div>
+          <div style={col}><label style={label}>Prénom</label><input className="mt-input" value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Prénom" /></div>
+        </div>
+        <button onClick={swapNames} style={{ ...ghostBtn, padding: "5px 12px", fontSize: 12, marginTop: 6 }}>⇄ Inverser Nom / Prénom</button>
+        <div style={row2}>
+          <div style={col}><label style={label}>Date de naissance</label><input className="mt-input" type="date" value={dob} onChange={(e) => setDob(e.target.value)} /></div>
+          <div style={col}><label style={label}>Adresse</label><input className="mt-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Lieu de résidence" /></div>
+        </div>
 
-        <label style={label}>Téléphone</label>
-        <input className="mt-input" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Ex : 3xxxxxxx" />
+        {/* Contacts */}
+        <div style={sect}>Contacts</div>
+        <div style={row2}>
+          <div style={col}><label style={label}>Numéro WhatsApp</label><input className="mt-input" inputMode="tel" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="Numéro WhatsApp" /></div>
+          <div style={col}><label style={label}>Numéro d'appel</label><input className="mt-input" inputMode="tel" value={appel} onChange={(e) => setAppel(e.target.value)} placeholder="Numéro d'appel" /></div>
+        </div>
 
-        <label style={label}>Adresse</label>
-        <input className="mt-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Lieu de résidence" />
-
+        {/* Scolarité */}
+        <div style={sect}>Scolarité</div>
         <label style={label}>Programme *</label>
         <select className="mt-input" value={program} onChange={(e) => setProgram(e.target.value)}>
           <option value="">Choisir un programme…</option>
           {programs.map((pr) => (<option key={pr.id || pr.label} value={pr.label}>{pr.label}</option>))}
         </select>
+        <div style={row2}>
+          <div style={col}><label style={label}>Niveau d'étude</label><input className="mt-input" value={niveau} onChange={(e) => setNiveau(e.target.value)} placeholder="Ex : Secondaire, Universitaire…" /></div>
+          <div style={col}><label style={label}>Dernier établissement fréquenté</label><input className="mt-input" value={etablissement} onChange={(e) => setEtablissement(e.target.value)} placeholder="Nom de l'établissement" /></div>
+        </div>
+        <label style={label}>Référence (qui l'a référé(e) à l'école)</label>
+        <input className="mt-input" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Nom de la personne qui a référé" />
 
+        {/* Santé */}
+        <div style={sect}>Santé</div>
+        <Check v={hasMaladie} set={setHasMaladie}>L'élève souffre-t-il/elle d'une maladie ?</Check>
+        {hasMaladie && (<><label style={label}>Laquelle ?</label><input className="mt-input" value={maladie} onChange={(e) => setMaladie(e.target.value)} placeholder="Préciser la maladie" /></>)}
+
+        {/* Personnes responsables */}
+        <div style={sect}>Personnes responsables</div>
+        <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 10, padding: 10, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: `${PALETTE.cream}aa`, marginBottom: 4 }}>Responsable 1</div>
+          <input className="mt-input" style={{ marginBottom: 6 }} value={r1Nom} onChange={(e) => setR1Nom(e.target.value)} placeholder="Nom complet" />
+          <div style={row2}>
+            <div style={col}><input className="mt-input" value={r1Lien} onChange={(e) => setR1Lien(e.target.value)} placeholder="Lien de parenté" /></div>
+            <div style={col}><input className="mt-input" inputMode="tel" value={r1Tel} onChange={(e) => setR1Tel(e.target.value)} placeholder="Téléphone" /></div>
+          </div>
+        </div>
+        <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 10, padding: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: `${PALETTE.cream}aa`, marginBottom: 4 }}>Responsable 2</div>
+          <input className="mt-input" style={{ marginBottom: 6 }} value={r2Nom} onChange={(e) => setR2Nom(e.target.value)} placeholder="Nom complet" />
+          <div style={row2}>
+            <div style={col}><input className="mt-input" value={r2Lien} onChange={(e) => setR2Lien(e.target.value)} placeholder="Lien de parenté" /></div>
+            <div style={col}><input className="mt-input" inputMode="tel" value={r2Tel} onChange={(e) => setR2Tel(e.target.value)} placeholder="Téléphone" /></div>
+          </div>
+        </div>
+
+        {/* Paiement */}
+        <div style={sect}>Inscription & paiement</div>
         <label style={label}>Date d'inscription</label>
         <input className="mt-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 130 }}>
-            <label style={label}>Prix total (gdes)</label>
-            <input className="mt-input" inputMode="numeric" value={total} onChange={(e) => setTotal(e.target.value)} placeholder="0" />
-          </div>
-          <div style={{ flex: 1, minWidth: 130 }}>
-            <label style={label}>Montant payé (gdes)</label>
-            <input className="mt-input" inputMode="numeric" value={paid} onChange={(e) => setPaid(e.target.value)} placeholder="0" />
-          </div>
+        <div style={row2}>
+          <div style={col}><label style={label}>Prix total (gdes)</label><input className="mt-input" inputMode="numeric" value={total} onChange={(e) => setTotal(e.target.value)} placeholder="0" /></div>
+          <div style={col}><label style={label}>Montant payé (gdes)</label><input className="mt-input" inputMode="numeric" value={paid} onChange={(e) => setPaid(e.target.value)} placeholder="0" /></div>
         </div>
         <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, background: balance > 0 ? "rgba(192,57,43,.08)" : "rgba(30,132,73,.08)", border: `1px solid ${balance > 0 ? PALETTE.danger : "#1E8449"}44` }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: balance > 0 ? PALETTE.danger : "#1E8449" }}>Solde restant : {balance.toLocaleString("fr-FR")} gdes</span>
         </div>
+
+        {/* Règlement intérieur */}
+        <div style={sect}>Règlement intérieur (à confirmer)</div>
+        <Check v={pMateriel} set={setPMateriel}>Est au courant de la politique concernant le matériel de l'école.</Check>
+        <Check v={pCertificat} set={setPCertificat}>Est au courant de la politique de remise de certificat.</Check>
+        <Check v={pReglement} set={setPReglement}>Est au courant de tout autre règlement intérieur de l'école.</Check>
 
         <label style={label}>Note (optionnel)</label>
         <textarea className="mt-input" style={{ minHeight: 60 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Toute information supplémentaire…" />
