@@ -1209,6 +1209,8 @@ export default function MissThaniApp() {
   const isAgent = typeof window !== "undefined" && /^\/agent\/?$/i.test(window.location.pathname || "");
   // Èske nou sou paj /inscription la? (fòm enskripsyon elèv yo)
   const isInscription = typeof window !== "undefined" && /^\/inscription\/?$/i.test(window.location.pathname || "");
+  // Èske nou sou paj /eleves la? (lis elèv ki enskri yo pa programme)
+  const isEleves = typeof window !== "undefined" && /^\/eleves\/?$/i.test(window.location.pathname || "");
 
   // Chaje konfigirasyon an o depa
   useEffect(() => {
@@ -1283,6 +1285,8 @@ export default function MissThaniApp() {
         <AgentSpace config={config} onSave={persist} />
       ) : isInscription ? (
         <InscriptionSpace config={config} />
+      ) : isEleves ? (
+        <EnrolledListSpace config={config} />
       ) : isFormulaire ? (
         <ProspectsGate config={config} />
       ) : view === "admin" ? (
@@ -3097,6 +3101,129 @@ function AgentsProgressView({ items = [], programs = [] }) {
    chèche pa non OSWA telefòn; si jwenn, make prospè a enskri; sinon kreye yon nouvo antre. */
 /* Page /inscription — formulaire d'inscription des élèves (réception). Connecté à la liste des prospects:
    recherche par nom OU téléphone; si trouvé, marque le prospect comme inscrit; sinon crée une nouvelle entrée. */
+/* Page /eleves — liste des élèves inscrits, regroupés par programme. */
+function EnrolledListSpace({ config }) {
+  const [authed, setAuthed] = useState(false);
+  const [pw, setPw] = useState("");
+  const [pwErr, setPwErr] = useState("");
+  const [items, setItems] = useState(null);
+
+  useEffect(() => { if (authed) (async () => setItems(await loadProspects()))(); }, [authed]);
+
+  const digits = (s) => String(s || "").replace(/\D/g, "");
+  const getName = (p) => {
+    for (const a of (p.answers || [])) {
+      const val = String(a.answer || "").trim();
+      if (!val) continue;
+      const dg = digits(val);
+      if (dg.length >= 8 && dg.length <= 12 && /^[\d\s()+-]+$/.test(val)) continue;
+      if (/\S+@\S+\.\S+/.test(val)) continue;
+      return val;
+    }
+    return "";
+  };
+  const fullNameOf = (p) => {
+    const i = p.enrollInfo || {};
+    const n = ((i.nom || "") + " " + (i.prenom || "")).trim();
+    return n || getName(p) || "—";
+  };
+
+  const groups = useMemo(() => {
+    const enrolled = (items || []).filter((p) => p.enrolled);
+    const by = {};
+    enrolled.forEach((p) => { const prog = p.program || "Sans programme"; (by[prog] = by[prog] || []).push(p); });
+    return Object.keys(by).sort().map((prog) => [prog, by[prog]]);
+  }, [items]);
+
+  const wrap = { maxWidth: 900, margin: "0 auto", padding: "24px 18px 60px" };
+
+  if (!authed) {
+    return (
+      <div style={wrap}>
+        <div style={{ textAlign: "center", marginTop: 20, marginBottom: 22 }}>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 700, color: PALETTE.goldSoft, letterSpacing: "1px" }}>MISS THANI</div>
+          <div style={{ fontSize: 12, letterSpacing: "3px", color: `${PALETTE.cream}99`, fontWeight: 600 }}>ÉLÈVES INSCRITS</div>
+        </div>
+        <div style={{ maxWidth: 360, margin: "0 auto", background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 22 }}>
+          <h2 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 12px", color: PALETTE.cream }}>Mot de passe</h2>
+          <input className="mt-input" type="password" value={pw} onChange={(e) => { setPw(e.target.value); setPwErr(""); }} onKeyDown={(e) => { if (e.key === "Enter") { if (pw === PROSPECTS_PASSWORD) setAuthed(true); else setPwErr("Mot de passe incorrect."); } }} placeholder="Mot de passe" />
+          {pwErr && <p style={{ color: PALETTE.danger, fontSize: 13, margin: "8px 0 0" }}>{pwErr}</p>}
+          <button onClick={() => { if (pw === PROSPECTS_PASSWORD) setAuthed(true); else setPwErr("Mot de passe incorrect."); }} style={{ ...goldBtn, width: "100%", marginTop: 14 }}>Entrer</button>
+        </div>
+      </div>
+    );
+  }
+
+  const th = { textAlign: "left", fontSize: 11.5, fontWeight: 800, color: `${PALETTE.cream}aa`, padding: "8px 10px", borderBottom: `1px solid ${PALETTE.line}`, whiteSpace: "nowrap" };
+  const td = { fontSize: 13, color: PALETTE.cream, padding: "8px 10px", borderBottom: `1px solid ${PALETTE.line}` };
+
+  return (
+    <div style={wrap}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
+        <div>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: 0, color: PALETTE.cream }}>Élèves inscrits</h2>
+          <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Regroupés par programme.</p>
+        </div>
+        <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/inscription"; }} style={ghostBtn}>+ Nouvelle inscription</button>
+      </div>
+
+      {items === null ? (
+        <p style={{ color: `${PALETTE.cream}99` }}>Chargement…</p>
+      ) : groups.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "40px 20px", border: `1px solid ${PALETTE.line}`, borderRadius: 16, background: "rgba(194,35,142,.04)" }}>
+          <p style={{ fontSize: 15, color: `${PALETTE.cream}cc`, margin: 0 }}>Aucun élève inscrit pour le moment.</p>
+        </div>
+      ) : (
+        groups.map(([prog, rows]) => (
+          <div key={prog} style={{ marginBottom: 20, border: `1px solid ${PALETTE.line}`, borderRadius: 14, overflow: "hidden", background: "#fff" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "rgba(194,35,142,.06)" }}>
+              <strong style={{ fontSize: 15, color: PALETTE.cream }}>{prog}</strong>
+              <span style={{ fontSize: 13, color: `${PALETTE.cream}aa`, fontWeight: 600 }}>{rows.length} élève{rows.length > 1 ? "s" : ""}</span>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead><tr><th style={th}>#</th><th style={th}>Nom &amp; Prénom</th><th style={th}>Date</th><th style={th}>Session</th><th style={th}>Code barre</th></tr></thead>
+                <tbody>
+                  {rows.map((p, i) => {
+                    const inf = p.enrollInfo || {};
+                    return (
+                      <tr key={p.id}>
+                        <td style={{ ...td, color: `${PALETTE.cream}88` }}>{i + 1}</td>
+                        <td style={{ ...td, fontWeight: 600 }}>{fullNameOf(p)}</td>
+                        <td style={td}>{inf.date || "—"}</td>
+                        <td style={td}>{inf.session || "—"}</td>
+                        <td style={{ ...td, fontFamily: "monospace", color: PALETTE.goldSoft }}>{inf.barcode || "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+/* Jeneratè kòd bar Code39 (eskanab) — retounen yon SVG */
+const CODE39_MAP = { "0": "nnnwwnwnn", "1": "wnnwnnnnw", "2": "nnwwnnnnw", "3": "wnwwnnnnn", "4": "nnnwwnnnw", "5": "wnnwwnnnn", "6": "nnwwwnnnn", "7": "nnnwnnwnw", "8": "wnnwnnwnn", "9": "nnwwnnwnn", "A": "wnnnnwnnw", "B": "nnwnnwnnw", "C": "wnwnnwnnn", "D": "nnnnwwnnw", "E": "wnnnwwnnn", "F": "nnwnwwnnn", "G": "nnnnnwwnw", "H": "wnnnnwwnn", "I": "nnwnnwwnn", "J": "nnnnwwwnn", "K": "wnnnnnnww", "L": "nnwnnnnww", "M": "wnwnnnnwn", "N": "nnnnwnnww", "O": "wnnnwnnwn", "P": "nnwnwnnwn", "Q": "nnnnnnwww", "R": "wnnnnnwwn", "S": "nnwnnnwwn", "T": "nnnnwnwwn", "U": "wwnnnnnnw", "V": "nwwnnnnnw", "W": "wwwnnnnnn", "X": "nwnnwnnnw", "Y": "wwnnwnnnn", "Z": "nwwnwnnnn", "-": "nwnnnnwnw", ".": "wwnnnnwnn", " ": "nwwnnnwnn", "*": "nwnnwnwnn" };
+function barcode39Svg(text, height, narrow) {
+  const h = height || 46; const nw = narrow || 1.5; const wd = nw * 2.6;
+  const data = "*" + String(text || "").toUpperCase().replace(/[^0-9A-Z\-. ]/g, "") + "*";
+  let x = 0; const rects = [];
+  for (let i = 0; i < data.length; i++) {
+    const pat = CODE39_MAP[data[i]]; if (!pat) continue;
+    for (let j = 0; j < 9; j++) {
+      const w = pat[j] === "w" ? wd : nw;
+      if (j % 2 === 0) rects.push('<rect x="' + x.toFixed(2) + '" y="0" width="' + w.toFixed(2) + '" height="' + h + '"/>');
+      x += w;
+    }
+    x += nw;
+  }
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="' + x.toFixed(1) + '" height="' + h + '" viewBox="0 0 ' + x.toFixed(1) + ' ' + h + '">' + rects.join("") + '</svg>';
+}
+
 /* Page /inscription — formulaire d'inscription des élèves (réception). Recherche par nom/téléphone
    (auto-remplissage), connecté à la liste des prospects. */
 function InscriptionSpace({ config }) {
@@ -3127,6 +3254,10 @@ function InscriptionSpace({ config }) {
   const [r2Nom, setR2Nom] = useState(""); const [r2Lien, setR2Lien] = useState(""); const [r2Tel, setR2Tel] = useState("");
   // Inscription / paiement
   const [date, setDate] = useState(todayStr());
+  const [session, setSession] = useState("");
+  const [barcode, setBarcode] = useState("");
+  const genBarcode = () => "MT" + (Date.now().toString(36) + Math.random().toString(36).slice(2, 5)).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(-9);
+  useEffect(() => { setBarcode(genBarcode()); }, []);
   const [total, setTotal] = useState("");
   const [paid, setPaid] = useState("");
   const [note, setNote] = useState("");
@@ -3230,7 +3361,7 @@ function InscriptionSpace({ config }) {
     setProgram(""); setNiveau(""); setEtablissement(""); setReference("");
     setHasMaladie(false); setMaladie("");
     setR1Nom(""); setR1Lien(""); setR1Tel(""); setR2Nom(""); setR2Lien(""); setR2Tel("");
-    setDate(todayStr()); setTotal(""); setPaid(""); setNote("");
+    setDate(todayStr()); setSession(""); setBarcode(genBarcode()); setTotal(""); setPaid(""); setNote("");
     setPMateriel(false); setPCertificat(false); setPReglement(false);
     setMatchedId(""); setSearchVal(""); setSearchMsg("");
   };
@@ -3251,7 +3382,7 @@ function InscriptionSpace({ config }) {
           { nom: r1Nom.trim(), lien: r1Lien.trim(), tel: r1Tel.trim() },
           { nom: r2Nom.trim(), lien: r2Lien.trim(), tel: r2Tel.trim() },
         ],
-        date, total: String(total || ""), paid: String(paid || ""), balance: String(balance), note: note.trim(),
+        date, session: session.trim(), barcode, total: String(total || ""), paid: String(paid || ""), balance: String(balance), note: note.trim(),
         reglements: { materiel: pMateriel, certificat: pCertificat, interieur: pReglement },
       };
       let res, matched = false;
@@ -3285,29 +3416,41 @@ function InscriptionSpace({ config }) {
 
   const openPdfPreview = () => {
     const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-    const bal = balance.toLocaleString("fr-FR");
-    const rline = (l, v) => `<div class="fld"><span class="lbl">${esc(l)}</span><span class="val">${esc(v) || "&nbsp;"}</span></div>`;
     const chk = (v) => (v ? "\u2611" : "\u2610");
-    const respStr = (n, li, t) => `${esc(n)}${li ? " (" + esc(li) + ")" : ""}${t ? " \u2014 " + esc(t) : ""}` || "&nbsp;";
-    const html = '<!doctype html><html><head><meta charset="utf-8"><title>Fiche inscription</title><style>' +
-      '@page{size:A4 landscape;margin:0}*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}body{margin:0}' +
-      '.page{width:297mm;height:210mm;display:flex}.half{width:50%;height:100%;padding:9mm}.left{border-right:1px dashed #bbb}' +
-      '.fiche{position:relative}.photo{position:absolute;top:7mm;right:7mm;width:27mm;height:33mm;border:1.5px solid #C2238E;border-radius:2mm;display:flex;align-items:center;justify-content:center;color:#C2238E;font-size:7pt;text-align:center}' +
-      'h1{font-family:Georgia,serif;color:#C2238E;font-size:15pt;margin:0}.sub{color:#7B2D8E;font-size:7.5pt;letter-spacing:2px;margin:1mm 0 3mm}' +
-      '.sect{color:#B8860B;font-weight:800;font-size:8.5pt;margin:3mm 0 1mm;border-bottom:1px solid #eee;padding-bottom:0.7mm}' +
-      '.fld{display:flex;font-size:8pt;padding:0.6mm 0}.lbl{width:34mm;color:#555}.val{flex:1;color:#111;font-weight:600;border-bottom:0.3pt dotted #ccc}' +
+    const fullName = (esc(nom) + " " + esc(prenom)).trim();
+    const respStr = (n, li, t) => (esc(n) + (li ? " (" + esc(li) + ")" : "") + (t ? " \u2014 Tel : " + esc(t) : "")) || "\u2026";
+    const bc = barcode || genBarcode();
+    const svg = barcode39Svg(bc, 46, 1.5);
+    const F = (l, v) => '<div class="fld"><span class="fl">' + esc(l) + '</span><span class="fv">' + (esc(v) || "&nbsp;") + '</span></div>';
+    const html = '<!doctype html><html><head><meta charset="utf-8"><title>Fiche inscription — ' + fullName + '</title><style>' +
+      '@page{size:A4 landscape;margin:0}*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0}' +
+      '.page{width:297mm;height:210mm;display:flex}.half{width:50%;height:100%;padding:8mm}.left{border-right:1px dashed #bbb}' +
+      '.fiche{position:relative;border:1.5px solid #333;height:100%;padding:6mm 6mm 5mm}' +
+      '.photo{position:absolute;top:5mm;right:5mm;width:26mm;height:32mm;border:1.2px solid #333;display:flex;align-items:center;justify-content:center;color:#666;font-size:8pt}' +
+      '.brand{font-family:Georgia,serif;color:#C2238E;font-size:15pt;font-weight:700}.title{display:inline-block;border:1.5px solid #333;padding:2mm 5mm;font-size:13pt;font-weight:700;margin-top:1mm}' +
+      '.sect{background:#dcdcdc;border:1px solid #333;font-weight:800;font-size:8.5pt;padding:1.2mm 3mm;margin:3.5mm 0 0}' +
+      '.box{border:1px solid #333;border-top:none;padding:2mm 3mm}' +
+      '.fld{display:flex;font-size:8.2pt;padding:0.7mm 0}.fl{color:#333;white-space:nowrap;margin-right:2mm}.fv{flex:1;font-weight:600;border-bottom:0.4pt dotted #888}' +
+      '.chks{font-size:8pt;line-height:1.7}.sign{margin-top:5mm;font-size:7.5pt;color:#333}.sigline{margin-top:8mm;border-top:0.5pt solid #333;width:60mm;padding-top:1mm;font-size:8pt}' +
+      '.bc{position:absolute;bottom:4mm;right:5mm;text-align:center}.bc .num{font-family:monospace;font-size:7pt;letter-spacing:1px}' +
       '.pb{position:fixed;top:8px;right:8px;padding:9px 16px;background:#C2238E;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}@media print{.pb{display:none}}' +
       '</style></head><body><button class="pb" onclick="window.print()">Imprimer / T\u00e9l\u00e9charger PDF</button>' +
-      '<div class="page"><div class="half left"></div><div class="half fiche">' +
-      '<div class="photo">PHOTO</div><h1>MISS THANI</h1><div class="sub">FICHE D\'INSCRIPTION</div>' +
-      '<div class="sect">Identit\u00e9</div>' + rline("Nom", nom) + rline("Pr\u00e9nom", prenom) + rline("Date de naissance", dob) + rline("CIN / NIF", cin) + rline("Adresse", address) +
-      '<div class="sect">Contacts</div>' + rline("WhatsApp", whatsapp) + rline("Appel", appel) +
-      '<div class="sect">Scolarit\u00e9</div>' + rline("Programme", program) + rline("Niveau d\'\u00e9tude", niveau) + rline("Dernier \u00e9tablissement", etablissement) + rline("R\u00e9f\u00e9rence", reference) +
-      '<div class="sect">Sant\u00e9</div>' + rline("Maladie", hasMaladie ? (maladie || "Oui") : "Non") +
-      '<div class="sect">Personnes responsables</div>' + '<div class="fld"><span class="lbl">Resp. 1</span><span class="val">' + respStr(r1Nom, r1Lien, r1Tel) + '</span></div>' + '<div class="fld"><span class="lbl">Resp. 2</span><span class="val">' + respStr(r2Nom, r2Lien, r2Tel) + '</span></div>' +
-      '<div class="sect">Inscription &amp; paiement</div>' + rline("Date", date) + rline("Prix total", total) + rline("Pay\u00e9", paid) + rline("Solde restant", bal) +
-      '<div class="sect">R\u00e8glement int\u00e9rieur</div>' + '<div class="fld"><span class="val">' + chk(pMateriel) + ' Politique mat\u00e9riel &nbsp; ' + chk(pCertificat) + ' Remise certificat &nbsp; ' + chk(pReglement) + ' R\u00e8glement int\u00e9rieur</span></div>' +
-      '</div></div></body></html>';
+      '<div class="page"><div class="half left"></div><div class="half"><div class="fiche">' +
+      '<div class="photo">PHOTO</div>' +
+      '<div class="brand">MISS THANI</div><div class="title">FICHE D\'INSCRIPTION</div>' +
+      '<div class="sect">1. IDENTIT\u00c9 DE L\'\u00c9L\u00c8VE</div><div class="box">' +
+      F("Nom &amp; Pr\u00e9nom :", fullName) + F("Date de naissance :", dob) + F("CIN / NIF :", cin) + F("Adresse :", address) + '</div>' +
+      '<div class="sect">2. CONTACTS &amp; SCOLARIT\u00c9</div><div class="box">' +
+      F("WhatsApp :", whatsapp) + F("Appel :", appel) + F("Programme :", program) + F("Session :", session) + F("Niveau d\'\u00e9tude :", niveau) + F("Dernier \u00e9tablissement :", etablissement) + F("R\u00e9f\u00e9rence :", reference) + '</div>' +
+      '<div class="sect">3. PERSONNES RESPONSABLES</div><div class="box">' +
+      F("Responsable 1 :", respStr(r1Nom, r1Lien, r1Tel)) + F("Responsable 2 :", respStr(r2Nom, r2Lien, r2Tel)) + '</div>' +
+      '<div class="sect">4. SANT\u00c9</div><div class="box">' + F("Maladie :", hasMaladie ? (maladie || "Oui") : "Non") + '</div>' +
+      '<div class="sect">5. R\u00c8GLEMENT INT\u00c9RIEUR</div><div class="box chks">' +
+      chk(pMateriel) + ' Politique concernant le mat\u00e9riel<br>' + chk(pCertificat) + ' Politique de remise de certificat<br>' + chk(pReglement) + ' Autre r\u00e8glement int\u00e9rieur</div>' +
+      '<div class="sign">En signant cette fiche, je reconnais avoir <b>lu et approuv\u00e9</b> l\'ensemble du r\u00e8glement int\u00e9rieur de l\'\u00e9tablissement.</div>' +
+      '<div class="sigline">Signature</div>' +
+      '<div class="bc">' + svg + '<div class="num">' + esc(bc) + '</div></div>' +
+      '</div></div></div></body></html>';
     const w = window.open("", "_blank");
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
     else { setErr("Le navigateur a bloqué la fenêtre. Autorisez les pop-ups pour voir l'aperçu PDF."); }
@@ -3349,7 +3492,10 @@ function InscriptionSpace({ config }) {
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: 0, color: PALETTE.cream }}>Inscription élève</h2>
           <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Remplissez le formulaire lorsqu'un élève vient s'inscrire.</p>
         </div>
-        <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/formulaire"; }} style={ghostBtn}>← Liste des prospects</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/eleves"; }} style={ghostBtn}>Élèves inscrits</button>
+          <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/formulaire"; }} style={ghostBtn}>← Liste des prospects</button>
+        </div>
       </div>
 
       {/* Recherche */}
@@ -3427,9 +3573,13 @@ function InscriptionSpace({ config }) {
         </div>
 
         {/* Paiement */}
-        <div style={sect}>Inscription & paiement</div>
-        <label style={label}>Date d'inscription</label>
-        <input className="mt-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <div style={{ ...sect }}>Inscription</div>
+        <div style={row2}>
+          <div style={col}><label style={label}>Date d'inscription</label><input className="mt-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
+          <div style={col}><label style={label}>Session (cohorte)</label><input className="mt-input" value={session} onChange={(e) => setSession(e.target.value)} placeholder="Ex : Août 2026" /></div>
+        </div>
+        <div style={{ fontSize: 11.5, color: `${PALETTE.cream}88`, marginTop: 6 }}>Code élève : <b style={{ color: PALETTE.goldSoft, fontFamily: "monospace" }}>{barcode}</b></div>
+        <div style={{ ...sect }}>Paiement</div>
         <div style={row2}>
           <div style={col}><label style={label}>Prix total (gdes)</label><input className="mt-input" inputMode="numeric" value={total} onChange={(e) => setTotal(e.target.value)} placeholder="0" /></div>
           <div style={col}><label style={label}>Montant payé (gdes)</label><input className="mt-input" inputMode="numeric" value={paid} onChange={(e) => setPaid(e.target.value)} placeholder="0" /></div>
