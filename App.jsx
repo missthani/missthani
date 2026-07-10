@@ -3167,7 +3167,10 @@ function SessionsListSpace({ config }) {
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: 0, color: PALETTE.cream }}>Liste des sessions</h2>
           <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Une session par programme — les élèves qui sont venus.</p>
         </div>
-        <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/eleves"; }} style={ghostBtn}>← Élèves inscrits</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/eleves"; }} style={ghostBtn}>← Élèves inscrits</button>
+          <OptionsMenu />
+        </div>
       </div>
 
       {items === null ? (
@@ -3268,9 +3271,10 @@ function EnrolledListSpace({ config }) {
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: 0, color: PALETTE.cream }}>Élèves inscrits</h2>
           <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Regroupés par programme.</p>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/sessions"; }} style={ghostBtn}>Liste des sessions</button>
           <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/inscription"; }} style={ghostBtn}>+ Nouvelle inscription</button>
+          <OptionsMenu />
         </div>
       </div>
 
@@ -3342,6 +3346,36 @@ const INTERFACES = [
   { key: "eleves", label: "Élèves inscrits" },
   { key: "sessions", label: "Liste des sessions" },
 ];
+
+/* Meni "Options" — navigasyon ant tout paj app la (menm sa moun nan pa gen aksè; gate la ap jere aksè) */
+const PAGES = [
+  { path: "/", label: "Site public" },
+  { path: "/formulaire", label: "Liste des prospects" },
+  { path: "/inscription", label: "Inscription" },
+  { path: "/eleves", label: "Élèves inscrits" },
+  { path: "/sessions", label: "Liste des sessions" },
+  { path: "/agent", label: "Progression des agents" },
+];
+function OptionsMenu() {
+  const [open, setOpen] = useState(false);
+  const go = (path) => { if (typeof window !== "undefined") window.location.href = path; };
+  return (
+    <div style={{ position: "relative" }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ ...ghostBtn, display: "inline-flex", alignItems: "center", gap: 6 }}>☰ Options</button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+          <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 12, boxShadow: "0 8px 24px rgba(0,0,0,.14)", zIndex: 50, minWidth: 210, overflow: "hidden" }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: `${PALETTE.cream}88`, padding: "9px 14px 4px", letterSpacing: ".5px" }}>NAVIGATION</div>
+            {PAGES.map((pg) => (
+              <button key={pg.path} onClick={() => go(pg.path)} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: "none", border: "none", borderTop: `1px solid ${PALETTE.line}`, fontSize: 13.5, color: PALETTE.cream, cursor: "pointer" }}>{pg.label}</button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 /* Hook koneksyon pataje: konekte pa etikèt (+ PIN) ak pèmisyon aksè, oswa "Accéder autrement" ak modpas.
    Sesyon an sove nan localStorage pou moun nan pa bezwen rekonekte lè l navige ant entèfas yo. */
@@ -3490,6 +3524,17 @@ function InscriptionSpace({ config }) {
   const [searchVal, setSearchVal] = useState("");
   const [searchMsg, setSearchMsg] = useState("");
   const [searching, setSearching] = useState(false);
+  // Enregistrement Moncash (prospè ki reserve — 3ème étape)
+  const [moncashOpen, setMoncashOpen] = useState(false);
+  const [reservedList, setReservedList] = useState(null);
+  const [moncashPick, setMoncashPick] = useState("");
+  const openMoncash = async () => {
+    setMoncashOpen((v) => !v);
+    if (reservedList === null) {
+      const all = (await loadProspects()) || [];
+      setReservedList(all.filter((p) => p.stage === "reserved_special" || p.stage === "reserved_after"));
+    }
+  };
 
   const balance = (() => {
     const t = parseFloat(String(total).replace(/[^\d.]/g, "")) || 0;
@@ -3706,10 +3751,39 @@ function InscriptionSpace({ config }) {
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: 0, color: PALETTE.cream }}>Inscription élève</h2>
           <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Remplissez le formulaire lorsqu'un élève vient s'inscrire.</p>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/eleves"; }} style={ghostBtn}>Élèves inscrits</button>
           <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/formulaire"; }} style={ghostBtn}>← Liste des prospects</button>
+          <OptionsMenu />
         </div>
+      </div>
+
+      {/* Enregistrement des inscriptions Moncash */}
+      <div style={{ marginBottom: 16 }}>
+        <button onClick={openMoncash} style={{ ...(moncashOpen ? goldBtn : ghostBtn), width: "100%" }}>Enregistrement des inscriptions Moncash {moncashOpen ? "▲" : "▼"}</button>
+        {moncashOpen && (
+          <div style={{ marginTop: 8, padding: 14, border: `1px solid ${PALETTE.lineStrong}`, borderRadius: 14, background: "rgba(30,132,73,.05)" }}>
+            <p style={{ fontSize: 12.5, color: `${PALETTE.cream}aa`, margin: "0 0 8px", lineHeight: 1.5 }}>Sélectionnez une personne que les agents ont marquée comme <b>réservée</b> (3ème étape). Ses informations rempliront automatiquement le formulaire.</p>
+            {reservedList === null ? (
+              <p style={{ fontSize: 13, color: `${PALETTE.cream}99` }}>Chargement…</p>
+            ) : reservedList.length === 0 ? (
+              <p style={{ fontSize: 13, color: `${PALETTE.cream}99` }}>Aucune personne réservée pour le moment.</p>
+            ) : (
+              <select
+                className="mt-input"
+                value={moncashPick}
+                onChange={(e) => {
+                  const id = e.target.value; setMoncashPick(id);
+                  const m = (reservedList || []).find((p) => p.id === id);
+                  if (m) { fillFromMatch(m); setMoncashOpen(false); setSearchMsg(`Réservé sélectionné : ${getName(m) || "prospect"} — champs remplis.`); }
+                }}
+              >
+                <option value="">Choisir une personne réservée…</option>
+                {reservedList.map((p) => (<option key={p.id} value={p.id}>{getName(p) || "Sans nom"} — {p.program || "?"}</option>))}
+              </select>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Recherche */}
@@ -3874,16 +3948,17 @@ function AgentSpace({ config, onSave }) {
 
   const remun = useMemo(() => {
     if (!me || !items) return { count: 0, base: 0, bonuses: [], total: 0 };
+    const meN = String(me || "").trim().toLowerCase();
     let count = 0; const bonuses = [];
     ((config && config.programs) || []).forEach((prog) => {
       const vinis = items.filter((p) => p.followup === "vini" && p.program === prog.label && (!p.cameAt || p.cameAt.slice(0, 7) === ym));
       const by = {};
-      vinis.forEach((p) => { const a = (String(p.etiquette || "").trim()) || "San etikèt"; (by[a] = by[a] || []).push(p.cameAt || "9999-99-99"); });
-      count += (by[me] || []).length;
+      vinis.forEach((p) => { const a = (String(p.etiquette || "").trim().toLowerCase()) || "san etikèt"; (by[a] = by[a] || []).push(p.cameAt || "9999-99-99"); });
+      count += (by[meN] || []).length;
       ["silver", "gold", "diamond"].forEach((lvl) => {
         const n = LVLN[lvl]; let best = null;
         Object.keys(by).forEach((a) => { if (by[a].length >= n) { const t = by[a].slice().sort()[n - 1] || "9999"; if (!best || t < best.t) best = { a, t }; } });
-        if (best && best.a === me) bonuses.push({ program: prog.label, level: lvl, amount: BONUS[lvl] });
+        if (best && best.a === meN) bonuses.push({ program: prog.label, level: lvl, amount: BONUS[lvl] });
       });
     });
     const base = count * PER;
@@ -3965,8 +4040,9 @@ function AgentSpace({ config, onSave }) {
             <div style={{ fontSize: 12.5, color: `${PALETTE.cream}99` }}>Agent Miss Thani</div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/formulaire"; }} style={ghostBtn}>← Lis prospè yo</button>
+          <OptionsMenu />
           <button onClick={logout} style={ghostBtn}>Dekonekte</button>
         </div>
       </div>
@@ -5109,6 +5185,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           ) : null; })()}
         </h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <OptionsMenu />
           <select
             value={msgFilter}
             onChange={(e) => setMsgFilter(e.target.value)}
