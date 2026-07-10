@@ -742,9 +742,10 @@ async function setProspectRemind(id, date) {
 }
 
 /* Enskri yon elèv: si id bay, mete ajou prospè ki egziste a; sinon kreye yon nouvo antre */
-async function enrollProspect({ id, program, answers, enrollInfo }) {
+async function enrollProspect({ id, program, answers, enrollInfo, etiquette }) {
   try {
-    const base = { enrolled: true, enroll_info: JSON.stringify(enrollInfo || {}), updated_at: new Date().toISOString() };
+    const base = { enrolled: true, enroll_info: JSON.stringify(enrollInfo || {}), followup: "vini", came_at: todayStr(), contacted: true, updated_at: new Date().toISOString() };
+    if (etiquette) base.etiquette = etiquette;
     if (id) {
       const { error } = await supabase.from("prospects").update(base).eq("id", id);
       return !error ? id : false;
@@ -2253,7 +2254,17 @@ function AdminSpace({ config, onSave, onExit }) {
   };
 
   const saveAgentInfo = async (info) => {
-    const nd = { ...draft, agentInfo: info };
+    // Rechaje dènye konfig la pou pa efase foto ajan yo te mete apre draft la te chaje
+    const latest = (await loadConfig()) || draft;
+    const latestAI = (latest && latest.agentInfo) || {};
+    const merged = {};
+    const names = new Set([...Object.keys(info || {}), ...Object.keys(latestAI)]);
+    names.forEach((n) => {
+      const a = (info || {})[n] || {};
+      const b = latestAI[n] || {};
+      merged[n] = { ...b, ...a, photo: b.photo || a.photo || "" };
+    });
+    const nd = { ...draft, agentInfo: merged };
     setDraft(nd);
     await onSave(nd);
   };
@@ -2879,7 +2890,7 @@ function FaqBlock({ block }) {
 }
 
 /* Konkou ant ajan yo — Progression des Agents (moun ki make "vini" konte pou ajan yo) */
-function AgentsProgressView({ items = [], programs = [] }) {
+function AgentsProgressView({ items = [], programs = [], agentInfo = {} }) {
   const OBJ = 60;
   const LEVELS = [
     { key: "silver", label: "SILVER", pct: 50, n: Math.round(OBJ * 0.5), color: "#9AA0A6", soft: "#EEF0F2", grad: "linear-gradient(90deg,#C7CAD0,#9AA0A6)", icon: "🥈" },
@@ -2888,6 +2899,18 @@ function AgentsProgressView({ items = [], programs = [] }) {
   ];
   const progList = (programs || []).map((p) => p.label).filter(Boolean);
   const [sel, setSel] = useState(progList[0] || "");
+  const [openAgent, setOpenAgent] = useState("");
+  const personName = (p) => {
+    for (const a of (p.answers || [])) {
+      const v = String(a.answer || "").trim();
+      if (!v) continue;
+      const dg = v.replace(/\D/g, "");
+      if (dg.length >= 8 && dg.length <= 12 && /^[\d\s()+-]+$/.test(v)) continue;
+      if (/\S+@\S+\.\S+/.test(v)) continue;
+      return v;
+    }
+    return "Sans nom";
+  };
   useEffect(() => { if (!progList.includes(sel) && progList[0]) setSel(progList[0]); }, [progList.join("|")]);
 
   const now = new Date();
@@ -2912,12 +2935,13 @@ function AgentsProgressView({ items = [], programs = [] }) {
 
   const { agents, winners } = useMemo(() => {
     const vinis = (items || []).filter((p) => p.followup === "vini" && p.program === sel && (!p.cameAt || p.cameAt.slice(0, 7) === ym));
-    const by = {};
+    const by = {}; const byP = {};
     vinis.forEach((p) => {
       const a = (String(p.etiquette || "").trim()) || "San etikèt";
       (by[a] = by[a] || []).push(p.cameAt || "9999-99-99");
+      (byP[a] = byP[a] || []).push(p);
     });
-    const ags = Object.keys(by).map((a) => ({ agent: a, count: by[a].length, times: by[a].slice().sort() })).sort((x, y) => y.count - x.count);
+    const ags = Object.keys(by).map((a) => ({ agent: a, count: by[a].length, times: by[a].slice().sort(), people: byP[a] || [] })).sort((x, y) => y.count - x.count);
     const wins = {};
     LEVELS.forEach((L) => {
       let best = null;
@@ -3046,6 +3070,37 @@ function AgentsProgressView({ items = [], programs = [] }) {
                     <div style={{ fontSize: 12.5, fontWeight: 800, color: L.color }}>{L.label}</div>
                     <div style={{ fontSize: 12, color: w ? PALETTE.cream : `${PALETTE.cream}77` }}>{w ? w.agent : "Pas encore gagné"}</div>
                   </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 14, background: "#fff", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 800, fontSize: 13, color: PALETTE.cream, marginBottom: 8 }}>👥 PROFILS DES AGENTS <span style={{ fontWeight: 600, color: `${PALETTE.cream}88`, fontSize: 11 }}>· {sel}</span></div>
+            {agents.length === 0 && <div style={{ fontSize: 12, color: `${PALETTE.cream}77` }}>Aucun agent pour ce programme.</div>}
+            {agents.map((ag) => {
+              const photo = (agentInfo[ag.agent] && agentInfo[ag.agent].photo) || "";
+              const open = openAgent === ag.agent;
+              return (
+                <div key={ag.agent} style={{ borderTop: `1px solid ${PALETTE.line}` }}>
+                  <button onClick={() => setOpenAgent(open ? "" : ag.agent)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 0", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                    {photo ? (
+                      <img src={photo} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                    ) : (
+                      <span style={{ width: 32, height: 32, borderRadius: "50%", background: avatarColor(ag.agent), color: "#fff", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{initials(ag.agent)}</span>
+                    )}
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: PALETTE.cream }}>{ag.agent}</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 800, color: PALETTE.goldSoft }}>{ag.count} pers.</span>
+                    <span style={{ fontSize: 11, color: PALETTE.goldSoft, transform: open ? "rotate(90deg)" : "none", transition: "transform .15s" }}>▶</span>
+                  </button>
+                  {open && (
+                    <div style={{ padding: "2px 0 8px 42px" }}>
+                      {ag.people.map((p, i) => (
+                        <div key={p.id || i} style={{ fontSize: 12.5, color: `${PALETTE.cream}cc`, padding: "3px 0", display: "flex", gap: 6 }}>
+                          <span style={{ color: `${PALETTE.cream}66` }}>{i + 1}.</span> {personName(p)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -3257,6 +3312,7 @@ function barcode39Svg(text, height, narrow) {
    (auto-remplissage), connecté à la liste des prospects. */
 function InscriptionSpace({ config }) {
   const programs = (config && config.programs) || [];
+  const agentsList = (config && config.agents) || [];
   const { authed, gate } = useInterfaceAuth(config, "inscription", "Inscription élève");
 
   // Identité
@@ -3270,6 +3326,7 @@ function InscriptionSpace({ config }) {
   const [appel, setAppel] = useState("");
   // Scolarité
   const [program, setProgram] = useState("");
+  const [agent, setAgent] = useState("");
   const [niveau, setNiveau] = useState("");
   const [etablissement, setEtablissement] = useState("");
   const [reference, setReference] = useState("");
@@ -3362,6 +3419,7 @@ function InscriptionSpace({ config }) {
     setWhatsapp(phoneA || ""); setAppel("");
     setAddress(addrA || "");
     chooseProgram(m.program || "");
+    setAgent(m.etiquette || "");
     setMatchedId(m.id);
   };
 
@@ -3397,7 +3455,7 @@ function InscriptionSpace({ config }) {
 
   const resetForm = () => {
     setNom(""); setPrenom(""); setDob(""); setCin(""); setAddress(""); setWhatsapp(""); setAppel("");
-    setProgram(""); setNiveau(""); setEtablissement(""); setReference("");
+    setProgram(""); setAgent(""); setNiveau(""); setEtablissement(""); setReference("");
     setHasMaladie(false); setMaladie("");
     setR1Nom(""); setR1Lien(""); setR1Tel(""); setR2Nom(""); setR2Lien(""); setR2Tel("");
     setDate(todayStr()); setSession(""); setSessionTouched(false); setBarcode(genBarcode()); setTotal("1500"); setPaid(""); setNote("");
@@ -3425,7 +3483,7 @@ function InscriptionSpace({ config }) {
         reglements: { materiel: pMateriel, certificat: pCertificat, interieur: pReglement },
       };
       let res, matched = false;
-      if (matchedId) { res = await enrollProspect({ id: matchedId, enrollInfo }); matched = true; }
+      if (matchedId) { res = await enrollProspect({ id: matchedId, enrollInfo, etiquette: agent }); matched = true; }
       else {
         const all = (await loadProspects()) || [];
         const nName = norm(fullName);
@@ -3435,14 +3493,14 @@ function InscriptionSpace({ config }) {
           const pp = digits(getField(p, phoneRe) || "").slice(-8);
           return (nName && pn && pn === nName) || (nPhone && pp && pp === nPhone);
         });
-        if (m) { res = await enrollProspect({ id: m.id, enrollInfo }); matched = true; }
+        if (m) { res = await enrollProspect({ id: m.id, enrollInfo, etiquette: agent }); matched = true; }
         else {
           const answers = [
             { question: "Nom complet", answer: fullName },
             { question: "Téléphone (WhatsApp)", answer: whatsapp.trim() || appel.trim() },
             { question: "Adresse", answer: address.trim() },
           ];
-          res = await enrollProspect({ program, answers, enrollInfo });
+          res = await enrollProspect({ program, answers, enrollInfo, etiquette: agent });
         }
       }
       if (res) {
@@ -3567,6 +3625,11 @@ function InscriptionSpace({ config }) {
         <select className="mt-input" value={program} onChange={(e) => chooseProgram(e.target.value)}>
           <option value="">Choisir un programme…</option>
           {programs.map((pr) => (<option key={pr.id || pr.label} value={pr.label}>{pr.label}</option>))}
+        </select>
+        <label style={label}>Agent (étiquette)</label>
+        <select className="mt-input" value={agent} onChange={(e) => setAgent(e.target.value)}>
+          <option value="">Choisir l'agent…</option>
+          {agentsList.map((n) => (<option key={n} value={n}>{n}</option>))}
         </select>
         <div style={row2}>
           <div style={col}><label style={label}>Niveau d'étude</label>
@@ -3715,7 +3778,8 @@ function AgentSpace({ config, onSave }) {
         const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
         cv.getContext("2d").drawImage(img, 0, 0, w, h);
         const dataUrl = cv.toDataURL("image/jpeg", 0.8);
-        const nd = { ...config, agentInfo: { ...(config.agentInfo || {}), [me]: { ...((config.agentInfo || {})[me] || {}), photo: dataUrl } } };
+        const latest = (await loadConfig()) || config;
+        const nd = { ...latest, agentInfo: { ...(latest.agentInfo || {}), [me]: { ...((latest.agentInfo || {})[me] || {}), photo: dataUrl } } };
         await onSave(nd);
       };
       img.src = reader.result;
@@ -3828,7 +3892,7 @@ function AgentSpace({ config, onSave }) {
           {!items && <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p>}
         </div>
       ) : (
-        items === null ? <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p> : <AgentsProgressView items={items || []} programs={(config && config.programs) || []} />
+        items === null ? <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p> : <AgentsProgressView items={items || []} programs={(config && config.programs) || []} agentInfo={(config && config.agentInfo) || {}} />
       )}
     </div>
   );
@@ -5231,7 +5295,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       {items === null ? (
         <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p>
       ) : isStudents ? (
-        <AgentsProgressView items={items || []} programs={programs} />
+        <AgentsProgressView items={items || []} programs={programs} agentInfo={agentInfo} />
       ) : viewItems.length === 0 ? (
         <div style={{ textAlign: "center", padding: "40px 20px", border: `1px solid ${PALETTE.line}`, borderRadius: 16, background: "rgba(194,35,142,.04)" }}>
           <p style={{ fontSize: 16, color: `${PALETTE.cream}cc`, margin: 0 }}>
