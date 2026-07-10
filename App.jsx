@@ -3887,6 +3887,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     setGrpSaved(true); setTimeout(() => setGrpSaved(false), 2000);
   };
   const [etqFilter, setEtqFilter] = useState(""); // filtre pa etikèt (ajan)
+  const [phoneSearch, setPhoneSearch] = useState(""); // rechèch pa nimewo telefòn
   const [msgDraft, setMsgDraft] = useState(waMessages || []);
   const [activeDraft, setActiveDraft] = useState(activeWaMessage || "");
   const [msgSaved, setMsgSaved] = useState(false);
@@ -4246,6 +4247,23 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const prog = (programs || []).find((pp) => pp.label === p.program);
     const base = prog ? currentResaBaseAll(prog.steps || []) : "";
     return { session: base, resa: base ? addDays(base, -10) : "" };
+  };
+
+  // Ti mesaj k ap defile anlè chak programme (selon dat session ak dat rezèvasyon an)
+  const programTicker = (progLabel) => {
+    const pr = (programs || []).find((pp) => pp.label === progLabel);
+    const session = pr ? currentResaBaseAll(pr.steps || []) : "";
+    if (!session) return null;
+    const resa = addDays(session, -10);
+    const today = todayStr();
+    const dnum = (a, b) => Math.round((new Date(a + "T00:00:00") - new Date(b + "T00:00:00")) / 86400000);
+    const header = `Nouvèl session an kou — dat la se ${formatHtDate(session)}`;
+    let msg;
+    if (today < resa) msg = `Dat rezèvasyon an se ${formatHtDate(resa)}. Rete ${dnum(resa, today)} jou anvan dat sa rive.`;
+    else if (today === resa) msg = `Dat rezèvasyon an se JODIA.`;
+    else if (today < session) msg = `Dat rezèvasyon an pase sa gen ${dnum(today, resa)} jou, men n ap kontinye pwolonje special la pou n jwenn plis moun.`;
+    else msg = `Dat special yo pase, men n ap kontinye fè enskripsyon — objektif la se chofe gwoup la.`;
+    return { header, msg };
   };
 
   // Mesaj ki defile nan kazye chak moun (selon kontak, etikèt, swivi, stage, ak dat yo)
@@ -4925,6 +4943,14 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             <option value="">Filtre: tout etikèt</option>
             {agentNames.map((n) => (<option key={n} value={n}>{n}</option>))}
           </select>
+          <input
+            value={phoneSearch}
+            onChange={(e) => setPhoneSearch(e.target.value)}
+            inputMode="tel"
+            placeholder="🔍 Chèche pa nimewo…"
+            title="Chèche yon prospè pa nimewo telefòn"
+            style={{ padding: "8px 12px", fontSize: 13, borderRadius: 999, fontWeight: 600, border: `1px solid ${phoneSearch ? PALETTE.goldSoft : PALETTE.line}`, background: phoneSearch ? "rgba(194,35,142,.08)" : "#fff", color: PALETTE.cream, width: 170, maxWidth: "45vw" }}
+          />
           <button onClick={() => setResaPanel((v) => !v)} style={resaPanel ? goldBtn : ghostBtn}>Dat rezèvasyon</button>
           {isAdmin && (
             <>
@@ -5231,10 +5257,15 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             ))}
           </div>
           {groups.map(([prog, allRows0]) => {
-            const allRows = etqFilter ? allRows0.filter((r) => String(r.etiquette || "").trim() === etqFilter) : allRows0;
+            const etqRows = etqFilter ? allRows0.filter((r) => String(r.etiquette || "").trim() === etqFilter) : allRows0;
+            const psDigits = phoneSearch.replace(/\D/g, "");
+            const allRows = psDigits ? etqRows.filter((r) => {
+              for (const a of (r.answers || [])) { const dg = String(a.answer || "").replace(/\D/g, ""); if (dg.length >= 8 && dg.includes(psDigits)) return true; }
+              return false;
+            }) : etqRows;
             const rows = msgFilter ? allRows.filter((r) => stageKeyOf(r) === msgFilter) : allRows;
-            if ((msgFilter || etqFilter) && rows.length === 0) return null;
-            const open = !!openProg[prog];
+            if ((msgFilter || etqFilter || psDigits) && rows.length === 0) return null;
+            const open = psDigits ? true : !!openProg[prog];
             return (
               <div key={prog} style={{ marginBottom: 12, border: `1px solid ${PALETTE.line}`, borderRadius: 12, overflow: "hidden" }}>
                 <button
@@ -5251,6 +5282,18 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                   </span>
                   <span style={{ fontSize: 13, color: `${PALETTE.cream}aa`, fontWeight: 600 }}>{rows.length} moun</span>
                 </button>
+                {(() => {
+                  const pt = programTicker(prog);
+                  if (!pt) return null;
+                  return (
+                    <div style={{ padding: "7px 12px", background: "rgba(224,165,10,.09)", borderTop: `1px solid ${PALETTE.line}` }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 800, color: PALETTE.goldSoft, marginBottom: 2 }}>📅 {pt.header}</div>
+                      <div style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
+                        <span className="mt-marquee" style={{ fontSize: 11.5, color: PALETTE.cream, fontWeight: 600 }}>{pt.msg}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {open && (
                   <div style={{ overflowX: "auto", borderTop: `1px solid ${PALETTE.line}` }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
