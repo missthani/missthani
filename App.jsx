@@ -4352,6 +4352,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
           {!nameCol && contactDot(p)}
           {idx + 1}
+          {p.enrolled && <span style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: "#1E8449", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap" }} title={p.enrollInfo ? `Peye: ${p.enrollInfo.paid || 0} · Balans: ${p.enrollInfo.balance || 0}` : "Enskri"}>ENSKRI</span>}
         </span>
       </td>
       {priorityCols.map((q) => (
@@ -4360,7 +4361,6 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               {contactDot(p)}
               {renderAnswer(p, q)}
-              {p.enrolled && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: "#1E8449", padding: "2px 7px", borderRadius: 999, whiteSpace: "nowrap" }} title={p.enrollInfo ? `Peye: ${p.enrollInfo.paid || 0} · Balans: ${p.enrollInfo.balance || 0}` : "Enskri"}>ENSKRI</span>}
             </span>
           ) : (
             renderAnswer(p, q)
