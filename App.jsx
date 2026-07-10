@@ -744,7 +744,7 @@ async function setProspectRemind(id, date) {
 /* Enskri yon elèv: si id bay, mete ajou prospè ki egziste a; sinon kreye yon nouvo antre */
 async function enrollProspect({ id, program, answers, enrollInfo, etiquette }) {
   try {
-    const base = { enrolled: true, enroll_info: JSON.stringify(enrollInfo || {}), followup: "vini", came_at: todayStr(), contacted: true, updated_at: new Date().toISOString() };
+    const base = { enrolled: true, enroll_info: JSON.stringify(enrollInfo || {}), updated_at: new Date().toISOString() };
     if (etiquette) base.etiquette = etiquette;
     if (id) {
       const { error } = await supabase.from("prospects").update(base).eq("id", id);
@@ -1212,6 +1212,7 @@ export default function MissThaniApp() {
   const isInscription = typeof window !== "undefined" && /^\/inscription\/?$/i.test(window.location.pathname || "");
   // Èske nou sou paj /eleves la? (lis elèv ki enskri yo pa programme)
   const isEleves = typeof window !== "undefined" && /^\/eleves\/?$/i.test(window.location.pathname || "");
+  const isSessions = typeof window !== "undefined" && /^\/sessions\/?$/i.test(window.location.pathname || "");
 
   // Chaje konfigirasyon an o depa
   useEffect(() => {
@@ -1288,6 +1289,8 @@ export default function MissThaniApp() {
         <InscriptionSpace config={config} />
       ) : isEleves ? (
         <EnrolledListSpace config={config} />
+      ) : isSessions ? (
+        <SessionsListSpace config={config} />
       ) : isFormulaire ? (
         <ProspectsGate config={config} />
       ) : view === "admin" ? (
@@ -3120,11 +3123,111 @@ function AgentsProgressView({ items = [], programs = [], agentInfo = {} }) {
 /* Page /inscription — formulaire d'inscription des élèves (réception). Connecté à la liste des prospects:
    recherche par nom OU téléphone; si trouvé, marque le prospect comme inscrit; sinon crée une nouvelle entrée. */
 /* Page /eleves — liste des élèves inscrits, regroupés par programme. */
+/* Page /sessions — liste des sessions par programme, avec les personnes qui sont venues (vini). */
+function SessionsListSpace({ config }) {
+  const { authed, gate } = useInterfaceAuth(config, "sessions", "Liste des sessions");
+  const [items, setItems] = useState(null);
+  useEffect(() => { if (authed) (async () => setItems(await loadProspects()))(); }, [authed]);
+
+  const digits = (s) => String(s || "").replace(/\D/g, "");
+  const getName = (p) => {
+    for (const a of (p.answers || [])) {
+      const v = String(a.answer || "").trim();
+      if (!v) continue;
+      const dg = digits(v);
+      if (dg.length >= 8 && dg.length <= 12 && /^[\d\s()+-]+$/.test(v)) continue;
+      if (/\S+@\S+\.\S+/.test(v)) continue;
+      return v;
+    }
+    return "";
+  };
+  const fullNameOf = (p) => {
+    const i = p.enrollInfo || {};
+    const n = ((i.nom || "") + " " + (i.prenom || "")).trim();
+    return n || getName(p) || "—";
+  };
+
+  const groups = useMemo(() => {
+    const venus = (items || []).filter((p) => p.followup === "vini");
+    const by = {};
+    venus.forEach((p) => { const prog = p.program || "Sans programme"; (by[prog] = by[prog] || []).push(p); });
+    return Object.keys(by).sort().map((prog) => [prog, by[prog]]);
+  }, [items]);
+
+  const wrap = { maxWidth: 900, margin: "0 auto", padding: "24px 18px 60px" };
+  if (!authed) return gate;
+
+  const th = { textAlign: "left", fontSize: 11.5, fontWeight: 800, color: `${PALETTE.cream}aa`, padding: "8px 10px", borderBottom: `1px solid ${PALETTE.line}`, whiteSpace: "nowrap" };
+  const td = { fontSize: 13, color: PALETTE.cream, padding: "8px 10px", borderBottom: `1px solid ${PALETTE.line}` };
+
+  return (
+    <div style={wrap}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 18 }}>
+        <div>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: 0, color: PALETTE.cream }}>Liste des sessions</h2>
+          <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Une session par programme — les élèves qui sont venus.</p>
+        </div>
+        <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/eleves"; }} style={ghostBtn}>← Élèves inscrits</button>
+      </div>
+
+      {items === null ? (
+        <p style={{ color: `${PALETTE.cream}99` }}>Chargement…</p>
+      ) : groups.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "40px 20px", border: `1px solid ${PALETTE.line}`, borderRadius: 16, background: "rgba(194,35,142,.04)" }}>
+          <p style={{ fontSize: 15, color: `${PALETTE.cream}cc`, margin: 0 }}>Aucune session pour le moment.</p>
+        </div>
+      ) : (
+        groups.map(([prog, rows]) => (
+          <div key={prog} style={{ marginBottom: 20, border: `1px solid ${PALETTE.line}`, borderRadius: 14, overflow: "hidden", background: "#fff" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "rgba(30,132,73,.08)" }}>
+              <strong style={{ fontSize: 15, color: PALETTE.cream }}>Session — {prog}</strong>
+              <span style={{ fontSize: 13, color: `${PALETTE.cream}aa`, fontWeight: 600 }}>{rows.length} élève{rows.length > 1 ? "s" : ""}</span>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
+                <thead><tr><th style={th}>#</th><th style={th}>Nom &amp; Prénom</th><th style={th}>Session</th><th style={th}>Étiquette</th><th style={th}>Code barre</th></tr></thead>
+                <tbody>
+                  {rows.map((p, i) => {
+                    const inf = p.enrollInfo || {};
+                    return (
+                      <tr key={p.id}>
+                        <td style={{ ...td, color: `${PALETTE.cream}88` }}>{i + 1}</td>
+                        <td style={{ ...td, fontWeight: 600 }}>{fullNameOf(p)}</td>
+                        <td style={td}>{inf.session || "—"}</td>
+                        <td style={td}>{p.etiquette || "—"}</td>
+                        <td style={{ ...td, fontFamily: "monospace", color: PALETTE.goldSoft }}>{inf.barcode || "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
 function EnrolledListSpace({ config }) {
   const { authed, gate } = useInterfaceAuth(config, "eleves", "Élèves inscrits");
   const [items, setItems] = useState(null);
+  const [unlocked, setUnlocked] = useState({}); // id elèv ki gen restriksyon vini retire anvan session
+  const [busyId, setBusyId] = useState("");
+  const programs = (config && config.programs) || [];
 
   useEffect(() => { if (authed) (async () => setItems(await loadProspects()))(); }, [authed]);
+
+  const sessionDateOf = (progLabel) => {
+    const pr = programs.find((p) => p.label === progLabel);
+    return pr ? currentResaBaseAll(pr.steps || []) : "";
+  };
+  const markVini = async (p) => {
+    setBusyId(p.id);
+    const ok = await setProspectFollowup(p.id, "vini");
+    if (ok) setItems((prev) => (prev || []).map((x) => (x.id === p.id ? { ...x, followup: "vini", cameAt: todayStr() } : x)));
+    setBusyId("");
+  };
 
   const digits = (s) => String(s || "").replace(/\D/g, "");
   const getName = (p) => {
@@ -3145,7 +3248,7 @@ function EnrolledListSpace({ config }) {
   };
 
   const groups = useMemo(() => {
-    const enrolled = (items || []).filter((p) => p.enrolled);
+    const enrolled = (items || []).filter((p) => p.enrolled && p.followup !== "vini");
     const by = {};
     enrolled.forEach((p) => { const prog = p.program || "Sans programme"; (by[prog] = by[prog] || []).push(p); });
     return Object.keys(by).sort().map((prog) => [prog, by[prog]]);
@@ -3165,28 +3268,35 @@ function EnrolledListSpace({ config }) {
           <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, margin: 0, color: PALETTE.cream }}>Élèves inscrits</h2>
           <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Regroupés par programme.</p>
         </div>
-        <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/inscription"; }} style={ghostBtn}>+ Nouvelle inscription</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/sessions"; }} style={ghostBtn}>Liste des sessions</button>
+          <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/inscription"; }} style={ghostBtn}>+ Nouvelle inscription</button>
+        </div>
       </div>
 
       {items === null ? (
         <p style={{ color: `${PALETTE.cream}99` }}>Chargement…</p>
       ) : groups.length === 0 ? (
         <div style={{ textAlign: "center", padding: "40px 20px", border: `1px solid ${PALETTE.line}`, borderRadius: 16, background: "rgba(194,35,142,.04)" }}>
-          <p style={{ fontSize: 15, color: `${PALETTE.cream}cc`, margin: 0 }}>Aucun élève inscrit pour le moment.</p>
+          <p style={{ fontSize: 15, color: `${PALETTE.cream}cc`, margin: 0 }}>Aucun élève inscrit en attente.</p>
         </div>
       ) : (
-        groups.map(([prog, rows]) => (
+        groups.map(([prog, rows]) => {
+          const sd = sessionDateOf(prog);
+          const sessionArrived = sd && todayStr() >= sd;
+          return (
           <div key={prog} style={{ marginBottom: 20, border: `1px solid ${PALETTE.line}`, borderRadius: 14, overflow: "hidden", background: "#fff" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "rgba(194,35,142,.06)" }}>
               <strong style={{ fontSize: 15, color: PALETTE.cream }}>{prog}</strong>
-              <span style={{ fontSize: 13, color: `${PALETTE.cream}aa`, fontWeight: 600 }}>{rows.length} élève{rows.length > 1 ? "s" : ""}</span>
+              <span style={{ fontSize: 12.5, color: `${PALETTE.cream}aa`, fontWeight: 600 }}>{sd ? `Session : ${formatHtDate(sd)}` : ""} · {rows.length} élève{rows.length > 1 ? "s" : ""}</span>
             </div>
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead><tr><th style={th}>#</th><th style={th}>Nom &amp; Prénom</th><th style={th}>Date</th><th style={th}>Session</th><th style={th}>Code barre</th></tr></thead>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
+                <thead><tr><th style={th}>#</th><th style={th}>Nom &amp; Prénom</th><th style={th}>Date</th><th style={th}>Session</th><th style={th}>Code barre</th><th style={th}>Action</th></tr></thead>
                 <tbody>
                   {rows.map((p, i) => {
                     const inf = p.enrollInfo || {};
+                    const canVini = sessionArrived || unlocked[p.id];
                     return (
                       <tr key={p.id}>
                         <td style={{ ...td, color: `${PALETTE.cream}88` }}>{i + 1}</td>
@@ -3194,6 +3304,23 @@ function EnrolledListSpace({ config }) {
                         <td style={td}>{inf.date || "—"}</td>
                         <td style={td}>{inf.session || "—"}</td>
                         <td style={{ ...td, fontFamily: "monospace", color: PALETTE.goldSoft }}>{inf.barcode || "—"}</td>
+                        <td style={td}>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                            <button
+                              onClick={() => canVini && markVini(p)}
+                              disabled={!canVini || busyId === p.id}
+                              title={canVini ? "Marquer comme venu(e)" : "La date de session n'est pas encore arrivée"}
+                              style={{ padding: "5px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800, cursor: canVini ? "pointer" : "not-allowed", border: "none", background: canVini ? "#1E8449" : "#ccc", color: "#fff", opacity: busyId === p.id ? 0.6 : 1 }}
+                            >Vini</button>
+                            {!sessionArrived && !unlocked[p.id] && (
+                              <button
+                                onClick={() => setUnlocked((u) => ({ ...u, [p.id]: true }))}
+                                title="Débloquer le bouton Vini avant la session"
+                                style={{ padding: "5px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: "pointer", border: `1px solid ${PALETTE.goldSoft}`, background: "#fff", color: PALETTE.goldSoft }}
+                              >Vini avant session</button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -3201,7 +3328,8 @@ function EnrolledListSpace({ config }) {
               </table>
             </div>
           </div>
-        ))
+          );
+        })
       )}
     </div>
   );
@@ -3212,6 +3340,7 @@ const INTERFACES = [
   { key: "formulaire", label: "Liste des prospects" },
   { key: "inscription", label: "Inscription" },
   { key: "eleves", label: "Élèves inscrits" },
+  { key: "sessions", label: "Liste des sessions" },
 ];
 
 /* Hook koneksyon pataje: konekte pa etikèt (+ PIN) ak pèmisyon aksè, oswa "Accéder autrement" ak modpas.
