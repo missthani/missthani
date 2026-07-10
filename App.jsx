@@ -3168,7 +3168,6 @@ function SessionsListSpace({ config }) {
           <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Une session par programme — les élèves qui sont venus.</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/eleves"; }} style={ghostBtn}>← Élèves inscrits</button>
           <OptionsMenu />
         </div>
       </div>
@@ -3272,8 +3271,6 @@ function EnrolledListSpace({ config }) {
           <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Regroupés par programme.</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/sessions"; }} style={ghostBtn}>Liste des sessions</button>
-          <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/inscription"; }} style={ghostBtn}>+ Nouvelle inscription</button>
           <OptionsMenu />
         </div>
       </div>
@@ -3752,8 +3749,6 @@ function InscriptionSpace({ config }) {
           <p style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, margin: "2px 0 0" }}>Remplissez le formulaire lorsqu'un élève vient s'inscrire.</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/eleves"; }} style={ghostBtn}>Élèves inscrits</button>
-          <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/formulaire"; }} style={ghostBtn}>← Liste des prospects</button>
           <OptionsMenu />
         </div>
       </div>
@@ -3762,25 +3757,24 @@ function InscriptionSpace({ config }) {
       <div style={{ marginBottom: 16 }}>
         <button onClick={openMoncash} style={{ ...(moncashOpen ? goldBtn : ghostBtn), width: "100%" }}>Enregistrement des inscriptions Moncash {moncashOpen ? "▲" : "▼"}</button>
         {moncashOpen && (
-          <div style={{ marginTop: 8, padding: 14, border: `1px solid ${PALETTE.lineStrong}`, borderRadius: 14, background: "rgba(30,132,73,.05)" }}>
-            <p style={{ fontSize: 12.5, color: `${PALETTE.cream}aa`, margin: "0 0 8px", lineHeight: 1.5 }}>Sélectionnez une personne que les agents ont marquée comme <b>réservée</b> (3ème étape). Ses informations rempliront automatiquement le formulaire.</p>
+          <div style={{ marginTop: 8, padding: 12, border: `1px solid ${PALETTE.lineStrong}`, borderRadius: 14, background: "rgba(30,132,73,.05)" }}>
             {reservedList === null ? (
-              <p style={{ fontSize: 13, color: `${PALETTE.cream}99` }}>Chargement…</p>
+              <p style={{ fontSize: 13, color: `${PALETTE.cream}99`, margin: 0 }}>Chargement…</p>
             ) : reservedList.length === 0 ? (
-              <p style={{ fontSize: 13, color: `${PALETTE.cream}99` }}>Aucune personne réservée pour le moment.</p>
+              <p style={{ fontSize: 13, color: `${PALETTE.cream}99`, margin: 0 }}>Aucune personne réservée pour le moment.</p>
             ) : (
-              <select
-                className="mt-input"
-                value={moncashPick}
-                onChange={(e) => {
-                  const id = e.target.value; setMoncashPick(id);
-                  const m = (reservedList || []).find((p) => p.id === id);
-                  if (m) { fillFromMatch(m); setMoncashOpen(false); setSearchMsg(`Réservé sélectionné : ${getName(m) || "prospect"} — champs remplis.`); }
-                }}
-              >
-                <option value="">Choisir une personne réservée…</option>
-                {reservedList.map((p) => (<option key={p.id} value={p.id}>{getName(p) || "Sans nom"} — {p.program || "?"}</option>))}
-              </select>
+              <div>
+                {reservedList.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => { fillFromMatch(p); setMoncashOpen(false); setSearchMsg(`Réservé sélectionné : ${getName(p) || "prospect"} — champs remplis.`); }}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 12px", marginBottom: 6, borderRadius: 10, border: `1px solid ${PALETTE.line}`, background: "#fff", cursor: "pointer" }}
+                  >
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: PALETTE.cream }}>{getName(p) || "Sans nom"}</span>
+                    <span style={{ fontSize: 12, color: `${PALETTE.cream}99` }}>{p.program || "?"}</span>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -4041,7 +4035,6 @@ function AgentSpace({ config, onSave }) {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <button onClick={() => { if (typeof window !== "undefined") window.location.href = "/formulaire"; }} style={ghostBtn}>← Lis prospè yo</button>
           <OptionsMenu />
           <button onClick={logout} style={ghostBtn}>Dekonekte</button>
         </div>
@@ -5069,13 +5062,6 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           style={tab === "prospects" ? goldBtn : ghostBtn}
         >
           Nouvo Prospè
-        </button>
-        <button
-          onClick={() => { if (typeof window !== "undefined") window.location.href = "/agent"; }}
-          style={ghostBtn}
-          title="Louvri paj Progression des Agents"
-        >
-          Progression des Agents ↗
         </button>
         <button
           onClick={() => { setTab("lwen"); setMode("list"); }}
