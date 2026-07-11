@@ -3346,6 +3346,7 @@ const INTERFACES = [
 // Lis konplè aksè admin nan ka bay (entèfas + pèmisyon aksyon)
 const ACCESS_ITEMS = [
   ...INTERFACES,
+  { key: "ajouter_etiquette", label: "Ajouter une étiquette (nouveaux)" },
   { key: "changer_etiquette", label: "Changer une étiquette existante" },
   { key: "changer_suivi", label: "Cliquer les boutons de suivi (étapes)" },
 ];
@@ -4240,6 +4241,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     } catch (e) { return ""; }
   })();
   const myAccess = ((agentInfo || {})[currentAgent] && (agentInfo || {})[currentAgent].access) || {};
+  const canAddEtiquette = isAdmin || !!myAccess.ajouter_etiquette;
   const canChangeEtiquette = isAdmin || !!myAccess.changer_etiquette;
   const canChangeSuivi = (p) => isAdmin || !!myAccess.changer_suivi || (!!currentAgent && String(currentAgent).trim() === String(p.etiquette || "").trim());
 
@@ -4494,7 +4496,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         )}
       </td>
       <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
-        {(isAdmin || !p.etiquette || canChangeEtiquette) ? (
+        {(isAdmin || (!p.etiquette && canAddEtiquette) || (p.etiquette && canChangeEtiquette)) ? (
           <select
             value={p.etiquette || ""}
             onChange={(e) => setEtiquette(p.id, e.target.value)}
