@@ -3343,6 +3343,12 @@ const INTERFACES = [
   { key: "eleves", label: "Élèves inscrits" },
   { key: "sessions", label: "Liste des sessions" },
 ];
+// Lis konplè aksè admin nan ka bay (entèfas + pèmisyon aksyon)
+const ACCESS_ITEMS = [
+  ...INTERFACES,
+  { key: "changer_etiquette", label: "Changer une étiquette existante" },
+  { key: "changer_suivi", label: "Cliquer les boutons de suivi (étapes)" },
+];
 
 /* Meni "Options" — navigasyon ant tout paj app la (menm sa moun nan pa gen aksè; gate la ap jere aksè) */
 const PAGES = [
@@ -3367,6 +3373,16 @@ function OptionsMenu() {
             {PAGES.map((pg) => (
               <button key={pg.path} onClick={() => go(pg.path)} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: "none", border: "none", borderTop: `1px solid ${PALETTE.line}`, fontSize: 13.5, color: PALETTE.cream, cursor: "pointer" }}>{pg.label}</button>
             ))}
+            <button
+              onClick={() => {
+                try {
+                  localStorage.removeItem("missthani_conn");
+                  Object.keys(localStorage).forEach((k) => { if (k.indexOf("missthani_pw") === 0) localStorage.removeItem(k); });
+                } catch (e) {}
+                if (typeof window !== "undefined") window.location.reload();
+              }}
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: "none", border: "none", borderTop: `1px solid ${PALETTE.line}`, fontSize: 13.5, color: PALETTE.danger, fontWeight: 700, cursor: "pointer" }}
+            >Se déconnecter</button>
           </div>
         </>
       )}
@@ -4206,6 +4222,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       .filter(Boolean)
   )];
 
+  // Ki etikèt ki konekte kounye a + pèmisyon li yo
+  const currentAgent = (() => { try { const c = JSON.parse(localStorage.getItem("missthani_conn") || "null"); return (c && c.agent) || ""; } catch (e) { return ""; } })();
+  const myAccess = ((agentInfo || {})[currentAgent] && (agentInfo || {})[currentAgent].access) || {};
+  const canChangeEtiquette = isAdmin || !!myAccess.changer_etiquette;
+  const canChangeSuivi = (p) => isAdmin || !!myAccess.changer_suivi || (!!currentAgent && String(currentAgent).trim() === String(p.etiquette || "").trim());
+
   // Kreye / efase yon etikèt (admin sèlman)
   const createEtiquette = async () => {
     const name = newEtq.trim();
@@ -4439,21 +4461,25 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       <td style={{ ...tdDark, color: `${PALETTE.cream}88`, whiteSpace: "nowrap" }}>{shortDate(p.updatedAt)}</td>
       <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 600, whiteSpace: "nowrap" }}>{resaDate(p)}</td>
       <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
-        <select
-          value={p.followup || ""}
-          onChange={(e) => setSwivi(p.id, e.target.value)}
-          style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.followup ? "#FBE9F4" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 150 }}
-        >
-          <option value="">Swivi…</option>
-          <option value="done">Suivi fèt</option>
-          <option value="noanswer">Sone san repons</option>
-          <option value="wrong">Pa sone ditou</option>
-          <option value="vini">Vini (nouvo etidyan)</option>
-          <option value="lwen">Lwen</option>
-        </select>
+        {canChangeSuivi(p) ? (
+          <select
+            value={p.followup || ""}
+            onChange={(e) => setSwivi(p.id, e.target.value)}
+            style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.followup ? "#FBE9F4" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 150 }}
+          >
+            <option value="">Swivi…</option>
+            <option value="done">Suivi fèt</option>
+            <option value="noanswer">Sone san repons</option>
+            <option value="wrong">Pa sone ditou</option>
+            <option value="vini">Vini (nouvo etidyan)</option>
+            <option value="lwen">Lwen</option>
+          </select>
+        ) : (
+          <span style={{ fontSize: 11.5, color: `${PALETTE.cream}88` }} title="Sèl responsab etikèt la ka chanje swivi a">🔒</span>
+        )}
       </td>
       <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
-        {(isAdmin || !p.etiquette) ? (
+        {(isAdmin || !p.etiquette || canChangeEtiquette) ? (
           <select
             value={p.etiquette || ""}
             onChange={(e) => setEtiquette(p.id, e.target.value)}
@@ -4789,7 +4815,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               <span className="mt-marquee" style={{ fontSize: 10.5, color: bc, fontWeight: 700 }}>{tk.text}</span>
             </div>
           )}
-          {tk && tk.dropdown && (
+          {tk && tk.dropdown && canChangeSuivi(p) && (
             <div style={{ display: "flex", flexDirection: "column", gap: 2, maxWidth: 230 }}>
               <select
                 value=""
@@ -5141,8 +5167,8 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                     <button onClick={() => openAccess(n)} style={{ ...ghostBtn, padding: "4px 10px", fontSize: 12 }}>Accès {accOpen === n ? "▲" : "▼"}</button>
                     {accOpen === n && (
                       <div style={{ flexBasis: "100%", marginTop: 4, marginLeft: 130, padding: "10px 12px", border: `1px solid ${PALETTE.line}`, borderRadius: 10, background: "rgba(194,35,142,.03)" }}>
-                        <div style={{ fontSize: 11.5, fontWeight: 700, color: `${PALETTE.cream}aa`, marginBottom: 6 }}>Interfaces {n} gen aksè:</div>
-                        {INTERFACES.map((itf) => (
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: `${PALETTE.cream}aa`, marginBottom: 6 }}>Aksè {n} genyen:</div>
+                        {ACCESS_ITEMS.map((itf) => (
                           <label key={itf.key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: PALETTE.cream, padding: "4px 0", cursor: "pointer" }}>
                             <input type="checkbox" checked={!!accDraft[itf.key]} onChange={(e) => setAccDraft((d) => ({ ...d, [itf.key]: e.target.checked }))} style={{ width: 16, height: 16, accentColor: PALETTE.goldSoft }} />
                             {itf.label}
