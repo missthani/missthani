@@ -2736,7 +2736,7 @@ function ProspectsGate({ config }) {
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 600 }}>Nouvo Prospè</div>
         <a href="/" style={{ ...ghostBtn, textDecoration: "none" }}>Tounen sou sit la</a>
       </div>
-      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} programs={(config && config.programs) || []} waMessages={(config && config.waMessages) || []} activeWaMessage={(config && config.activeWaMessage) || ""} tickerMsgs={(config && config.tickerMsgs) || {}} stageConditions={(config && config.stageConditions) || {}} stageWaMsg={(config && config.stageWaMsg) || {}} waGroups={(config && config.waGroups) || {}} />
+      <ProspectsView agents={(config && config.agents) || []} isAdmin={false} programs={(config && config.programs) || []} waMessages={(config && config.waMessages) || []} activeWaMessage={(config && config.activeWaMessage) || ""} tickerMsgs={(config && config.tickerMsgs) || {}} stageConditions={(config && config.stageConditions) || {}} stageWaMsg={(config && config.stageWaMsg) || {}} waGroups={(config && config.waGroups) || {}} agentInfo={(config && config.agentInfo) || {}} />
     </div>
   );
 }
