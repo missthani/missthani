@@ -3396,6 +3396,7 @@ function useInterfaceAuth(config, interfaceKey, title) {
   const agentInfo = (config && config.agentInfo) || {};
   const agents = (config && config.agents) || [];
   const [authed, setAuthed] = useState(false);
+  const [denied, setDenied] = useState(false); // konekte men pa gen aksè
   const [mode, setMode] = useState("connexion"); // "connexion" | "password"
   const [etq, setEtq] = useState("");
   const [pin, setPin] = useState("");
@@ -3410,6 +3411,7 @@ function useInterfaceAuth(config, interfaceKey, title) {
       if (c && c.agent && Date.now() - c.ts < 12 * 3600 * 1000) {
         const acc = (agentInfo[c.agent] && agentInfo[c.agent].access) || {};
         if (acc[interfaceKey]) setAuthed(true);
+        else setDenied(true); // sistèm nan rekonèt li, men li pa gen aksè
       }
     } catch (e) {}
   }, [config]);
@@ -3429,7 +3431,14 @@ function useInterfaceAuth(config, interfaceKey, title) {
     else setErr("Mot de passe incorrect.");
   };
 
-  const gate = (
+  const gate = denied ? (
+    <div style={{ maxWidth: 480, margin: "0 auto", padding: "70px 20px", textAlign: "center" }}>
+      <div style={{ fontSize: 54, marginBottom: 14 }}>🔒</div>
+      <h2 style={{ fontSize: 22, fontWeight: 800, color: PALETTE.cream, margin: "0 0 10px" }}>Vous n'avez pas accès à cette page</h2>
+      <p style={{ fontSize: 14, color: `${PALETTE.cream}aa`, margin: "0 0 24px", lineHeight: 1.5 }}>Votre compte n'est pas autorisé à accéder à cette interface. Contactez l'administrateur si nécessaire.</p>
+      <button onClick={() => { if (typeof window !== "undefined") { if (window.history.length > 1) window.history.back(); else window.location.href = "/"; } }} style={{ ...goldBtn }}>← Retour à la page précédente</button>
+    </div>
+  ) : (
     <div style={{ maxWidth: 560, margin: "0 auto", padding: "24px 18px 60px" }}>
       <div style={{ textAlign: "center", marginTop: 20, marginBottom: 22 }}>
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 700, color: PALETTE.goldSoft, letterSpacing: "1px" }}>MISS THANI</div>
@@ -4222,8 +4231,14 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       .filter(Boolean)
   )];
 
-  // Ki etikèt ki konekte kounye a + pèmisyon li yo
-  const currentAgent = (() => { try { const c = JSON.parse(localStorage.getItem("missthani_conn") || "null"); return (c && c.agent) || ""; } catch (e) { return ""; } })();
+  // Ki etikèt ki konekte kounye a (via fòm koneksyon an OSWA via paj /agent la) + pèmisyon li yo
+  const currentAgent = (() => {
+    try {
+      const c = JSON.parse(localStorage.getItem("missthani_conn") || "null");
+      if (c && c.agent) return c.agent;
+      return localStorage.getItem("missthani_agent") || "";
+    } catch (e) { return ""; }
+  })();
   const myAccess = ((agentInfo || {})[currentAgent] && (agentInfo || {})[currentAgent].access) || {};
   const canChangeEtiquette = isAdmin || !!myAccess.changer_etiquette;
   const canChangeSuivi = (p) => isAdmin || !!myAccess.changer_suivi || (!!currentAgent && String(currentAgent).trim() === String(p.etiquette || "").trim());
