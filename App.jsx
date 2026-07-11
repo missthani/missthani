@@ -3388,7 +3388,7 @@ function useInterfaceAuth(config, interfaceKey, title) {
 
   useEffect(() => {
     try {
-      const pwS = parseInt(localStorage.getItem("missthani_pw") || "0", 10);
+      const pwS = parseInt(localStorage.getItem("missthani_pw_" + interfaceKey) || "0", 10);
       if (pwS && Date.now() - pwS < 12 * 3600 * 1000) { setAuthed(true); return; }
       const c = JSON.parse(localStorage.getItem("missthani_conn") || "null");
       if (c && c.agent && Date.now() - c.ts < 12 * 3600 * 1000) {
@@ -3409,7 +3409,7 @@ function useInterfaceAuth(config, interfaceKey, title) {
   };
   const loginPw = () => {
     setErr("");
-    if (pw === PROSPECTS_PASSWORD) { try { localStorage.setItem("missthani_pw", String(Date.now())); } catch (e) {} setAuthed(true); }
+    if (pw === PROSPECTS_PASSWORD) { try { localStorage.setItem("missthani_pw_" + interfaceKey, String(Date.now())); } catch (e) {} setAuthed(true); }
     else setErr("Mot de passe incorrect.");
   };
 
