@@ -3346,7 +3346,6 @@ const INTERFACES = [
 // Lis konplè aksè admin nan ka bay (entèfas + pèmisyon aksyon)
 const ACCESS_ITEMS = [
   ...INTERFACES,
-  { key: "ajouter_etiquette", label: "Ajouter une étiquette (nouveaux)" },
   { key: "changer_etiquette", label: "Changer une étiquette existante" },
   { key: "changer_suivi", label: "Cliquer les boutons de suivi (étapes)" },
 ];
@@ -4241,9 +4240,18 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     } catch (e) { return ""; }
   })();
   const myAccess = ((agentInfo || {})[currentAgent] && (agentInfo || {})[currentAgent].access) || {};
-  const canAddEtiquette = isAdmin || !!myAccess.ajouter_etiquette;
-  const canChangeEtiquette = isAdmin || !!myAccess.changer_etiquette;
-  const canChangeSuivi = (p) => isAdmin || !!myAccess.changer_suivi || (!!currentAgent && String(currentAgent).trim() === String(p.etiquette || "").trim());
+  // Modifye etikèt: prospè SAN etikèt = louvri pou tout moun; prospè ki GEN etikèt = admin/responsab/aksè
+  const canEditEtiquette = (p) => {
+    const etq = String(p.etiquette || "").trim();
+    if (!etq) return true; // san etikèt: tout moun ka mete youn
+    return isAdmin || !!myAccess.changer_etiquette || (!!currentAgent && String(currentAgent).trim() === etq);
+  };
+  // Swivi: prospè SAN etikèt = louvri; prospè ki GEN etikèt = admin/responsab/aksè
+  const canChangeSuivi = (p) => {
+    const etq = String(p.etiquette || "").trim();
+    if (!etq) return true; // san etikèt: tout moun ka fè swivi
+    return isAdmin || !!myAccess.changer_suivi || (!!currentAgent && String(currentAgent).trim() === etq);
+  };
 
   // Kreye / efase yon etikèt (admin sèlman)
   const createEtiquette = async () => {
@@ -4496,7 +4504,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         )}
       </td>
       <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
-        {(isAdmin || (!p.etiquette && canAddEtiquette) || (p.etiquette && canChangeEtiquette)) ? (
+        {canEditEtiquette(p) ? (
           <select
             value={p.etiquette || ""}
             onChange={(e) => setEtiquette(p.id, e.target.value)}
