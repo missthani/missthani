@@ -3714,6 +3714,16 @@ function InscriptionSpace({ config }) {
     const respStr = (n, li, t) => (esc(n) + (li ? " \u2014 " + esc(li) : "") + (t ? " \u2014 Tel : " + esc(t) : "")) || "\u2026";
     const bc = barcode || genBarcode();
     const svg = barcode39Svg(bc, 40, 1.4);
+    const progL = (program || "").toLowerCase();
+    let leftContent = "";
+    if (progL.indexOf("tresse") !== -1) {
+      let rows = '<tr><td colspan="2" class="vh">Versement</td><td colspan="2" class="vh">Balance</td></tr>';
+      for (let i = 0; i < 13; i++) rows += '<tr><td></td><td></td><td></td><td></td></tr>';
+      leftContent = '<table class="vtbl">' + rows + '</table>';
+    } else if (progL.indexOf("onglerie") !== -1 || progL.indexOf("ongle") !== -1) {
+      const its = ["vernis : 3", "acetone : 4 oz", "\u00e9chantillon : 1", "nail art", "chrome : 1", "design"];
+      leftContent = '<div class="olist"><div class="olt">Mat\u00e9riel</div>' + its.map((it) => '<div class="oli">\u2022 ' + esc(it) + '</div>').join("") + '</div>';
+    }
     const F = (l, v) => '<div class="fld"><span class="fl">' + esc(l) + '</span><span class="fv">' + (esc(v) || "&nbsp;") + '</span></div>';
     const F2 = (l1, v1, l2, v2) => '<div class="g2">' + F(l1, v1) + F(l2, v2) + '</div>';
     const html = '<!doctype html><html><head><meta charset="utf-8"><title>Fiche inscription</title><style>' +
@@ -3732,8 +3742,10 @@ function InscriptionSpace({ config }) {
       '.chks{font-size:8pt;line-height:1.6}.sign{margin-top:2.6mm;font-size:7.3pt;color:#333}.sigrow{display:flex;justify-content:space-between;align-items:flex-end;margin-top:auto;padding-top:3mm}' +
       '.sigline{border-top:0.6pt solid #333;width:52mm;padding-top:1mm;font-size:8pt}.bc{text-align:center}.bc .num{font-family:monospace;font-size:7pt;letter-spacing:1px;margin-top:0.5mm}' +
       '.pb{position:fixed;top:8px;right:8px;padding:9px 16px;background:#C2238E;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}@media print{.pb{display:none}}' +
+      '.vtbl{width:100%;border-collapse:collapse;margin-top:3mm}.vtbl td{border:0.6pt solid #333;height:9mm;font-size:9pt;padding:1mm 2mm}.vtbl .vh{text-align:center;font-weight:800;background:#eee}' +
+      '.olist{margin-top:3mm}.olt{font-weight:800;font-size:10pt;margin-bottom:2mm;color:#C2238E}.oli{font-size:11pt;padding:2mm 0}' +
       '</style></head><body><button class="pb" onclick="window.print()">Imprimer / T\u00e9l\u00e9charger PDF</button>' +
-      '<div class="page"><div class="half left"></div><div class="half"><div class="fiche">' +
+      '<div class="page"><div class="half left">' + leftContent + '</div><div class="half"><div class="fiche">' +
       '<div class="hdr"><div><div class="brand">MISS THANI</div><div class="bsub">Make-up &amp; Lace Club</div><div class="title">FICHE D\'INSCRIPTION</div></div><div class="photo">PHOTO</div></div>' +
       '<div class="sect">1. IDENTIT\u00c9 DE L\'\u00c9L\u00c8VE</div><div class="box">' +
       F2("Nom :", nom, "Pr\u00e9nom :", prenom) + F2("Naissance :", dob, "CIN/NIF :", cin) + F("Adresse :", address) + '</div>' +
