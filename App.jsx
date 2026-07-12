@@ -1381,6 +1381,7 @@ function PublicSpace({ config, onAdmin }) {
     return id ? (programs.find((p) => p.id === id) || null) : null;
   }); // pwogram chwazi
   const [screenIndex, setScreenIndex] = useState(() => (saved0 && saved0.screenIndex) || 0);
+  const [subId, setSubId] = useState(""); // sou-etap chwazi a (branch)
   const [formIdx, setFormIdx] = useState(0); // kesyon fòmilè aktyèl la (youn apre lòt)
   const [formError, setFormError] = useState(""); // mesaj erè fòmilè (nimewo pa bon, deja enskri…)
   const [checking, setChecking] = useState(false); // n ap tcheke nan Supabase
@@ -1453,9 +1454,9 @@ function PublicSpace({ config, onAdmin }) {
     return () => clearTimeout(t);
   }, [revealed, selected, programs.length, delayMs]);
 
-  const steps = selected ? selected.steps || [] : [];
-  // Chak etap = yon ekran. Chak ekran gen yon lis blòk (text, video, fòmilè, special, lyen).
-  const screens = steps;
+  const subprograms = selected ? (selected.subprograms || []) : [];
+  const activeSp = subId ? subprograms.find((sp) => sp.id === subId) : null;
+  const screens = activeSp ? (activeSp.steps || []) : (selected ? selected.steps || [] : []);
   const screen = screens[screenIndex];
   const blocks = screen ? getStepBlocks(screen) : [];
   const formBlock = blocks.find((b) => b.kind === "form");
@@ -1640,7 +1641,7 @@ function PublicSpace({ config, onAdmin }) {
 
   const goNext = () => {
     if (isLast) reset();
-    else { setScreenIndex((i) => i + 1); setFormIdx(0); }
+    else { setScreenIndex((i) => i + 1); setFormIdx(0); setSubId(""); }
   };
 
   // Bouton prensipal "Kontinye" (sèlman lè pa gen fòmilè ni special)
@@ -1938,13 +1939,13 @@ function PublicSpace({ config, onAdmin }) {
             <div style={{ display: "flex", gap: 10, marginTop: 18, justifyContent: "space-between", position: "relative", zIndex: 60 }}>
               <button
                 className="mt-btn"
-                onClick={screenIndex > 0 ? () => setScreenIndex((i) => i - 1) : reset}
+                onClick={activeSp ? () => { setSubId(""); setScreenIndex(Math.max(0, (selected.steps || []).length - 1)); setFormIdx(0); } : (screenIndex > 0 ? () => setScreenIndex((i) => i - 1) : reset)}
                 style={{ ...ghostBtn, position: "relative", zIndex: 60 }}
               >
                 {screenIndex > 0 ? "Anvan" : "Tounen"}
               </button>
 
-              {showMainBtn && (
+              {showMainBtn && !(subprograms.length > 0 && !activeSp && isLast) && (
                 <button
                   className="mt-btn"
                   onClick={advance}
@@ -1952,6 +1953,15 @@ function PublicSpace({ config, onAdmin }) {
                 >
                   {btnLabel}
                 </button>
+              )}
+              {subprograms.length > 0 && !activeSp && isLast && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+                  {subprograms.map((sp) => (
+                    <button key={sp.id} className="mt-btn" onClick={() => { setSubId(sp.id); setScreenIndex(0); setFormIdx(0); }} style={{ ...goldBtn, position: "relative", zIndex: 60 }}>
+                      {(sp.title || "").trim() || "Kontinye"}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           )}
@@ -2184,12 +2194,24 @@ function AdminSpace({ config, onSave, onExit }) {
   const removeProgram = (pid) =>
     setDraft((d) => ({ ...d, programs: d.programs.filter((p) => p.id !== pid) }));
 
-  const addStep = (pid) =>
-    updateProgramSteps(pid, (steps) => [...steps, { id: uid(), blocks: [], buttonLabel: "" }]);
+  const addStep = (pid, spid) =>
+    updateProgramSteps(pid, (steps) => [...steps, { id: uid(), blocks: [], buttonLabel: "" }], spid);
+  // Sou-etap (etap andan etap): ajoute/efase
+  const addSubstep = (pid, sid) =>
+    updateProgramSteps(pid, (steps) => steps.map((s) => (s.id === sid ? { ...s, substeps: [...(s.substeps || []), { id: uid(), blocks: [], buttonLabel: "" }] } : s)));
+  const removeSubstep = (pid, subId) =>
+    updateProgramSteps(pid, (steps) => steps.map((s) => ({ ...s, substeps: (s.substeps || []).filter((ss) => ss.id !== subId) })));
 
-  // ---- jesyon blòk anndan yon etap ----
+  // ---- jesyon blòk anndan yon etap OSWA yon sou-etap (pa id inik) ----
   const setStepBlocks = (pid, sid, fn) =>
-    updateProgramSteps(pid, (steps) => steps.map((s) => (s.id === sid ? { ...s, blocks: fn(getStepBlocks(s)) } : s)));
+    setDraft((d) => ({ ...d, programs: d.programs.map((p) => {
+      if (p.id !== pid) return p;
+      let found = false;
+      const steps = (p.steps || []).map((s) => { if (s.id === sid) { found = true; return { ...s, blocks: fn(getStepBlocks(s)) }; } return s; });
+      if (found) return { ...p, steps };
+      const subprograms = (p.subprograms || []).map((sp) => ({ ...sp, steps: (sp.steps || []).map((s) => (s.id === sid ? { ...s, blocks: fn(getStepBlocks(s)) } : s)) }));
+      return { ...p, subprograms };
+    }) }));
   const addBlock = (pid, sid, kind) => setStepBlocks(pid, sid, (bl) => [...bl, newBlock(kind)]);
   const updateBlock = (pid, sid, bid, patch) => setStepBlocks(pid, sid, (bl) => bl.map((b) => (b.id === bid ? { ...b, ...patch } : b)));
   const removeBlock = (pid, sid, bid) => setStepBlocks(pid, sid, (bl) => bl.filter((b) => b.id !== bid));
@@ -2209,23 +2231,38 @@ function AdminSpace({ config, onSave, onExit }) {
   const removeBlockSlot = (pid, sid, bid, slid) => updateBlockSchedule(pid, sid, bid, (arr) => arr.filter((x) => x.id !== slid));
 
   const updateStep = (pid, sid, patch) =>
-    updateProgramSteps(pid, (steps) => steps.map((s) => (s.id === sid ? { ...s, ...patch } : s)));
+    setDraft((d) => ({ ...d, programs: d.programs.map((p) => {
+      if (p.id !== pid) return p;
+      let found = false;
+      const steps = (p.steps || []).map((s) => { if (s.id === sid) { found = true; return { ...s, ...patch }; } return s; });
+      if (found) return { ...p, steps };
+      const subprograms = (p.subprograms || []).map((sp) => ({ ...sp, steps: (sp.steps || []).map((s) => (s.id === sid ? { ...s, ...patch } : s)) }));
+      return { ...p, subprograms };
+    }) }));
 
-  const removeStep = (pid, sid) =>
-    updateProgramSteps(pid, (steps) => steps.filter((s) => s.id !== sid));
+  const removeStep = (pid, sid, spid) =>
+    updateProgramSteps(pid, (steps) => steps.filter((s) => s.id !== sid), spid);
 
-  const moveStep = (pid, idx, dir) =>
+  const moveStep = (pid, idx, dir, spid) =>
     updateProgramSteps(pid, (steps) => {
       const j = idx + dir;
       if (j < 0 || j >= steps.length) return steps;
       const copy = [...steps];
       [copy[idx], copy[j]] = [copy[j], copy[idx]];
       return copy;
-    });
+    }, spid);
 
-  function updateProgramSteps(pid, fn) {
-    setDraft((d) => ({ ...d, programs: d.programs.map((p) => (p.id === pid ? { ...p, steps: fn(p.steps || []) } : p)) }));
+  function updateProgramSteps(pid, fn, spid) {
+    setDraft((d) => ({ ...d, programs: d.programs.map((p) => {
+      if (p.id !== pid) return p;
+      if (spid) return { ...p, subprograms: (p.subprograms || []).map((sp) => (sp.id === spid ? { ...sp, steps: fn(sp.steps || []) } : sp)) };
+      return { ...p, steps: fn(p.steps || []) };
+    }) }));
   }
+  // Sou-programme: ajoute/efase/modifye tit
+  const addSubprogram = (pid) => setDraft((d) => ({ ...d, programs: d.programs.map((p) => (p.id === pid ? { ...p, subprograms: [...(p.subprograms || []), { id: uid(), title: "", steps: [] }] } : p)) }));
+  const removeSubprogram = (pid, spid) => setDraft((d) => ({ ...d, programs: d.programs.map((p) => (p.id === pid ? { ...p, subprograms: (p.subprograms || []).filter((sp) => sp.id !== spid) } : p)) }));
+  const updateSubprogram = (pid, spid, patch) => setDraft((d) => ({ ...d, programs: d.programs.map((p) => (p.id === pid ? { ...p, subprograms: (p.subprograms || []).map((sp) => (sp.id === spid ? { ...sp, ...patch } : sp)) } : p)) }));
 
   /* ---- pwogram videyo pa dat ---- */
   const updateSchedule = (pid, sid, fn) =>
@@ -2333,43 +2370,16 @@ function AdminSpace({ config, onSave, onExit }) {
   }
 
   /* ---- editè a ---- */
-  const progCard = (p) => {
-          const open = !!openProgs[p.id];
-          return (
-            <div key={p.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
-              <button
-                onClick={() => toggleProg(p.id)}
-                style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: open ? "rgba(194,35,142,.07)" : "transparent", border: "none", color: PALETTE.cream, cursor: "pointer", fontSize: 16, fontWeight: 500, textAlign: "left" }}
-              >
-                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ color: PALETTE.gold, fontSize: 13 }}>{open ? "▾" : "▸"}</span>
-                  {p.label || "San non"}
-                  {p.bouste && <span style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: PALETTE.goldSoft, padding: "2px 7px", borderRadius: 999 }}>🚀 BOUSTE</span>}
-                </span>
-                <span style={{ fontSize: 12, color: PALETTE.gold }}>
-                  {(p.steps || []).length} etap
-                </span>
-              </button>
-
-              {open && (
-                <div style={{ padding: "4px 16px 18px" }}>
-                  <label style={labelStyle}>Non programme nan</label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input className="mt-input" value={p.label} onChange={(e) => updateProgram(p.id, { label: e.target.value })} />
-                    <button onClick={() => removeProgram(p.id)} style={{ ...dangerBtn, whiteSpace: "nowrap" }}>Efase</button>
-                  </div>
-
-                  <div style={{ marginTop: 18 }}>
-                    {(p.steps || []).map((s, idx) => {
+  const stepEditor = (p, s, idx, spid) => {
                       const blocks = getStepBlocks(s);
                       return (
                         <div key={s.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 10, padding: 14, marginBottom: 12, background: "rgba(194,35,142,.035)" }}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                             <span style={{ fontSize: 12, color: PALETTE.gold, letterSpacing: "1px" }}>ETAP {idx + 1}</span>
                             <div style={{ display: "flex", gap: 6 }}>
-                              <button onClick={() => moveStep(p.id, idx, -1)} disabled={idx === 0} style={miniBtn(idx === 0)}>↑</button>
-                              <button onClick={() => moveStep(p.id, idx, 1)} disabled={idx === p.steps.length - 1} style={miniBtn(idx === p.steps.length - 1)}>↓</button>
-                              <button onClick={() => removeStep(p.id, s.id)} style={miniDanger}>✕</button>
+                              {!spid && <button onClick={() => moveStep(p.id, idx, -1)} disabled={idx === 0} style={miniBtn(idx === 0)}>↑</button>}
+                              {!spid && <button onClick={() => moveStep(p.id, idx, 1)} disabled={idx === p.steps.length - 1} style={miniBtn(idx === p.steps.length - 1)}>↓</button>}
+                              <button onClick={() => removeStep(p.id, s.id, spid)} style={miniDanger}>✕</button>
                             </div>
                           </div>
 
@@ -2639,8 +2649,54 @@ function AdminSpace({ config, onSave, onExit }) {
                           <input className="mt-input" style={{ marginTop: 10 }} placeholder="Tèks bouton 'Kontinye' — opsyonèl" value={s.buttonLabel || ""} onChange={(e) => updateStep(p.id, s.id, { buttonLabel: e.target.value })} />
                         </div>
                       );
-                    })}
-                    <button onClick={() => addStep(p.id)} style={{ ...ghostBtn, width: "100%" }}>+ Ajoute yon etap</button>
+  };
+
+  const progCard = (p) => {
+          const open = !!openProgs[p.id];
+          return (
+            <div key={p.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
+              <button
+                onClick={() => toggleProg(p.id)}
+                style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: open ? "rgba(194,35,142,.07)" : "transparent", border: "none", color: PALETTE.cream, cursor: "pointer", fontSize: 16, fontWeight: 500, textAlign: "left" }}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ color: PALETTE.gold, fontSize: 13 }}>{open ? "▾" : "▸"}</span>
+                  {p.label || "San non"}
+                  {p.bouste && <span style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: PALETTE.goldSoft, padding: "2px 7px", borderRadius: 999 }}>🚀 BOUSTE</span>}
+                </span>
+                <span style={{ fontSize: 12, color: PALETTE.gold }}>
+                  {(p.steps || []).length} etap
+                </span>
+              </button>
+
+              {open && (
+                <div style={{ padding: "4px 16px 18px" }}>
+                  <label style={labelStyle}>Non programme nan</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input className="mt-input" value={p.label} onChange={(e) => updateProgram(p.id, { label: e.target.value })} />
+                    <button onClick={() => removeProgram(p.id)} style={{ ...dangerBtn, whiteSpace: "nowrap" }}>Efase</button>
+                  </div>
+
+                  <div style={{ marginTop: 18 }}>
+                    {(p.steps || []).map((s, idx) => stepEditor(p, s, idx, false))}
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button onClick={() => addStep(p.id)} style={{ ...ghostBtn, flex: 1, minWidth: 140 }}>+ Ajoute yon etap</button>
+                      <button onClick={() => addSubprogram(p.id)} style={{ ...ghostBtn, flex: 1, minWidth: 140, borderColor: PALETTE.goldSoft, color: PALETTE.goldSoft }}>+ Ajoute yon sou-programme</button>
+                    </div>
+                    {(p.subprograms || []).map((sp) => (
+                      <div key={sp.id} style={{ marginTop: 14, border: `1.5px solid ${PALETTE.goldSoft}`, borderRadius: 12, padding: 12, background: "rgba(224,165,10,.05)" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: PALETTE.goldSoft, letterSpacing: "1px" }}>➕ SOU-PROGRAMME</span>
+                          <button onClick={() => removeSubprogram(p.id, sp.id)} style={miniDanger}>✕</button>
+                        </div>
+                        <label style={labelStyle}>Tit (tèks bouton an)</label>
+                        <input className="mt-input" value={sp.title || ""} onChange={(e) => updateSubprogram(p.id, sp.id, { title: e.target.value })} placeholder="Egz: Débutant, Avancé…" />
+                        <div style={{ marginTop: 12 }}>
+                          {(sp.steps || []).map((st, i) => stepEditor(p, st, i, sp.id))}
+                          <button onClick={() => addStep(p.id, sp.id)} style={{ ...ghostBtn, width: "100%" }}>+ Ajoute yon etap nan sou-programme sa a</button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
