@@ -1367,8 +1367,10 @@ function saveVisit(data) {
 
 function PublicSpace({ config, onAdmin }) {
   const refAgent = getRefAgent();
+  // Pou routing Bouste: sèlman si ?ref= nan URL la kounye a (pa yon ansyen ref ki estoke). Lien dirèk = paj piblik.
+  const refInUrl = (() => { try { return new URLSearchParams(window.location.search).get("ref") || ""; } catch (e) { return ""; } })();
   const bousteList = (config.programs || []).filter((p) => p.bouste);
-  const bousteOn = !!config.bousteActive && !!refAgent && bousteList.length > 0; // lien referans + bouste aktif
+  const bousteOn = !!config.bousteActive && !!refInUrl && bousteList.length > 0; // lien referans (nan URL) + bouste aktif
   const programs = bousteOn ? bousteList : (config.programs || []).filter((p) => !p.bouste); // bouste: paj bouste yo; sinon: programme piblik yo (san bouste)
   // Li pwogrè ki te anrejistre a (yon sèl fwa, lè paj la louvri)
   const saved0 = useMemo(() => loadVisit(), []);
@@ -2331,80 +2333,7 @@ function AdminSpace({ config, onSave, onExit }) {
   }
 
   /* ---- editè a ---- */
-  return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 18px 80px" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22, gap: 12, flexWrap: "wrap" }}>
-        <div>
-          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600 }}>Espas Administrasyon</div>
-          <div style={{ fontSize: 12, color: PALETTE.gold, letterSpacing: "1px" }}>Miss Thani — Make-Up &amp; Lace Club</div>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={() => setAdminTab("editor")} style={adminTab === "editor" ? goldBtn : ghostBtn}>Editè</button>
-          <button onClick={() => setAdminTab("prospects")} style={adminTab === "prospects" ? goldBtn : ghostBtn}>Nouvo Prospect</button>
-          <button onClick={() => setAdminTab("stats")} style={adminTab === "stats" ? goldBtn : ghostBtn}>Estatistik</button>
-          <button onClick={onExit} style={ghostBtn}>Wè paj piblik</button>
-          <button onClick={() => setAuthed(false)} style={ghostBtn}>Sòti</button>
-        </div>
-      </div>
-
-      {adminTab === "prospects" ? (
-        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} tickerMsgs={draft.tickerMsgs || {}} onSaveTickerMsgs={saveTickerMsgs} stageConditions={draft.stageConditions || {}} agentInfo={draft.agentInfo || {}} onSaveAgentInfo={saveAgentInfo} onSaveAgentsAndInfo={saveAgentsAndInfo} stageWaMsg={draft.stageWaMsg || {}} waGroups={draft.waGroups || {}} onSaveWaGroups={saveWaGroups} />
-      ) : adminTab === "stats" ? (
-        <StatsView />
-      ) : (
-        <>
-      {/* Paramèt jeneral */}
-      <Section title="Paramèt jeneral">
-        <label style={labelStyle}>Kesyon ki parèt sou paj la</label>
-        <input className="mt-input" value={draft.question} onChange={(e) => setDraft((d) => ({ ...d, question: e.target.value }))} />
-        <label style={{ ...labelStyle, marginTop: 14 }}>Segond ant chak opsyon</label>
-        <input
-          className="mt-input"
-          type="number"
-          min="0"
-          step="0.5"
-          style={{ maxWidth: 140 }}
-          value={draft.revealDelay}
-          onChange={(e) => setDraft((d) => ({ ...d, revealDelay: Number(e.target.value) || 0 }))}
-        />
-      </Section>
-
-      {/* Kesyon fòmilè pataje yo */}
-      <Section title="Kesyon Fòmilè (prepare yon sèl fwa)">
-        <p style={{ fontSize: 13, color: `${PALETTE.cream}99`, margin: "0 0 14px" }}>
-          Ekri kesyon fòmilè yo isit la yon sèl fwa. Chak fwa ou ajoute yon etap <strong>Fòmilè</strong> nan yon programme, menm kesyon sa yo ap monte otomatikman.
-        </p>
-        {(draft.formFields || []).map((f, idx) => (
-          <div key={f.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 10, padding: 12, marginBottom: 10, background: "rgba(194,35,142,.035)" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontSize: 12, color: PALETTE.goldSoft, letterSpacing: "1px" }}>KESYON {idx + 1}</span>
-              <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={() => moveFormField(idx, -1)} disabled={idx === 0} style={miniBtn(idx === 0)}>↑</button>
-                <button onClick={() => moveFormField(idx, 1)} disabled={idx === (draft.formFields.length - 1)} style={miniBtn(idx === (draft.formFields.length - 1))}>↓</button>
-                <button onClick={() => removeFormField(f.id)} style={miniDanger}>✕</button>
-              </div>
-            </div>
-            <input className="mt-input" placeholder="Kesyon an (egz: Non konplè, Nimewo telefòn)" value={f.label} onChange={(e) => updateFormField(f.id, { label: e.target.value })} />
-            <label style={{ ...labelStyle, marginTop: 8 }}>Kalite repons</label>
-            <select className="mt-input" value={f.fieldType || "text"} onChange={(e) => updateFormField(f.id, { fieldType: e.target.value })}>
-              <option value="text">Tèks</option>
-              <option value="tel">Telefòn</option>
-              <option value="email">Imèl</option>
-              <option value="number">Nimewo</option>
-            </select>
-          </div>
-        ))}
-        <button onClick={addFormField} style={{ ...ghostBtn, width: "100%" }}>+ Ajoute yon kesyon fòmilè</button>
-      </Section>
-
-      {/* Pwogram yo */}
-      <Section title="Programme yo ak etap yo">
-        <p style={{ fontSize: 13, color: `${PALETTE.cream}99`, margin: "0 0 16px" }}>
-          Pou chak programme, ajoute etap moun nan ap wè youn apre lòt. Chak etap gen yon tit ak yon mesaj.
-        </p>
-
-        {draft.programs.map((p) => {
+  const progCard = (p) => {
           const open = !!openProgs[p.id];
           return (
             <div key={p.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
@@ -2717,7 +2646,82 @@ function AdminSpace({ config, onSave, onExit }) {
               )}
             </div>
           );
-        })}
+  };
+
+  return (
+    <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 18px 80px" }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22, gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600 }}>Espas Administrasyon</div>
+          <div style={{ fontSize: 12, color: PALETTE.gold, letterSpacing: "1px" }}>Miss Thani — Make-Up &amp; Lace Club</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => setAdminTab("editor")} style={adminTab === "editor" ? goldBtn : ghostBtn}>Editè</button>
+          <button onClick={() => setAdminTab("prospects")} style={adminTab === "prospects" ? goldBtn : ghostBtn}>Nouvo Prospect</button>
+          <button onClick={() => setAdminTab("stats")} style={adminTab === "stats" ? goldBtn : ghostBtn}>Estatistik</button>
+          <button onClick={onExit} style={ghostBtn}>Wè paj piblik</button>
+          <button onClick={() => setAuthed(false)} style={ghostBtn}>Sòti</button>
+        </div>
+      </div>
+
+      {adminTab === "prospects" ? (
+        <ProspectsView agents={draft.agents || []} isAdmin={true} onSaveAgents={saveAgents} programs={draft.programs || []} waMessages={draft.waMessages || []} activeWaMessage={draft.activeWaMessage || ""} onSaveWaMessages={saveWaMessages} tickerMsgs={draft.tickerMsgs || {}} onSaveTickerMsgs={saveTickerMsgs} stageConditions={draft.stageConditions || {}} agentInfo={draft.agentInfo || {}} onSaveAgentInfo={saveAgentInfo} onSaveAgentsAndInfo={saveAgentsAndInfo} stageWaMsg={draft.stageWaMsg || {}} waGroups={draft.waGroups || {}} onSaveWaGroups={saveWaGroups} />
+      ) : adminTab === "stats" ? (
+        <StatsView />
+      ) : (
+        <>
+      {/* Paramèt jeneral */}
+      <Section title="Paramèt jeneral">
+        <label style={labelStyle}>Kesyon ki parèt sou paj la</label>
+        <input className="mt-input" value={draft.question} onChange={(e) => setDraft((d) => ({ ...d, question: e.target.value }))} />
+        <label style={{ ...labelStyle, marginTop: 14 }}>Segond ant chak opsyon</label>
+        <input
+          className="mt-input"
+          type="number"
+          min="0"
+          step="0.5"
+          style={{ maxWidth: 140 }}
+          value={draft.revealDelay}
+          onChange={(e) => setDraft((d) => ({ ...d, revealDelay: Number(e.target.value) || 0 }))}
+        />
+      </Section>
+
+      {/* Kesyon fòmilè pataje yo */}
+      <Section title="Kesyon Fòmilè (prepare yon sèl fwa)">
+        <p style={{ fontSize: 13, color: `${PALETTE.cream}99`, margin: "0 0 14px" }}>
+          Ekri kesyon fòmilè yo isit la yon sèl fwa. Chak fwa ou ajoute yon etap <strong>Fòmilè</strong> nan yon programme, menm kesyon sa yo ap monte otomatikman.
+        </p>
+        {(draft.formFields || []).map((f, idx) => (
+          <div key={f.id} style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 10, padding: 12, marginBottom: 10, background: "rgba(194,35,142,.035)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 12, color: PALETTE.goldSoft, letterSpacing: "1px" }}>KESYON {idx + 1}</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={() => moveFormField(idx, -1)} disabled={idx === 0} style={miniBtn(idx === 0)}>↑</button>
+                <button onClick={() => moveFormField(idx, 1)} disabled={idx === (draft.formFields.length - 1)} style={miniBtn(idx === (draft.formFields.length - 1))}>↓</button>
+                <button onClick={() => removeFormField(f.id)} style={miniDanger}>✕</button>
+              </div>
+            </div>
+            <input className="mt-input" placeholder="Kesyon an (egz: Non konplè, Nimewo telefòn)" value={f.label} onChange={(e) => updateFormField(f.id, { label: e.target.value })} />
+            <label style={{ ...labelStyle, marginTop: 8 }}>Kalite repons</label>
+            <select className="mt-input" value={f.fieldType || "text"} onChange={(e) => updateFormField(f.id, { fieldType: e.target.value })}>
+              <option value="text">Tèks</option>
+              <option value="tel">Telefòn</option>
+              <option value="email">Imèl</option>
+              <option value="number">Nimewo</option>
+            </select>
+          </div>
+        ))}
+        <button onClick={addFormField} style={{ ...ghostBtn, width: "100%" }}>+ Ajoute yon kesyon fòmilè</button>
+      </Section>
+
+      {/* Pwogram yo */}
+      <Section title="Programme yo ak etap yo">
+        <p style={{ fontSize: 13, color: `${PALETTE.cream}99`, margin: "0 0 16px" }}>
+          Pou chak programme, ajoute etap moun nan ap wè youn apre lòt. Chak etap gen yon tit ak yon mesaj.
+        </p>
+
+        {draft.programs.filter((p) => !p.bouste).map((p) => progCard(p))}
 
         <button onClick={addProgram} style={{ ...ghostBtn, width: "100%", marginTop: 6 }}>+ Ajoute yon programme</button>
       </Section>
@@ -2730,8 +2734,10 @@ function AdminSpace({ config, onSave, onExit }) {
           <button onClick={toggleBouste} style={draft.bousteActive ? { ...goldBtn, background: "#1E8449" } : goldBtn}>{draft.bousteActive ? "✓ Bouste aktive — Dezaktive" : "Aktive Bouste"}</button>
           {draft.bousteActive && <span style={{ marginLeft: 10, fontSize: 13, fontWeight: 800, color: "#1E8449" }}>Bouste aktive ✓</span>}
         </div>
-        <div style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, marginBottom: 8 }}>Paj Bouste yo parèt nan lis "<b>Programme yo ak etap yo</b>" anwo a ak yon ti mak <b>🚀 BOUSTE</b> (se la ou edite yo).</div>
-        <button onClick={addBousteProgram} style={{ ...ghostBtn, width: "100%", borderColor: PALETTE.goldSoft, color: PALETTE.goldSoft }}>🚀 + Ajoute yon paj Bouste</button>
+        <div style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, marginBottom: 8 }}>Paj Bouste yo edite anba a (yo pa parèt nan lis programme piblik yo).</div>
+        <button onClick={addBousteProgram} style={{ ...ghostBtn, width: "100%", borderColor: PALETTE.goldSoft, color: PALETTE.goldSoft, marginBottom: 12 }}>🚀 + Ajoute yon paj Bouste</button>
+        {draft.programs.filter((p) => p.bouste).map((p) => progCard(p))}
+        {draft.programs.filter((p) => p.bouste).length === 0 && <p style={{ fontSize: 12, color: `${PALETTE.cream}88` }}>Poko gen paj Bouste. Klike bouton anwo a pou kreye youn.</p>}
       </Section>
 
       {/* Bar anrejistre */}
