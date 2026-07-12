@@ -579,6 +579,7 @@ const DEFAULT_CONFIG = {
     { id: uid(), label: "Formation Bouquet", steps: [] },
   ],
   bousteActive: false, // lè li aktif, lien referans ajan yo mennen sou paj Bouste a
+  bousteProgramIds: [], // ki programme ki afiche sou paj Bouste a (youn apre lòt)
 };
 
 /* ----------------------- Memwa: Supabase ----------------------- */
@@ -1365,18 +1366,18 @@ function saveVisit(data) {
 }
 
 function PublicSpace({ config, onAdmin }) {
-  const bousteProg = (config.programs || []).find((p) => p.bouste) || null;
   const refAgent = getRefAgent();
-  const bousteOn = !!config.bousteActive && !!bousteProg && !!refAgent; // lien referans + bouste aktif
-  const programs = (config.programs || []).filter((p) => !p.bouste); // pa montre paj bouste nan chwa piblik la
+  const bousteIds = config.bousteProgramIds || [];
+  const bousteOn = !!config.bousteActive && !!refAgent && bousteIds.length > 0; // lien referans + bouste aktif
+  const allPrograms = config.programs || [];
+  const programs = bousteOn ? allPrograms.filter((p) => bousteIds.includes(p.id)) : allPrograms; // sou bouste, sèlman programme chwazi yo
   // Li pwogrè ki te anrejistre a (yon sèl fwa, lè paj la louvri)
   const saved0 = useMemo(() => loadVisit(), []);
 
-  const [revealed, setRevealed] = useState(() => (bousteOn || (saved0 && saved0.selectedId) ? programs.length : 0));
+  const [revealed, setRevealed] = useState(() => (saved0 && saved0.selectedId ? programs.length : 0));
   const [selected, setSelected] = useState(() => {
-    if (bousteOn && !(saved0 && saved0.selectedId)) return bousteProg; // lien referans → paj bouste
     const id = saved0 && saved0.selectedId;
-    return id ? (programs.find((p) => p.id === id) || (bousteProg && bousteProg.id === id ? bousteProg : null)) : null;
+    return id ? (programs.find((p) => p.id === id) || null) : null;
   }); // pwogram chwazi
   const [screenIndex, setScreenIndex] = useState(() => (saved0 && saved0.screenIndex) || 0);
   const [formIdx, setFormIdx] = useState(0); // kesyon fòmilè aktyèl la (youn apre lòt)
@@ -1632,7 +1633,7 @@ function PublicSpace({ config, onAdmin }) {
       answers: answered,
       updatedAt: Date.now(),
       etiquette: getRefAgent(),
-      bouste: !!(selected && selected.bouste),
+      bouste: bousteOn,
     });
   };
 
@@ -2172,15 +2173,12 @@ function AdminSpace({ config, onSave, onExit }) {
     setDraft((d) => ({ ...d, programs: [...d.programs, np] }));
     setOpenProgs((o) => ({ ...o, [np.id]: true })); // louvri nouvo pwogram nan otomatikman
   };
-  const addBoustePage = () => {
-    setDraft((d) => {
-      if ((d.programs || []).some((p) => p.bouste)) return d; // deja gen youn
-      const np = { id: uid(), label: "🚀 BOUSTE", steps: [], bouste: true };
-      setOpenProgs((o) => ({ ...o, [np.id]: true }));
-      return { ...d, programs: [...(d.programs || []), np] };
-    });
-  };
   const toggleBouste = () => setDraft((d) => ({ ...d, bousteActive: !d.bousteActive }));
+  const toggleBousteProgram = (pid) => setDraft((d) => {
+    const cur = d.bousteProgramIds || [];
+    const next = cur.includes(pid) ? cur.filter((x) => x !== pid) : [...cur, pid];
+    return { ...d, bousteProgramIds: next };
+  });
 
   const removeProgram = (pid) =>
     setDraft((d) => ({ ...d, programs: d.programs.filter((p) => p.id !== pid) }));
@@ -2426,14 +2424,6 @@ function AdminSpace({ config, onSave, onExit }) {
 
               {open && (
                 <div style={{ padding: "4px 16px 18px" }}>
-                  {p.bouste && (
-                    <div style={{ marginBottom: 12, padding: 12, borderRadius: 12, border: `1px solid ${PALETTE.lineStrong}`, background: draft.bousteActive ? "rgba(30,132,73,.08)" : "rgba(194,35,142,.04)" }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: PALETTE.goldSoft, marginBottom: 6 }}>🚀 Paj Bouste — koneksyon ak lien referans ajan yo</div>
-                      <p style={{ fontSize: 11.5, color: `${PALETTE.cream}aa`, margin: "0 0 8px", lineHeight: 1.5 }}>Depi Bouste aktif, lè yon moun klike sou lien referans yon ajan, se paj sa a l ap wè olye paj piblik la. Moun ki ranpli fòm nan pandan sa ap make "BOUSTE".</p>
-                      <button onClick={toggleBouste} style={draft.bousteActive ? { ...goldBtn, background: "#1E8449" } : goldBtn}>{draft.bousteActive ? "✓ Bouste aktive — Dezaktive" : "Aktive Bouste"}</button>
-                      {draft.bousteActive && <span style={{ marginLeft: 10, fontSize: 12.5, fontWeight: 800, color: "#1E8449" }}>Bouste aktive ✓</span>}
-                    </div>
-                  )}
                   <label style={labelStyle}>Non programme nan</label>
                   <div style={{ display: "flex", gap: 8 }}>
                     <input className="mt-input" value={p.label} onChange={(e) => updateProgram(p.id, { label: e.target.value })} />
@@ -2730,9 +2720,27 @@ function AdminSpace({ config, onSave, onExit }) {
         })}
 
         <button onClick={addProgram} style={{ ...ghostBtn, width: "100%", marginTop: 6 }}>+ Ajoute yon programme</button>
-        {!(draft.programs || []).some((p) => p.bouste) && (
-          <button onClick={addBoustePage} style={{ ...ghostBtn, width: "100%", marginTop: 6, borderColor: PALETTE.goldSoft, color: PALETTE.goldSoft }}>🚀 + Ajoute paj Bouste</button>
-        )}
+      </Section>
+
+      <Section title="🚀 Bouste">
+        <p style={{ fontSize: 12.5, color: `${PALETTE.cream}aa`, margin: "0 0 12px", lineHeight: 1.5 }}>
+          Bouste se yon paj apa. Depi li aktif, lè yon moun klike sou lien referans yon ajan, se <b>programme ou chwazi anba yo</b> l ap wè (youn apre lòt tankou paj piblik la) olye paj piblik konplè a. Moun ki ranpli fòm nan pandan sa ap make <b>"BOUSTE"</b>.
+        </p>
+        <div style={{ marginBottom: 14 }}>
+          <button onClick={toggleBouste} style={draft.bousteActive ? { ...goldBtn, background: "#1E8449" } : goldBtn}>{draft.bousteActive ? "✓ Bouste aktive — Dezaktive" : "Aktive Bouste"}</button>
+          {draft.bousteActive && <span style={{ marginLeft: 10, fontSize: 13, fontWeight: 800, color: "#1E8449" }}>Bouste aktive ✓</span>}
+        </div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: PALETTE.cream, marginBottom: 6 }}>Programme ki afiche sou paj Bouste a :</div>
+        {(draft.programs || []).map((p) => {
+          const on = (draft.bousteProgramIds || []).includes(p.id);
+          return (
+            <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: PALETTE.cream, padding: "6px 0", cursor: "pointer" }}>
+              <input type="checkbox" checked={on} onChange={() => toggleBousteProgram(p.id)} style={{ width: 16, height: 16, accentColor: PALETTE.goldSoft }} />
+              {p.label}
+            </label>
+          );
+        })}
+        {(draft.programs || []).length === 0 && <p style={{ fontSize: 12, color: `${PALETTE.cream}88` }}>Poko gen programme.</p>}
       </Section>
 
       {/* Bar anrejistre */}
