@@ -576,7 +576,7 @@ const DEFAULT_CONFIG = {
     { id: uid(), label: "Tresse", steps: [] },
     { id: uid(), label: "Makiyaj", steps: [] },
     { id: uid(), label: "Dreadlocks", steps: [] },
-    { id: uid(), label: "Formation Bouquet", steps: [] },
+    { id: uid(), label: "Formation Bouquet Éternel", steps: [] },
   ],
   bousteActive: false, // lè li aktif, lien referans ajan yo mennen sou paj Bouste a
   bousteProgramIds: [], // ki programme ki afiche sou paj Bouste a (youn apre lòt)
@@ -3435,6 +3435,7 @@ const INTERFACES = [
 // Lis konplè aksè admin nan ka bay (entèfas + pèmisyon aksyon)
 const ACCESS_ITEMS = [
   ...INTERFACES,
+  { key: "taches", label: "Voir les tâches à accomplir" },
   { key: "changer_etiquette", label: "Changer une étiquette existante" },
   { key: "changer_suivi", label: "Cliquer les boutons de suivi (étapes)" },
 ];
@@ -3530,8 +3531,7 @@ function useInterfaceAuth(config, interfaceKey, title) {
   ) : (
     <div style={{ maxWidth: 560, margin: "0 auto", padding: "24px 18px 60px" }}>
       <div style={{ textAlign: "center", marginTop: 20, marginBottom: 22 }}>
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 30, fontWeight: 700, color: PALETTE.goldSoft, letterSpacing: "1px" }}>MISS THANI</div>
-        <div style={{ fontSize: 11, letterSpacing: "2px", color: `${PALETTE.cream}88`, fontWeight: 600 }}>MAKE-UP &amp; LACE CLUB</div>
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 700, color: PALETTE.goldSoft, letterSpacing: ".5px" }}>Miss Thani Make-up &amp; Lace Club</div>
         <div style={{ fontSize: 12, letterSpacing: "2px", color: `${PALETTE.cream}99`, fontWeight: 700, marginTop: 6, textTransform: "uppercase" }}>{title}</div>
       </div>
       <div style={{ maxWidth: 370, margin: "0 auto", background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 22 }}>
@@ -3835,7 +3835,7 @@ function InscriptionSpace({ config }) {
       '.olist{margin-top:3mm}.olt{font-weight:800;font-size:10pt;margin-bottom:2mm;color:#C2238E}.oli{font-size:11pt;padding:2mm 0}' +
       '</style></head><body><button class="pb" onclick="window.print()">Imprimer / T\u00e9l\u00e9charger PDF</button>' +
       '<div class="page"><div class="half left">' + leftContent + '</div><div class="half"><div class="fiche">' +
-      '<div class="hdr"><div><div class="brand">MISS THANI</div><div class="bsub">Make-up &amp; Lace Club</div><div class="title">FICHE D\'INSCRIPTION</div></div><div class="photo">PHOTO</div></div>' +
+      '<div class="hdr"><div><div class="brand">Miss Thani Make-up &amp; Lace Club</div><div class="title">FICHE D\'INSCRIPTION</div></div><div class="photo">PHOTO</div></div>' +
       '<div class="sect">1. IDENTIT\u00c9 DE L\'\u00c9L\u00c8VE</div><div class="box">' +
       F2("Nom :", nom, "Pr\u00e9nom :", prenom) + F2("Naissance :", dob, "CIN/NIF :", cin) + F("Adresse :", address) + '</div>' +
       '<div class="sect">2. CONTACTS &amp; SCOLARIT\u00c9</div><div class="box">' +
@@ -4356,6 +4356,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     if (!etq) return true; // san etikèt: tout moun ka fè swivi
     return isAdmin || !!myAccess.changer_suivi || (!!currentAgent && String(currentAgent).trim() === etq);
   };
+  const canSeeTaches = isAdmin || !!myAccess.taches;
 
   // Kreye / efase yon etikèt (admin sèlman)
   const createEtiquette = async () => {
@@ -4874,6 +4875,30 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     if ((p.followup === "noanswer" || p.followup === "wrong") && matchConds(p, "follow_noanswer")) return "follow_noanswer";
     if (matchConds(p, "tag_no_follow")) return "tag_no_follow";
     return "";
+  };
+
+  // ---- Tâches à accomplir ----
+  const stepOfProspect = (p) => (TICKER_STATES.find((s) => s.key === stageKeyOf(p)) || {}).step || 0;
+  const computeTaches = () => {
+    const list = items || [];
+    const withStep = list.map((p) => ({ p, step: stepOfProspect(p) }));
+    const s1 = withStep.filter((x) => x.step === 1 && x.p.followup !== "vini");
+    const s2 = withStep.filter((x) => x.step === 2 && x.p.followup !== "vini");
+    const s3 = withStep.filter((x) => x.step === 3 && x.p.followup !== "vini");
+    const vini = list.filter((p) => p.followup === "vini").length;
+    const reserved = list.filter((p) => p.stage === "reserved_special" || p.stage === "reserved_after");
+    const reservedNotEnrolled = reserved.filter((p) => !p.enrolled).length;
+    const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
+    const bousteWeek = list.filter((p) => p.bouste && (p.updatedAt ? p.updatedAt >= weekAgo : true)).length;
+    const pct = (done, total) => (total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 100);
+    const n1 = s1.length, n2 = s2.length, n3 = s3.length;
+    return [
+      { label: "Bouste — 150 fòm ranpli pa lien referans (semèn nan)", pending: Math.max(0, 150 - bousteWeek), progress: pct(bousteWeek, 150), info: `${bousteWeek}/150`, link: "/formulaire" },
+      { label: "Etap 1 → Etap 2 (fè swivi ak moun sa yo)", pending: n1, progress: pct(n2 + n3 + vini, n1 + n2 + n3 + vini), info: `${n1} moun rete`, link: "/formulaire" },
+      { label: "Etap 2 → Etap 3 (fè yo reserve)", pending: n2, progress: pct(n3 + vini, n2 + n3 + vini), info: `${n2} moun rete`, link: "/formulaire" },
+      { label: "Etap 3 → Vini (moun reserve ki poko vini)", pending: n3, progress: pct(vini, n3 + vini), info: `${n3} moun rete`, link: "/eleves" },
+      { label: "Enskripsyon Moncash pou antre nan sistèm", pending: reservedNotEnrolled, progress: pct(reserved.length - reservedNotEnrolled, reserved.length), info: `${reservedNotEnrolled} moun rete`, link: "/inscription" },
+    ];
   };
 
   const waMessage = (p) => {
@@ -5668,6 +5693,30 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               </span>
             ))}
           </div>
+          {canSeeTaches && (() => {
+            const taches = computeTaches();
+            return (
+              <div style={{ marginBottom: 14, border: `1.5px solid ${PALETTE.goldSoft}`, borderRadius: 14, overflow: "hidden" }}>
+                <div style={{ padding: "10px 14px", background: "rgba(224,165,10,.1)", fontSize: 14, fontWeight: 800, color: PALETTE.cream }}>✅ Tâches à accomplir</div>
+                <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
+                  {taches.map((t, i) => (
+                    <div key={i}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: PALETTE.cream }}>{t.label}</span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 11.5, fontWeight: 700, color: t.pending === 0 ? "#1E8449" : PALETTE.goldSoft, whiteSpace: "nowrap" }}>{t.info}</span>
+                          <button onClick={() => { if (typeof window !== "undefined") window.location.href = t.link; }} style={{ padding: "4px 10px", borderRadius: 999, border: `1px solid ${PALETTE.goldSoft}`, background: "#fff", color: PALETTE.goldSoft, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>Aller →</button>
+                        </span>
+                      </div>
+                      <div style={{ height: 8, borderRadius: 999, background: "rgba(0,0,0,.08)", overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${t.progress}%`, background: t.progress >= 100 ? "#1E8449" : PALETTE.goldSoft, transition: "width .3s" }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           {groups.map(([prog, allRows0]) => {
             const etqRows = etqFilter ? allRows0.filter((r) => String(r.etiquette || "").trim() === etqFilter) : allRows0;
             const psDigits = phoneSearch.replace(/\D/g, "");
