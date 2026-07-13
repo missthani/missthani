@@ -72,6 +72,7 @@ function newBlock(kind) {
   if (kind === "special") return { id, kind: "special", title: "", specialName: "", reserveDate: "", tpl: "", buttonLabel: "", banner: false, videoStep: "" };
   if (kind === "link") return { id, kind: "link", title: "", url: "", label: "", sameTab: false, linkMode: "extern", targetProgram: "", targetStep: "" };
   if (kind === "faq") return { id, kind: "faq", title: "", items: [] };
+  if (kind === "progchoice") return { id, kind: "progchoice", title: "" };
   return { id, kind: "text", title: "", text: "" };
 }
 
@@ -1383,6 +1384,7 @@ function PublicSpace({ config, onAdmin }) {
   }); // pwogram chwazi
   const [screenIndex, setScreenIndex] = useState(() => (saved0 && saved0.screenIndex) || 0);
   const [subId, setSubId] = useState(""); // sou-etap chwazi a (branch)
+  const [chosenProgram, setChosenProgram] = useState(""); // programme vizitè a chwazi nan blòk "Lis programme"
   const [formIdx, setFormIdx] = useState(0); // kesyon fòmilè aktyèl la (youn apre lòt)
   const [formError, setFormError] = useState(""); // mesaj erè fòmilè (nimewo pa bon, deja enskri…)
   const [checking, setChecking] = useState(false); // n ap tcheke nan Supabase
@@ -1460,6 +1462,7 @@ function PublicSpace({ config, onAdmin }) {
   const screens = activeSp ? (activeSp.steps || []) : (selected ? selected.steps || [] : []);
   const screen = screens[screenIndex];
   const blocks = screen ? getStepBlocks(screen) : [];
+  const hasProgChoice = blocks.some((b) => b.kind === "progchoice");
   const formBlock = blocks.find((b) => b.kind === "form");
   // Special ki gen bouton Wi/Pita (pa anons). Anons yo pa anpeche bouton "Swivan" parèt.
   const specialBlocks = blocks.filter((b) => b.kind === "special" && !b.banner);
@@ -1609,6 +1612,7 @@ function PublicSpace({ config, onAdmin }) {
     setSelected(null);
     setScreenIndex(0);
     setFormIdx(0);
+    setSubId("");
     // Pa efase answers/formDone: konsa lè vizitè a tounen l ap toujou rekonèt li.
     setRevealed(programs.length); // pa bezwen retann reparèt la
   };
@@ -1632,7 +1636,7 @@ function PublicSpace({ config, onAdmin }) {
     if (answered.length === 0) return;
     upsertProspect({
       id: sessionRef.current,
-      program: selected.label,
+      program: chosenProgram || selected.label,
       answers: answered,
       updatedAt: Date.now(),
       etiquette: getRefAgent(),
@@ -1719,6 +1723,21 @@ function PublicSpace({ config, onAdmin }) {
     t ? <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 24, fontWeight: 500, margin: "0 0 12px" }}>{t}</h2> : null;
 
   const renderPublicBlock = (b) => {
+    if (b.kind === "progchoice") {
+      const opts = (config.programs || []).filter((pp) => !pp.bouste);
+      return (
+        <div style={{ margin: "10px 0" }}>
+          {b.title ? <div style={{ fontSize: 16, fontWeight: 700, color: PALETTE.cream, marginBottom: 10, textAlign: "center" }}>{b.title}</div> : null}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {opts.map((pp) => (
+              <button key={pp.id} onClick={() => { setChosenProgram(pp.label); goNext(); }} style={{ padding: "12px 16px", borderRadius: 12, border: `2px solid ${chosenProgram === pp.label ? "#1E8449" : PALETTE.line}`, background: chosenProgram === pp.label ? "rgba(30,132,73,.1)" : "#fff", color: PALETTE.cream, fontSize: 15, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+                {chosenProgram === pp.label ? "✓ " : ""}{pp.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
     if (b.kind === "text") {
       return (
         <>
@@ -1946,7 +1965,7 @@ function PublicSpace({ config, onAdmin }) {
                 {screenIndex > 0 ? "Anvan" : "Tounen"}
               </button>
 
-              {showMainBtn && !(subprograms.length > 0 && !activeSp && isLast) && (
+              {showMainBtn && !hasProgChoice && !(subprograms.length > 0 && !activeSp && isLast) && (
                 <button
                   className="mt-btn"
                   onClick={advance}
@@ -2634,6 +2653,14 @@ function AdminSpace({ config, onSave, onExit }) {
                                   <button onClick={() => updateBlock(p.id, s.id, b.id, { items: [...(b.items || []), { id: Math.random().toString(36).slice(2, 9), q: "", options: [] }] })} style={{ ...ghostBtn, marginTop: 4 }}>+ Ajoute yon kesyon</button>
                                 </>
                               )}
+                              {!collapsed[b.id] && b.kind === "progchoice" && (
+                                <>
+                                  <input className="mt-input" placeholder="Tit — opsyonèl (egz: Chwazi programme ou vle a)" value={b.title || ""} onChange={(e) => updateBlock(p.id, s.id, b.id, { title: e.target.value })} />
+                                  <div style={{ fontSize: 12, color: `${PALETTE.cream}99`, margin: "6px 0", lineHeight: 1.5 }}>
+                                    Vizitè a ap wè lis programme yo pou l chwazi youn. Li p ap ouvè etap programme yo — li jis anrejistre chwa a epi etap Bouste yo kontinye.
+                                  </div>
+                                </>
+                              )}
                             </div>
                           ))}
 
@@ -2645,6 +2672,7 @@ function AdminSpace({ config, onSave, onExit }) {
                             <button onClick={() => addBlock(p.id, s.id, "special")} style={{ ...ghostBtn, flex: 1, minWidth: 70 }}>+ Special</button>
                             <button onClick={() => addBlock(p.id, s.id, "link")} style={{ ...ghostBtn, flex: 1, minWidth: 70 }}>+ Lyen</button>
                             <button onClick={() => addBlock(p.id, s.id, "faq")} style={{ ...ghostBtn, flex: 1, minWidth: 70 }}>+ Kesyon</button>
+                            <button onClick={() => addBlock(p.id, s.id, "progchoice")} style={{ ...ghostBtn, flex: 1, minWidth: 70, borderColor: PALETTE.goldSoft, color: PALETTE.goldSoft }}>+ Lis programme</button>
                           </div>
 
                           <input className="mt-input" style={{ marginTop: 10 }} placeholder="Tèks bouton 'Kontinye' — opsyonèl" value={s.buttonLabel || ""} onChange={(e) => updateStep(p.id, s.id, { buttonLabel: e.target.value })} />
