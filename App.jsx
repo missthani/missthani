@@ -580,6 +580,7 @@ const DEFAULT_CONFIG = {
   ],
   bousteActive: false, // lè li aktif, lien referans ajan yo mennen sou paj Bouste a
   bousteProgramIds: [], // ki programme ki afiche sou paj Bouste a (youn apre lòt)
+  bousteWaMsg: "", // id modèl mesaj WhatsApp pou bouton pataj lien referans lan
 };
 
 /* ----------------------- Memwa: Supabase ----------------------- */
@@ -2790,6 +2791,12 @@ function AdminSpace({ config, onSave, onExit }) {
           <button onClick={toggleBouste} style={draft.bousteActive ? { ...goldBtn, background: "#1E8449" } : goldBtn}>{draft.bousteActive ? "✓ Bouste aktive — Dezaktive" : "Aktive Bouste"}</button>
           {draft.bousteActive && <span style={{ marginLeft: 10, fontSize: 13, fontWeight: 800, color: "#1E8449" }}>Bouste aktive ✓</span>}
         </div>
+        <label style={labelStyle}>Mesaj bouton WhatsApp (bò lien referans chak ajan)</label>
+        <select className="mt-input" value={draft.bousteWaMsg || ""} onChange={(e) => setDraft((d) => ({ ...d, bousteWaMsg: e.target.value }))}>
+          <option value="">— Chwazi yon modèl mesaj —</option>
+          {(draft.waMessages || []).map((m) => (<option key={m.id} value={m.id}>{m.name || "Mesaj san non"}</option>))}
+        </select>
+        <p style={{ fontSize: 11.5, color: `${PALETTE.cream}99`, margin: "6px 0 14px", lineHeight: 1.5 }}>Lien referans pwòp chak ajan an ap ajoute otomatikman anba mesaj sa a. Bouton WhatsApp la parèt bò lien referans ajan an lè Bouste aktif.</p>
         <div style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, marginBottom: 8 }}>Paj Bouste yo edite anba a (yo pa parèt nan lis programme piblik yo).</div>
         <button onClick={addBousteProgram} style={{ ...ghostBtn, width: "100%", borderColor: PALETTE.goldSoft, color: PALETTE.goldSoft, marginBottom: 12 }}>🚀 + Ajoute yon paj Bouste</button>
         {draft.programs.filter((p) => p.bouste).map((p) => progCard(p))}
@@ -4175,7 +4182,16 @@ function AgentSpace({ config, onSave }) {
           <button onClick={copyLink} style={goldBtn}>Kopye lien an</button>
         </div>
         {config && config.bousteActive && (
-          <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 10, background: "rgba(30,132,73,.12)", border: "1px solid #1E8449", fontSize: 12.5, fontWeight: 800, color: "#1E8449" }}>🚀 Bouste activé — votre lien mène à la page Bouste.</div>
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ padding: "8px 12px", borderRadius: 10, background: "rgba(30,132,73,.12)", border: "1px solid #1E8449", fontSize: 12.5, fontWeight: 800, color: "#1E8449" }}>🚀 Bouste activé — votre lien mène à la page Bouste.</div>
+            {(() => {
+              const tmpl = ((config.waMessages || []).find((m) => m && m.id === config.bousteWaMsg) || {}).text || "";
+              const body = (tmpl ? tmpl + "\n\n" : "") + refLink;
+              return (
+                <button onClick={() => { if (typeof window !== "undefined") window.open(`https://wa.me/?text=${encodeURIComponent(body)}`, "_blank"); }} style={{ ...goldBtn, background: "#25D366", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>Partager sur WhatsApp</button>
+              );
+            })()}
+          </div>
         )}
       </div>
 
