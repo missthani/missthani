@@ -4935,7 +4935,11 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const week = [
       { label: "Bouste — 150 fòm ranpli pa lien referans", pending: Math.max(0, 150 - bousteWeek), progress: Math.min(100, Math.round((bousteWeek / 150) * 100)), info: `${bousteWeek}/150`, link: "/formulaire?task=bouste" },
     ];
-    const month = [];
+    const ym = today.slice(0, 7);
+    const month = (programs || []).filter((pr) => !pr.bouste).map((pr) => {
+      const cnt = all.filter((p) => p.followup === "vini" && p.program === pr.label && (!p.cameAt || p.cameAt.slice(0, 7) === ym)).length;
+      return { label: pr.label, pending: Math.max(0, 60 - cnt), progress: Math.min(100, Math.round((cnt / 60) * 100)), info: `${cnt}/60`, link: "/sessions" };
+    });
     const progres = [
       { label: "Etap 1 → Etap 2 (fè swivi)", pending: s1.length, progress: taskProgress("step1", today, s1.length), info: `${s1.length} moun rete`, link: "/formulaire?task=step1" },
       { label: "Etap 2 → Etap 3 (fè yo reserve)", pending: s2.length, progress: taskProgress("step2", today, s2.length), info: `${s2.length} moun rete`, link: "/formulaire?task=step2" },
