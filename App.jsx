@@ -4884,7 +4884,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const matchesTask = (p) => {
     if (!taskFilter) return true;
     const st = stepOfProspect(p);
-    if (taskFilter === "rednomsg") return st === 1 && !p.contacted;
+    if (taskFilter === "rednomsg") return st === 1 && p.followup !== "vini";
     if (taskFilter === "surbril") return !!p.remindAt && p.remindAt <= todayStr();
     if (taskFilter === "step1") return st === 1 && p.followup !== "vini";
     if (taskFilter === "step2") return st === 2 && p.followup !== "vini";
@@ -4904,22 +4904,26 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const reserved = list.filter((p) => (p.stage === "reserved_special" || p.stage === "reserved_after") && !p.enrolled && p.followup !== "vini");
     const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
     const bousteWeek = list.filter((p) => p.bouste && (p.updatedAt ? p.updatedAt >= weekAgo : true)).length;
-    const redNoMsg = list.filter((p) => stepOfProspect(p) === 1 && !p.contacted);
-    const step1All = list.filter((p) => stepOfProspect(p) === 1).length;
+    const redBtn = s1; // etap 1 (bwat rouj) — bezwen mesaj / swivi
     const surbril = list.filter((p) => p.remindAt && p.remindAt <= today);
     const pct = (done, total) => (total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 100);
-    const tasks = [
-      { label: "Bouste — 150 fòm ranpli pa lien referans (semèn nan)", pending: Math.max(0, 150 - bousteWeek), progress: pct(bousteWeek, 150), info: `${bousteWeek}/150`, link: "/formulaire?task=bouste" },
-      { label: "Bouton rouge ki poko resevwa mesaj", pending: redNoMsg.length, progress: pct(step1All - redNoMsg.length, step1All), info: `${redNoMsg.length} moun`, link: "/formulaire?task=rednomsg" },
-      { label: "Moun an surbrillance (pou fè swivi jodia)", pending: surbril.length, progress: pct(contactedAll - surbril.length, contactedAll), info: `${surbril.length} moun`, link: "/formulaire?task=surbril" },
-      { label: "Enskripsyon Moncash pou antre nan sistèm", pending: reserved.length, progress: pct(0, reserved.length || 1) || (reserved.length === 0 ? 100 : 0), info: `${reserved.length} moun`, link: "/inscription" },
+    // 4 pati
+    const daily = [
+      { label: "Bouton rouge ki poko resevwa mesaj (etap 1)", pending: redBtn.length, progress: pct(contactedAll - redBtn.length, contactedAll), info: `${redBtn.length} moun`, link: "/formulaire?task=rednomsg" },
+      { label: "Moun an surbrillance (fè swivi jodia)", pending: surbril.length, progress: pct(contactedAll - surbril.length, contactedAll), info: `${surbril.length} moun`, link: "/formulaire?task=surbril" },
+      { label: "Enskripsyon Moncash pou antre nan sistèm", pending: reserved.length, progress: reserved.length === 0 ? 100 : 0, info: `${reserved.length} moun`, link: "/inscription" },
     ];
+    const repeated = [];
+    const week = [
+      { label: "Bouste — 150 fòm ranpli pa lien referans", pending: Math.max(0, 150 - bousteWeek), progress: pct(bousteWeek, 150), info: `${bousteWeek}/150`, link: "/formulaire?task=bouste" },
+    ];
+    const month = [];
     const progres = [
       { label: "Etap 1 → Etap 2 (fè swivi)", pending: s1.length, progress: pct(s2.length + s3.length + vini, s1.length + s2.length + s3.length + vini), info: `${s1.length} moun rete`, link: "/formulaire?task=step1" },
       { label: "Etap 2 → Etap 3 (fè yo reserve)", pending: s2.length, progress: pct(s3.length + vini, s2.length + s3.length + vini), info: `${s2.length} moun rete`, link: "/formulaire?task=step2" },
-      { label: "Etap 3 → Vini (moun reserve ki poko vini)", pending: s3.length, progress: pct(vini, s3.length + vini), info: `${s3.length} moun rete`, link: "/formulaire?task=step3" },
+      { label: "Etap 3 → Vini (reserve ki poko vini)", pending: s3.length, progress: pct(vini, s3.length + vini), info: `${s3.length} moun rete`, link: "/formulaire?task=step3" },
     ];
-    return { tasks, progres };
+    return { daily, repeated, week, month, progres };
   };
 
   const waMessage = (p) => {
@@ -5721,7 +5725,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             </div>
           )}
           {canSeeTaches && (() => {
-            const { tasks, progres } = computeTaches();
+            const { daily, repeated, week, month, progres } = computeTaches();
             const bar = (t, i) => (
               <div key={i}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
@@ -5736,17 +5740,28 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                 </div>
               </div>
             );
+            const sect = (title, arr) => (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: PALETTE.goldSoft, letterSpacing: ".5px", textTransform: "uppercase" }}>{title}</div>
+                {arr.length ? arr.map((t, i) => bar(t, i)) : <div style={{ fontSize: 12, color: `${PALETTE.cream}77` }}>Poko gen tache.</div>}
+              </div>
+            );
             return (
               <div style={{ marginBottom: 14, border: `1.5px solid ${PALETTE.goldSoft}`, borderRadius: 14, overflow: "hidden" }}>
                 <div style={{ padding: "10px 14px", background: "rgba(224,165,10,.1)", fontSize: 14, fontWeight: 800, color: PALETTE.cream }}>✅ Tâches à accomplir</div>
-                <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
-                  {tasks.map((t, i) => bar(t, i))}
-                  <button onClick={() => setProgresOpen((o) => !o)} style={{ ...ghostBtn, width: "100%", marginTop: 2 }}>{progresOpen ? "▾" : "▸"} Évaluation des progrès</button>
-                  {progresOpen && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12, borderTop: `1px dashed ${PALETTE.line}`, paddingTop: 12 }}>
-                      {progres.map((t, i) => bar(t, i))}
-                    </div>
-                  )}
+                <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 18 }}>
+                  {sect("À accomplir aujourd'hui", daily)}
+                  {sect("Tâches répétées", repeated)}
+                  {sect("À accomplir cette semaine", week)}
+                  {sect("Ce mois", month)}
+                  <div>
+                    <button onClick={() => setProgresOpen((o) => !o)} style={{ ...ghostBtn, width: "100%" }}>{progresOpen ? "▾" : "▸"} Évaluation des progrès</button>
+                    {progresOpen && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12, borderTop: `1px dashed ${PALETTE.line}`, paddingTop: 12, marginTop: 10 }}>
+                        {progres.map((t, i) => bar(t, i))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
