@@ -4884,7 +4884,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const matchesTask = (p) => {
     if (!taskFilter) return true;
     const st = stepOfProspect(p);
-    if (taskFilter === "rednomsg") return !p.contacted;
+    if (taskFilter === "rednomsg") return !p.contacted && p.followup !== "vini" && !p.enrolled;
     if (taskFilter === "surbril") return !!p.remindAt && p.remindAt <= todayStr();
     if (taskFilter === "step1") return st === 1 && p.followup !== "vini";
     if (taskFilter === "step2") return st === 2 && p.followup !== "vini";
@@ -4904,12 +4904,13 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const reserved = list.filter((p) => (p.stage === "reserved_special" || p.stage === "reserved_after") && !p.enrolled && p.followup !== "vini");
     const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
     const bousteWeek = list.filter((p) => p.bouste && (p.updatedAt ? p.updatedAt >= weekAgo : true)).length;
-    const notMsg = list.filter((p) => !p.contacted); // ti boul rouj devan non an = poko resevwa mesaj
+    const notMsg = list.filter((p) => !p.contacted && p.followup !== "vini" && !p.enrolled); // boul rouj devan non — poko resevwa mesaj (aktif)
+    const activeTotal = list.filter((p) => p.followup !== "vini" && !p.enrolled).length;
     const surbril = list.filter((p) => p.remindAt && p.remindAt <= today);
     const pct = (done, total) => (total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 100);
-    // 4 pati — pwogresyon chak tache konte SÈLMAN moun ki konsène yo (done / (done+rete))
+    // 4 pati — pwogresyon chak tache konte SÈLMAN moun ki konsène yo (done / total konsène)
     const daily = [
-      { label: "Bouton rouge — moun ki poko resevwa mesaj", pending: notMsg.length, progress: pct(list.length - notMsg.length, list.length), info: `${notMsg.length} moun`, link: "/formulaire?task=rednomsg" },
+      { label: "Bouton rouge — moun ki poko resevwa mesaj", pending: notMsg.length, progress: pct(activeTotal - notMsg.length, activeTotal), info: `${notMsg.length} moun`, link: "/formulaire?task=rednomsg" },
       { label: "Moun an surbrillance (fè swivi jodia)", pending: surbril.length, progress: pct(contactedAll - surbril.length, contactedAll), info: `${surbril.length} moun`, link: "/formulaire?task=surbril" },
       { label: "Enskripsyon Moncash pou antre nan sistèm", pending: reserved.length, progress: reserved.length === 0 ? 100 : 0, info: `${reserved.length} moun`, link: "/inscription" },
     ];
@@ -5741,7 +5742,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               </div>
             );
             const sect = (title, arr) => (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 12, background: "rgba(194,35,142,.02)" }}>
                 <div style={{ fontSize: 12, fontWeight: 800, color: PALETTE.goldSoft, letterSpacing: ".5px", textTransform: "uppercase" }}>{title}</div>
                 {arr.length ? arr.map((t, i) => bar(t, i)) : <div style={{ fontSize: 12, color: `${PALETTE.cream}77` }}>Poko gen tache.</div>}
               </div>
@@ -5749,12 +5750,14 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             return (
               <div style={{ marginBottom: 14, border: `1.5px solid ${PALETTE.goldSoft}`, borderRadius: 14, overflow: "hidden" }}>
                 <div style={{ padding: "10px 14px", background: "rgba(224,165,10,.1)", fontSize: 14, fontWeight: 800, color: PALETTE.cream }}>✅ Tâches à accomplir</div>
-                <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 18 }}>
-                  {sect("À accomplir aujourd'hui", daily)}
-                  {sect("Tâches répétées", repeated)}
-                  {sect("À accomplir cette semaine", week)}
-                  {sect("Ce mois", month)}
-                  <div>
+                <div style={{ padding: "12px 14px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+                    {sect("À accomplir aujourd'hui", daily)}
+                    {sect("Tâches répétées", repeated)}
+                    {sect("À accomplir cette semaine", week)}
+                    {sect("Ce mois", month)}
+                  </div>
+                  <div style={{ marginTop: 14 }}>
                     <button onClick={() => setProgresOpen((o) => !o)} style={{ ...ghostBtn, width: "100%" }}>{progresOpen ? "▾" : "▸"} Évaluation des progrès</button>
                     {progresOpen && (
                       <div style={{ display: "flex", flexDirection: "column", gap: 12, borderTop: `1px dashed ${PALETTE.line}`, paddingTop: 12, marginTop: 10 }}>
