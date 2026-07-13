@@ -4437,10 +4437,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     if (!items) return null;
     if (tab === "students") return items.filter((p) => p.followup === "vini");
     if (tab === "lwen") return items.filter((p) => p.followup === "lwen");
-    return items.filter((p) => p.followup !== "vini" && p.followup !== "lwen");
+    if (tab === "pa_enterese") return items.filter((p) => p.followup === "pa_enterese");
+    return items.filter((p) => p.followup !== "vini" && p.followup !== "lwen" && p.followup !== "pa_enterese");
   }, [items, tab]);
   const isStudents = tab === "students";
   const isLwen = tab === "lwen";
+  const isPaEnterese = tab === "pa_enterese";
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -4650,6 +4652,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             <option value="wrong">Pa sone ditou</option>
             <option value="vini">Vini (nouvo etidyan)</option>
             <option value="lwen">Lwen</option>
+            <option value="pa_enterese">Pa enterese</option>
           </select>
         ) : (
           <span style={{ fontSize: 11.5, color: `${PALETTE.cream}88` }} title="Sèl responsab etikèt la ka chanje swivi a">🔒</span>
@@ -4930,7 +4933,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const st = stepOfProspect(p);
     if (taskFilter === "rednomsg") return !p.contacted && !p.enrolled;
     if (taskFilter === "tagnofollow") return stageKeyOf(p) === "tag_no_follow";
-    if (taskFilter === "noanswer") return stageKeyOf(p) === "follow_noanswer";
+    if (taskFilter === "noanswer") return stageKeyOf(p) === "follow_noanswer" && (!p.remindAt || p.remindAt <= todayStr());
     if (taskFilter === "followdone") return stageKeyOf(p) === "follow_done";
     if (taskFilter === "surbril") return !!p.remindAt && p.remindAt <= todayStr();
     if (taskFilter === "step1") return st === 1;
@@ -4950,7 +4953,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   };
   const computeTaches = () => {
     const all = items || [];
-    const list = all.filter((p) => p.followup !== "vini" && p.followup !== "lwen"); // menm lis ak "Nouvo Prospè"
+    const list = all.filter((p) => p.followup !== "vini" && p.followup !== "lwen" && p.followup !== "pa_enterese"); // menm lis ak "Nouvo Prospè"
     const today = todayStr();
     const withStep = list.map((p) => ({ p, step: stepOfProspect(p) }));
     const s1 = withStep.filter((x) => x.step === 1).map((x) => x.p);
@@ -4962,7 +4965,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const notMsg = list.filter((p) => !p.contacted && !p.enrolled); // boul rouj devan non — poko resevwa mesaj
     const surbril = list.filter((p) => p.remindAt && p.remindAt <= today);
     const tagNoFollow = list.filter((p) => stageKeyOf(p) === "tag_no_follow"); // etikèt mete men poko swivi
-    const noAnswer = list.filter((p) => stageKeyOf(p) === "follow_noanswer"); // sone san repons / pa sone ditou
+    const noAnswer = list.filter((p) => stageKeyOf(p) === "follow_noanswer" && (!p.remindAt || p.remindAt <= today)); // sone san repons / pa sone — ki dwe swivi jodia
     const followDone = list.filter((p) => stageKeyOf(p) === "follow_done"); // swivi fèt
     const dow = new Date(today + "T00:00:00").getDay(); // 0=dim 1=lun ... 5=ven
     const isMWF = dow === 1 || dow === 3 || dow === 5;
@@ -5055,6 +5058,14 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             >
               WhatsApp
             </a>
+            <a
+              href={`sms:${v.e164}`}
+              onClick={() => markContacted(p, true)}
+              title={`Voye SMS bay ${val}`}
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, background: "#2E86C1", color: "#fff", textDecoration: "none", fontSize: 11, fontWeight: 700 }}
+            >
+              SMS
+            </a>
           </span>
           {tk && tk.text && (
             <div style={{ overflow: "hidden", width: "100%", maxWidth: 230, height: 18, display: "flex", alignItems: "center", background: `${bc}14`, border: `1px solid ${bc}44`, borderRadius: 6 }}>
@@ -5084,6 +5095,15 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               style={{ alignSelf: "flex-start", marginTop: 2, padding: "4px 10px", borderRadius: 999, fontSize: 10.5, fontWeight: 800, cursor: "pointer", border: "none", background: "#2E86C1", color: "#fff", lineHeight: 1.3, textAlign: "left" }}
             >
               Mwen fè swivi a jodia, men poko gen update
+            </button>
+          )}
+          {stageKeyOf(p) === "follow_noanswer" && canChangeSuivi(p) && (
+            <button
+              onClick={() => snoozeProspect(p)}
+              title="Make swivi fèt jodia — dat la ap update epi kalkil jou yo rekòmanse"
+              style={{ alignSelf: "flex-start", marginTop: 2, padding: "4px 10px", borderRadius: 999, fontSize: 10.5, fontWeight: 800, cursor: "pointer", border: "none", background: "#1E8449", color: "#fff", lineHeight: 1.3, textAlign: "left" }}
+            >
+              ✓ Fè swivi jodia
             </button>
           )}
           {tk && tk.text && isAdmin && (
@@ -5340,6 +5360,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           style={tab === "lwen" ? goldBtn : ghostBtn}
         >
           Lwen
+        </button>
+        <button
+          onClick={() => { setTab("pa_enterese"); setMode("list"); }}
+          style={tab === "pa_enterese" ? goldBtn : ghostBtn}
+        >
+          Pa enterese
         </button>
       </div>
 
