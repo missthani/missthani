@@ -3643,7 +3643,7 @@ function InscriptionSpace({ config }) {
     setMoncashOpen((v) => !v);
     if (reservedList === null) {
       const all = (await loadProspects()) || [];
-      setReservedList(all.filter((p) => p.stage === "reserved_special" || p.stage === "reserved_after"));
+      setReservedList(all.filter((p) => (p.stage === "reserved_special" || p.stage === "reserved_after") && !p.enrolled && p.followup !== "vini"));
     }
   };
 
@@ -4279,6 +4279,8 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   };
   const [etqFilter, setEtqFilter] = useState(""); // filtre pa etikèt (ajan)
   const [phoneSearch, setPhoneSearch] = useState(""); // rechèch pa nimewo telefòn
+  const [progresOpen, setProgresOpen] = useState(false); // seksyon "Évaluation des progrès"
+  const [taskFilter, setTaskFilter] = useState(() => { try { return new URLSearchParams(window.location.search).get("task") || ""; } catch (e) { return ""; } });
   const [msgDraft, setMsgDraft] = useState(waMessages || []);
   const [activeDraft, setActiveDraft] = useState(activeWaMessage || "");
   const [msgSaved, setMsgSaved] = useState(false);
@@ -4879,26 +4881,45 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
   // ---- Tâches à accomplir ----
   const stepOfProspect = (p) => (TICKER_STATES.find((s) => s.key === stageKeyOf(p)) || {}).step || 0;
+  const matchesTask = (p) => {
+    if (!taskFilter) return true;
+    const st = stepOfProspect(p);
+    if (taskFilter === "rednomsg") return st === 1 && !p.contacted;
+    if (taskFilter === "surbril") return !!p.remindAt && p.remindAt <= todayStr();
+    if (taskFilter === "step1") return st === 1 && p.followup !== "vini";
+    if (taskFilter === "step2") return st === 2 && p.followup !== "vini";
+    if (taskFilter === "step3") return st === 3 && p.followup !== "vini";
+    if (taskFilter === "bouste") return !!p.bouste;
+    return true;
+  };
   const computeTaches = () => {
     const list = items || [];
+    const today = todayStr();
     const withStep = list.map((p) => ({ p, step: stepOfProspect(p) }));
-    const s1 = withStep.filter((x) => x.step === 1 && x.p.followup !== "vini");
-    const s2 = withStep.filter((x) => x.step === 2 && x.p.followup !== "vini");
-    const s3 = withStep.filter((x) => x.step === 3 && x.p.followup !== "vini");
+    const s1 = withStep.filter((x) => x.step === 1 && x.p.followup !== "vini").map((x) => x.p);
+    const s2 = withStep.filter((x) => x.step === 2 && x.p.followup !== "vini").map((x) => x.p);
+    const s3 = withStep.filter((x) => x.step === 3 && x.p.followup !== "vini").map((x) => x.p);
     const vini = list.filter((p) => p.followup === "vini").length;
-    const reserved = list.filter((p) => p.stage === "reserved_special" || p.stage === "reserved_after");
-    const reservedNotEnrolled = reserved.filter((p) => !p.enrolled).length;
+    const contactedAll = list.filter((p) => p.contacted).length;
+    const reserved = list.filter((p) => (p.stage === "reserved_special" || p.stage === "reserved_after") && !p.enrolled && p.followup !== "vini");
     const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
     const bousteWeek = list.filter((p) => p.bouste && (p.updatedAt ? p.updatedAt >= weekAgo : true)).length;
+    const redNoMsg = list.filter((p) => stepOfProspect(p) === 1 && !p.contacted);
+    const step1All = list.filter((p) => stepOfProspect(p) === 1).length;
+    const surbril = list.filter((p) => p.remindAt && p.remindAt <= today);
     const pct = (done, total) => (total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 100);
-    const n1 = s1.length, n2 = s2.length, n3 = s3.length;
-    return [
-      { label: "Bouste — 150 fòm ranpli pa lien referans (semèn nan)", pending: Math.max(0, 150 - bousteWeek), progress: pct(bousteWeek, 150), info: `${bousteWeek}/150`, link: "/formulaire" },
-      { label: "Etap 1 → Etap 2 (fè swivi ak moun sa yo)", pending: n1, progress: pct(n2 + n3 + vini, n1 + n2 + n3 + vini), info: `${n1} moun rete`, link: "/formulaire" },
-      { label: "Etap 2 → Etap 3 (fè yo reserve)", pending: n2, progress: pct(n3 + vini, n2 + n3 + vini), info: `${n2} moun rete`, link: "/formulaire" },
-      { label: "Etap 3 → Vini (moun reserve ki poko vini)", pending: n3, progress: pct(vini, n3 + vini), info: `${n3} moun rete`, link: "/eleves" },
-      { label: "Enskripsyon Moncash pou antre nan sistèm", pending: reservedNotEnrolled, progress: pct(reserved.length - reservedNotEnrolled, reserved.length), info: `${reservedNotEnrolled} moun rete`, link: "/inscription" },
+    const tasks = [
+      { label: "Bouste — 150 fòm ranpli pa lien referans (semèn nan)", pending: Math.max(0, 150 - bousteWeek), progress: pct(bousteWeek, 150), info: `${bousteWeek}/150`, link: "/formulaire?task=bouste" },
+      { label: "Bouton rouge ki poko resevwa mesaj", pending: redNoMsg.length, progress: pct(step1All - redNoMsg.length, step1All), info: `${redNoMsg.length} moun`, link: "/formulaire?task=rednomsg" },
+      { label: "Moun an surbrillance (pou fè swivi jodia)", pending: surbril.length, progress: pct(contactedAll - surbril.length, contactedAll), info: `${surbril.length} moun`, link: "/formulaire?task=surbril" },
+      { label: "Enskripsyon Moncash pou antre nan sistèm", pending: reserved.length, progress: pct(0, reserved.length || 1) || (reserved.length === 0 ? 100 : 0), info: `${reserved.length} moun`, link: "/inscription" },
     ];
+    const progres = [
+      { label: "Etap 1 → Etap 2 (fè swivi)", pending: s1.length, progress: pct(s2.length + s3.length + vini, s1.length + s2.length + s3.length + vini), info: `${s1.length} moun rete`, link: "/formulaire?task=step1" },
+      { label: "Etap 2 → Etap 3 (fè yo reserve)", pending: s2.length, progress: pct(s3.length + vini, s2.length + s3.length + vini), info: `${s2.length} moun rete`, link: "/formulaire?task=step2" },
+      { label: "Etap 3 → Vini (moun reserve ki poko vini)", pending: s3.length, progress: pct(vini, s3.length + vini), info: `${s3.length} moun rete`, link: "/formulaire?task=step3" },
+    ];
+    return { tasks, progres };
   };
 
   const waMessage = (p) => {
@@ -5693,32 +5714,46 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               </span>
             ))}
           </div>
+          {taskFilter && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 12, padding: "8px 14px", borderRadius: 10, background: "rgba(224,165,10,.12)", border: `1px solid ${PALETTE.goldSoft}` }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: PALETTE.cream }}>Filtre tâche aktif — sèlman moun ki konsène yo</span>
+              <button onClick={() => { setTaskFilter(""); try { window.history.replaceState({}, "", "/formulaire"); } catch (e) {} }} style={{ ...miniBtn(false), padding: "4px 12px", borderRadius: 999 }}>✕ Retire filtre</button>
+            </div>
+          )}
           {canSeeTaches && (() => {
-            const taches = computeTaches();
+            const { tasks, progres } = computeTaches();
+            const bar = (t, i) => (
+              <div key={i}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: PALETTE.cream }}>{t.label}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: t.pending === 0 ? "#1E8449" : PALETTE.goldSoft, whiteSpace: "nowrap" }}>{t.info}</span>
+                    <button onClick={() => { if (typeof window !== "undefined") window.location.href = t.link; }} style={{ padding: "4px 10px", borderRadius: 999, border: `1px solid ${PALETTE.goldSoft}`, background: "#fff", color: PALETTE.goldSoft, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>Aller →</button>
+                  </span>
+                </div>
+                <div style={{ height: 8, borderRadius: 999, background: "rgba(0,0,0,.08)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${t.progress}%`, background: t.progress >= 100 ? "#1E8449" : PALETTE.goldSoft, transition: "width .3s" }} />
+                </div>
+              </div>
+            );
             return (
               <div style={{ marginBottom: 14, border: `1.5px solid ${PALETTE.goldSoft}`, borderRadius: 14, overflow: "hidden" }}>
                 <div style={{ padding: "10px 14px", background: "rgba(224,165,10,.1)", fontSize: 14, fontWeight: 800, color: PALETTE.cream }}>✅ Tâches à accomplir</div>
                 <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
-                  {taches.map((t, i) => (
-                    <div key={i}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: PALETTE.cream }}>{t.label}</span>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 11.5, fontWeight: 700, color: t.pending === 0 ? "#1E8449" : PALETTE.goldSoft, whiteSpace: "nowrap" }}>{t.info}</span>
-                          <button onClick={() => { if (typeof window !== "undefined") window.location.href = t.link; }} style={{ padding: "4px 10px", borderRadius: 999, border: `1px solid ${PALETTE.goldSoft}`, background: "#fff", color: PALETTE.goldSoft, fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>Aller →</button>
-                        </span>
-                      </div>
-                      <div style={{ height: 8, borderRadius: 999, background: "rgba(0,0,0,.08)", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${t.progress}%`, background: t.progress >= 100 ? "#1E8449" : PALETTE.goldSoft, transition: "width .3s" }} />
-                      </div>
+                  {tasks.map((t, i) => bar(t, i))}
+                  <button onClick={() => setProgresOpen((o) => !o)} style={{ ...ghostBtn, width: "100%", marginTop: 2 }}>{progresOpen ? "▾" : "▸"} Évaluation des progrès</button>
+                  {progresOpen && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12, borderTop: `1px dashed ${PALETTE.line}`, paddingTop: 12 }}>
+                      {progres.map((t, i) => bar(t, i))}
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             );
           })()}
           {groups.map(([prog, allRows0]) => {
-            const etqRows = etqFilter ? allRows0.filter((r) => String(r.etiquette || "").trim() === etqFilter) : allRows0;
+            const etqRows0 = etqFilter ? allRows0.filter((r) => String(r.etiquette || "").trim() === etqFilter) : allRows0;
+            const etqRows = taskFilter ? etqRows0.filter(matchesTask) : etqRows0;
             const psDigits = phoneSearch.replace(/\D/g, "");
             const allRows = psDigits ? etqRows.filter((r) => {
               for (const a of (r.answers || [])) { const dg = String(a.answer || "").replace(/\D/g, ""); if (dg.length >= 8 && dg.includes(psDigits)) return true; }
