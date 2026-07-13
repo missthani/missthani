@@ -4884,7 +4884,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const matchesTask = (p) => {
     if (!taskFilter) return true;
     const st = stepOfProspect(p);
-    if (taskFilter === "rednomsg") return st === 1 && p.followup !== "vini";
+    if (taskFilter === "rednomsg") return !p.contacted;
     if (taskFilter === "surbril") return !!p.remindAt && p.remindAt <= todayStr();
     if (taskFilter === "step1") return st === 1 && p.followup !== "vini";
     if (taskFilter === "step2") return st === 2 && p.followup !== "vini";
@@ -4904,12 +4904,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const reserved = list.filter((p) => (p.stage === "reserved_special" || p.stage === "reserved_after") && !p.enrolled && p.followup !== "vini");
     const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
     const bousteWeek = list.filter((p) => p.bouste && (p.updatedAt ? p.updatedAt >= weekAgo : true)).length;
-    const redBtn = s1; // etap 1 (bwat rouj) — bezwen mesaj / swivi
+    const notMsg = list.filter((p) => !p.contacted); // ti boul rouj devan non an = poko resevwa mesaj
     const surbril = list.filter((p) => p.remindAt && p.remindAt <= today);
     const pct = (done, total) => (total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 100);
-    // 4 pati
+    // 4 pati — pwogresyon chak tache konte SÈLMAN moun ki konsène yo (done / (done+rete))
     const daily = [
-      { label: "Bouton rouge ki poko resevwa mesaj (etap 1)", pending: redBtn.length, progress: pct(contactedAll - redBtn.length, contactedAll), info: `${redBtn.length} moun`, link: "/formulaire?task=rednomsg" },
+      { label: "Bouton rouge — moun ki poko resevwa mesaj", pending: notMsg.length, progress: pct(list.length - notMsg.length, list.length), info: `${notMsg.length} moun`, link: "/formulaire?task=rednomsg" },
       { label: "Moun an surbrillance (fè swivi jodia)", pending: surbril.length, progress: pct(contactedAll - surbril.length, contactedAll), info: `${surbril.length} moun`, link: "/formulaire?task=surbril" },
       { label: "Enskripsyon Moncash pou antre nan sistèm", pending: reserved.length, progress: reserved.length === 0 ? 100 : 0, info: `${reserved.length} moun`, link: "/inscription" },
     ];
