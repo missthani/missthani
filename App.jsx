@@ -4884,45 +4884,50 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const matchesTask = (p) => {
     if (!taskFilter) return true;
     const st = stepOfProspect(p);
-    if (taskFilter === "rednomsg") return !p.contacted && p.followup !== "vini" && !p.enrolled;
+    if (taskFilter === "rednomsg") return !p.contacted && !p.enrolled;
     if (taskFilter === "surbril") return !!p.remindAt && p.remindAt <= todayStr();
-    if (taskFilter === "step1") return st === 1 && p.followup !== "vini";
-    if (taskFilter === "step2") return st === 2 && p.followup !== "vini";
-    if (taskFilter === "step3") return st === 3 && p.followup !== "vini";
+    if (taskFilter === "step1") return st === 1;
+    if (taskFilter === "step2") return st === 2;
+    if (taskFilter === "step3") return st === 3;
     if (taskFilter === "bouste") return !!p.bouste;
     return true;
   };
+  const taskProgress = (key, period, current) => {
+    try {
+      const k = `mt_task_${key}_${period}`;
+      let base = parseInt(localStorage.getItem(k) || "-1", 10);
+      if (base < 0) { base = current; localStorage.setItem(k, String(base)); }
+      if (base <= 0) return current === 0 ? 100 : 0;
+      return Math.max(0, Math.min(100, Math.round(((base - current) / base) * 100)));
+    } catch (e) { return current === 0 ? 100 : 0; }
+  };
   const computeTaches = () => {
-    const list = items || [];
+    const all = items || [];
+    const list = all.filter((p) => p.followup !== "vini" && p.followup !== "lwen"); // menm lis ak "Nouvo Prospè"
     const today = todayStr();
     const withStep = list.map((p) => ({ p, step: stepOfProspect(p) }));
-    const s1 = withStep.filter((x) => x.step === 1 && x.p.followup !== "vini").map((x) => x.p);
-    const s2 = withStep.filter((x) => x.step === 2 && x.p.followup !== "vini").map((x) => x.p);
-    const s3 = withStep.filter((x) => x.step === 3 && x.p.followup !== "vini").map((x) => x.p);
-    const vini = list.filter((p) => p.followup === "vini").length;
-    const contactedAll = list.filter((p) => p.contacted).length;
-    const reserved = list.filter((p) => (p.stage === "reserved_special" || p.stage === "reserved_after") && !p.enrolled && p.followup !== "vini");
+    const s1 = withStep.filter((x) => x.step === 1).map((x) => x.p);
+    const s2 = withStep.filter((x) => x.step === 2).map((x) => x.p);
+    const s3 = withStep.filter((x) => x.step === 3).map((x) => x.p);
+    const reserved = list.filter((p) => (p.stage === "reserved_special" || p.stage === "reserved_after") && !p.enrolled);
     const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
-    const bousteWeek = list.filter((p) => p.bouste && (p.updatedAt ? p.updatedAt >= weekAgo : true)).length;
-    const notMsg = list.filter((p) => !p.contacted && p.followup !== "vini" && !p.enrolled); // boul rouj devan non — poko resevwa mesaj (aktif)
-    const activeTotal = list.filter((p) => p.followup !== "vini" && !p.enrolled).length;
+    const bousteWeek = all.filter((p) => p.bouste && (p.updatedAt ? p.updatedAt >= weekAgo : true)).length;
+    const notMsg = list.filter((p) => !p.contacted && !p.enrolled); // boul rouj devan non — poko resevwa mesaj
     const surbril = list.filter((p) => p.remindAt && p.remindAt <= today);
-    const pct = (done, total) => (total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 100);
-    // 4 pati — pwogresyon chak tache konte SÈLMAN moun ki konsène yo (done / total konsène)
     const daily = [
-      { label: "Bouton rouge — moun ki poko resevwa mesaj", pending: notMsg.length, progress: pct(activeTotal - notMsg.length, activeTotal), info: `${notMsg.length} moun`, link: "/formulaire?task=rednomsg" },
-      { label: "Moun an surbrillance (fè swivi jodia)", pending: surbril.length, progress: pct(contactedAll - surbril.length, contactedAll), info: `${surbril.length} moun`, link: "/formulaire?task=surbril" },
-      { label: "Enskripsyon Moncash pou antre nan sistèm", pending: reserved.length, progress: reserved.length === 0 ? 100 : 0, info: `${reserved.length} moun`, link: "/inscription" },
+      { label: "Bouton rouge — moun ki poko resevwa mesaj", pending: notMsg.length, progress: taskProgress("rednomsg", today, notMsg.length), info: `${notMsg.length} moun`, link: "/formulaire?task=rednomsg" },
+      { label: "Moun an surbrillance (fè swivi jodia)", pending: surbril.length, progress: taskProgress("surbril", today, surbril.length), info: `${surbril.length} moun`, link: "/formulaire?task=surbril" },
+      { label: "Enskripsyon Moncash pou antre nan sistèm", pending: reserved.length, progress: taskProgress("moncash", today, reserved.length), info: `${reserved.length} moun`, link: "/inscription" },
     ];
     const repeated = [];
     const week = [
-      { label: "Bouste — 150 fòm ranpli pa lien referans", pending: Math.max(0, 150 - bousteWeek), progress: pct(bousteWeek, 150), info: `${bousteWeek}/150`, link: "/formulaire?task=bouste" },
+      { label: "Bouste — 150 fòm ranpli pa lien referans", pending: Math.max(0, 150 - bousteWeek), progress: Math.min(100, Math.round((bousteWeek / 150) * 100)), info: `${bousteWeek}/150`, link: "/formulaire?task=bouste" },
     ];
     const month = [];
     const progres = [
-      { label: "Etap 1 → Etap 2 (fè swivi)", pending: s1.length, progress: pct(s2.length + s3.length + vini, s1.length + s2.length + s3.length + vini), info: `${s1.length} moun rete`, link: "/formulaire?task=step1" },
-      { label: "Etap 2 → Etap 3 (fè yo reserve)", pending: s2.length, progress: pct(s3.length + vini, s2.length + s3.length + vini), info: `${s2.length} moun rete`, link: "/formulaire?task=step2" },
-      { label: "Etap 3 → Vini (reserve ki poko vini)", pending: s3.length, progress: pct(vini, s3.length + vini), info: `${s3.length} moun rete`, link: "/formulaire?task=step3" },
+      { label: "Etap 1 → Etap 2 (fè swivi)", pending: s1.length, progress: taskProgress("step1", today, s1.length), info: `${s1.length} moun rete`, link: "/formulaire?task=step1" },
+      { label: "Etap 2 → Etap 3 (fè yo reserve)", pending: s2.length, progress: taskProgress("step2", today, s2.length), info: `${s2.length} moun rete`, link: "/formulaire?task=step2" },
+      { label: "Etap 3 → Vini (reserve ki poko vini)", pending: s3.length, progress: taskProgress("step3", today, s3.length), info: `${s3.length} moun rete`, link: "/formulaire?task=step3" },
     ];
     return { daily, repeated, week, month, progres };
   };
