@@ -4641,19 +4641,28 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 600, whiteSpace: "nowrap" }}>{resaDate(p)}</td>
       <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
         {canChangeSuivi(p) ? (
-          <select
-            value={p.followup || ""}
-            onChange={(e) => setSwivi(p.id, e.target.value)}
-            style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.followup ? "#FBE9F4" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 150 }}
-          >
-            <option value="">Swivi…</option>
-            <option value="done">Suivi fèt</option>
-            <option value="noanswer">Sone san repons</option>
-            <option value="wrong">Pa sone ditou</option>
-            <option value="vini">Vini (nouvo etidyan)</option>
-            <option value="lwen">Lwen</option>
-            <option value="pa_enterese">Pa enterese</option>
-          </select>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <select
+              value={p.followup || ""}
+              onChange={(e) => setSwivi(p.id, e.target.value)}
+              style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.followup ? "#FBE9F4" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 150 }}
+            >
+              <option value="">Swivi…</option>
+              <option value="done">Suivi fèt</option>
+              <option value="noanswer">Sone san repons</option>
+              <option value="wrong">Pa sone ditou</option>
+              <option value="vini">Vini (nouvo etidyan)</option>
+              <option value="lwen">Lwen</option>
+              <option value="pa_enterese">Pa enterese</option>
+            </select>
+            {(p.followup === "done" || p.followup === "noanswer" || p.followup === "wrong") && (
+              <button
+                onClick={() => snoozeProspect(p)}
+                title="Mwen refè swivi a jodia — dat yo ak tache a ap update"
+                style={{ width: 16, height: 16, borderRadius: "50%", border: "none", cursor: "pointer", padding: 0, flexShrink: 0, background: "#1E8449", boxShadow: "0 0 0 2px rgba(30,132,73,.2)" }}
+              />
+            )}
+          </span>
         ) : (
           <span style={{ fontSize: 11.5, color: `${PALETTE.cream}88` }} title="Sèl responsab etikèt la ka chanje swivi a">🔒</span>
         )}
@@ -4934,7 +4943,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     if (taskFilter === "rednomsg") return !p.contacted && !p.enrolled;
     if (taskFilter === "tagnofollow") return stageKeyOf(p) === "tag_no_follow";
     if (taskFilter === "noanswer") return stageKeyOf(p) === "follow_noanswer" && (!p.remindAt || p.remindAt <= todayStr());
-    if (taskFilter === "followdone") return stageKeyOf(p) === "follow_done";
+    if (taskFilter === "followdone") return stageKeyOf(p) === "follow_done" && (!p.remindAt || p.remindAt <= todayStr());
     if (taskFilter === "surbril") return !!p.remindAt && p.remindAt <= todayStr();
     if (taskFilter === "step1") return st === 1;
     if (taskFilter === "step2") return st === 2;
@@ -4966,7 +4975,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const surbril = list.filter((p) => p.remindAt && p.remindAt <= today);
     const tagNoFollow = list.filter((p) => stageKeyOf(p) === "tag_no_follow"); // etikèt mete men poko swivi
     const noAnswer = list.filter((p) => stageKeyOf(p) === "follow_noanswer" && (!p.remindAt || p.remindAt <= today)); // sone san repons / pa sone — ki dwe swivi jodia
-    const followDone = list.filter((p) => stageKeyOf(p) === "follow_done"); // swivi fèt
+    const followDone = list.filter((p) => stageKeyOf(p) === "follow_done" && (!p.remindAt || p.remindAt <= today)); // swivi fèt — ki dwe re-swivi jodia
     const dow = new Date(today + "T00:00:00").getDay(); // 0=dim 1=lun ... 5=ven
     const isMWF = dow === 1 || dow === 3 || dow === 5;
     const daily = [
@@ -5095,15 +5104,6 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               style={{ alignSelf: "flex-start", marginTop: 2, padding: "4px 10px", borderRadius: 999, fontSize: 10.5, fontWeight: 800, cursor: "pointer", border: "none", background: "#2E86C1", color: "#fff", lineHeight: 1.3, textAlign: "left" }}
             >
               Mwen fè swivi a jodia, men poko gen update
-            </button>
-          )}
-          {stageKeyOf(p) === "follow_noanswer" && canChangeSuivi(p) && (
-            <button
-              onClick={() => snoozeProspect(p)}
-              title="Make swivi fèt jodia — dat la ap update epi kalkil jou yo rekòmanse"
-              style={{ alignSelf: "flex-start", marginTop: 2, padding: "4px 10px", borderRadius: 999, fontSize: 10.5, fontWeight: 800, cursor: "pointer", border: "none", background: "#1E8449", color: "#fff", lineHeight: 1.3, textAlign: "left" }}
-            >
-              ✓ Fè swivi jodia
             </button>
           )}
           {tk && tk.text && isAdmin && (
