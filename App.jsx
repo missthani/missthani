@@ -4885,6 +4885,9 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     if (!taskFilter) return true;
     const st = stepOfProspect(p);
     if (taskFilter === "rednomsg") return !p.contacted && !p.enrolled;
+    if (taskFilter === "tagnofollow") return stageKeyOf(p) === "tag_no_follow";
+    if (taskFilter === "noanswer") return stageKeyOf(p) === "follow_noanswer";
+    if (taskFilter === "followdone") return stageKeyOf(p) === "follow_done";
     if (taskFilter === "surbril") return !!p.remindAt && p.remindAt <= todayStr();
     if (taskFilter === "step1") return st === 1;
     if (taskFilter === "step2") return st === 2;
@@ -4914,12 +4917,21 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const bousteWeek = all.filter((p) => p.bouste && (p.updatedAt ? p.updatedAt >= weekAgo : true)).length;
     const notMsg = list.filter((p) => !p.contacted && !p.enrolled); // boul rouj devan non — poko resevwa mesaj
     const surbril = list.filter((p) => p.remindAt && p.remindAt <= today);
+    const tagNoFollow = list.filter((p) => stageKeyOf(p) === "tag_no_follow"); // etikèt mete men poko swivi
+    const noAnswer = list.filter((p) => stageKeyOf(p) === "follow_noanswer"); // sone san repons / pa sone ditou
+    const followDone = list.filter((p) => stageKeyOf(p) === "follow_done"); // swivi fèt
+    const dow = new Date(today + "T00:00:00").getDay(); // 0=dim 1=lun ... 5=ven
+    const isMWF = dow === 1 || dow === 3 || dow === 5;
     const daily = [
       { label: "Bouton rouge — moun ki poko resevwa mesaj", pending: notMsg.length, progress: taskProgress("rednomsg", today, notMsg.length), info: `${notMsg.length} moun`, link: "/formulaire?task=rednomsg" },
+      { label: "Etikèt ki poko gen swivi (fè swivi)", pending: tagNoFollow.length, progress: taskProgress("tagnofollow", today, tagNoFollow.length), info: `${tagNoFollow.length} moun`, link: "/formulaire?task=tagnofollow" },
       { label: "Moun an surbrillance (fè swivi jodia)", pending: surbril.length, progress: taskProgress("surbril", today, surbril.length), info: `${surbril.length} moun`, link: "/formulaire?task=surbril" },
       { label: "Enskripsyon Moncash pou antre nan sistèm", pending: reserved.length, progress: taskProgress("moncash", today, reserved.length), info: `${reserved.length} moun`, link: "/inscription" },
     ];
-    const repeated = [];
+    const repeated = isMWF ? [
+      { label: "Sone san repons / pa sone ditou (re-swivi)", pending: noAnswer.length, progress: taskProgress("noanswer", today, noAnswer.length), info: `${noAnswer.length} moun`, link: "/formulaire?task=noanswer" },
+      { label: "Swivi fèt (relanse)", pending: followDone.length, progress: taskProgress("followdone", today, followDone.length), info: `${followDone.length} moun`, link: "/formulaire?task=followdone" },
+    ] : [];
     const week = [
       { label: "Bouste — 150 fòm ranpli pa lien referans", pending: Math.max(0, 150 - bousteWeek), progress: Math.min(100, Math.round((bousteWeek / 150) * 100)), info: `${bousteWeek}/150`, link: "/formulaire?task=bouste" },
     ];
