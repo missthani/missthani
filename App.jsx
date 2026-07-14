@@ -3518,7 +3518,7 @@ function OptionsMenu() {
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
-          <div style={{ position: "absolute", top: "100%", right: 0, left: "auto", marginTop: 6, background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 12, boxShadow: "0 8px 24px rgba(0,0,0,.14)", zIndex: 50, width: 210, maxWidth: "calc(100vw - 24px)", overflow: "hidden" }}>
+          <div style={(typeof window !== "undefined" && window.innerWidth <= 640) ? { position: "fixed", top: 64, left: "50%", transform: "translateX(-50%)", background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 14, boxShadow: "0 12px 40px rgba(0,0,0,.22)", zIndex: 50, width: "calc(100vw - 28px)", maxWidth: 360, overflow: "hidden" } : { position: "absolute", top: "100%", right: 0, left: "auto", marginTop: 6, background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 12, boxShadow: "0 8px 24px rgba(0,0,0,.14)", zIndex: 50, width: 210, maxWidth: "calc(100vw - 24px)", overflow: "hidden" }}>
             <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: `${PALETTE.cream}88`, padding: "9px 14px 4px", letterSpacing: ".5px" }}>NAVIGATION</div>
             {PAGES.map((pg) => (
