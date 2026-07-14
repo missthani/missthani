@@ -1287,6 +1287,8 @@ export default function MissThaniApp() {
         }
         html, body { max-width: 100%; overflow-x: hidden; }
         img, video, svg { max-width: 100%; height: auto; }
+        .mt-agrid { display: grid; grid-template-columns: minmax(0,1fr) 236px; gap: 16px; align-items: start; }
+        @media (max-width: 700px) { .mt-agrid { grid-template-columns: 1fr !important; } }
         /* ---- Vèsyon PDF (8.5 x 11) ---- */
         .pdf-page { width: 8.5in; min-height: 11in; background:#fff; color:#1d1620; padding: 0.7in 0.65in 0.9in; box-sizing: border-box; position: relative; margin: 0 auto 18px; box-shadow: 0 6px 24px rgba(0,0,0,.4); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .pdf-foot { position:absolute; bottom: 0.4in; left: 0.65in; right: 0.65in; display:flex; justify-content:space-between; font-size: 10px; color:#8a7d70; border-top:1px solid #e7ddd2; padding-top:6px; }
@@ -3174,8 +3176,8 @@ function AgentsProgressView({ items = [], programs = [], agentInfo = {} }) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 236px", gap: 16, alignItems: "start" }}>
-        <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 16, background: "#fff" }}>
+      <div className="mt-agrid">
+        <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 18, padding: 16, background: "#fff", minWidth: 0 }}>
           {agents.length === 0 ? (
             <div style={{ textAlign: "center", padding: "30px 16px" }}>
               <p style={{ fontSize: 15, color: `${PALETTE.cream}cc`, margin: 0 }}>Poko gen ajan pou {sel} nan {monthLabel}.</p>
