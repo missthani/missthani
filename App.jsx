@@ -1210,6 +1210,14 @@ export default function MissThaniApp() {
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Asire meta viewport la la pou app la adapte ak telefòn
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    let m = document.querySelector('meta[name="viewport"]');
+    if (!m) { m = document.createElement("meta"); m.name = "viewport"; document.head.appendChild(m); }
+    m.setAttribute("content", "width=device-width, initial-scale=1, viewport-fit=cover");
+  }, []);
+
   // Èske nou sou paj /formulaire la? (lyen separe pou lis prospè yo)
   const isFormulaire = typeof window !== "undefined" && /^\/formulaire\/?$/i.test(window.location.pathname || "");
   // Èske nou sou paj /agent la? (espas ajan yo — Progression des Agents)
@@ -1270,6 +1278,15 @@ export default function MissThaniApp() {
         .mt-input::placeholder { color: rgba(58,14,51,.4); }
         textarea.mt-input { resize: vertical; min-height: 90px; line-height:1.5; }
         @media (prefers-reduced-motion: reduce){ .mt-rise,.mt-fade{ animation:none !important; } }
+        /* ---- Adaptasyon mobil ---- */
+        @media (max-width: 640px) {
+          input, select, textarea, .mt-input { font-size: 16px !important; }
+          table td, table th { padding: 7px 8px !important; font-size: 12px !important; }
+          h1 { font-size: 26px !important; }
+          h2 { font-size: 20px !important; }
+        }
+        html, body { max-width: 100%; overflow-x: hidden; }
+        img, video, svg { max-width: 100%; height: auto; }
         /* ---- Vèsyon PDF (8.5 x 11) ---- */
         .pdf-page { width: 8.5in; min-height: 11in; background:#fff; color:#1d1620; padding: 0.7in 0.65in 0.9in; box-sizing: border-box; position: relative; margin: 0 auto 18px; box-shadow: 0 6px 24px rgba(0,0,0,.4); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .pdf-foot { position:absolute; bottom: 0.4in; left: 0.65in; right: 0.65in; display:flex; justify-content:space-between; font-size: 10px; color:#8a7d70; border-top:1px solid #e7ddd2; padding-top:6px; }
@@ -3311,7 +3328,7 @@ function SessionsListSpace({ config }) {
             </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
-                <thead><tr><th style={th}>#</th><th style={th}>Nom &amp; Prénom</th><th style={th}>Session</th><th style={th}>Étiquette</th><th style={th}>Code barre</th></tr></thead>
+                <thead><tr><th style={th}>#</th><th style={th}>Nom &amp; Prénom</th><th style={th}>Session</th><th style={th}>Étiquette</th><th style={th}>Code barre</th><th style={th}>Action</th></tr></thead>
                 <tbody>
                   {rows.map((p, i) => {
                     const inf = p.enrollInfo || {};
@@ -3322,6 +3339,7 @@ function SessionsListSpace({ config }) {
                         <td style={td}>{inf.session || "—"}</td>
                         <td style={td}>{p.etiquette || "—"}</td>
                         <td style={{ ...td, fontFamily: "monospace", color: PALETTE.goldSoft }}>{inf.barcode || "—"}</td>
+                        <td style={td}><button onClick={() => { if (typeof window !== "undefined") window.location.href = `/inscription?edit=${p.id}`; }} style={{ padding: "5px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: "pointer", border: `1px solid ${PALETTE.line}`, background: "#fff", color: PALETTE.cream }}>Modifier</button></td>
                       </tr>
                     );
                   })}
@@ -3444,6 +3462,11 @@ function EnrolledListSpace({ config }) {
                                 style={{ padding: "5px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: "pointer", border: `1px solid ${PALETTE.goldSoft}`, background: "#fff", color: PALETTE.goldSoft }}
                               >Vini avant session</button>
                             )}
+                            <button
+                              onClick={() => { if (typeof window !== "undefined") window.location.href = `/inscription?edit=${p.id}`; }}
+                              title="Modifier la fiche d'inscription"
+                              style={{ padding: "5px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: "pointer", border: `1px solid ${PALETTE.line}`, background: "#fff", color: PALETTE.cream }}
+                            >Modifier</button>
                           </div>
                         </td>
                       </tr>
@@ -3681,6 +3704,17 @@ function InscriptionSpace({ config }) {
       setReservedList(all.filter((p) => (p.stage === "reserved_special" || p.stage === "reserved_after") && !p.enrolled && p.followup !== "vini"));
     }
   };
+  // Modifye fiche yon elèv (via /inscription?edit=ID)
+  useEffect(() => {
+    let editId = "";
+    try { editId = new URLSearchParams(window.location.search).get("edit") || ""; } catch (e) {}
+    if (!editId) return;
+    (async () => {
+      const all = (await loadProspects()) || [];
+      const m = all.find((p) => p.id === editId);
+      if (m) { fillFromMatch(m); setSearchMsg(`Modification — ${getName(m) || "élève"} : champs remplis.`); }
+    })();
+  }, []);
 
   const balance = (() => {
     const t = parseFloat(String(total).replace(/[^\d.]/g, "")) || 0;
