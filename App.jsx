@@ -3518,7 +3518,8 @@ function OptionsMenu() {
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
-          <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 12, boxShadow: "0 8px 24px rgba(0,0,0,.14)", zIndex: 50, minWidth: 210, overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: "100%", right: 0, left: "auto", marginTop: 6, background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 12, boxShadow: "0 8px 24px rgba(0,0,0,.14)", zIndex: 50, width: 210, maxWidth: "calc(100vw - 24px)", overflow: "hidden" }}>
+            <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: `${PALETTE.cream}88`, padding: "9px 14px 4px", letterSpacing: ".5px" }}>NAVIGATION</div>
             {PAGES.map((pg) => (
               <button key={pg.path} onClick={() => go(pg.path)} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: "none", border: "none", borderTop: `1px solid ${PALETTE.line}`, fontSize: 13.5, color: PALETTE.cream, cursor: "pointer" }}>{pg.label}</button>
@@ -3533,6 +3534,7 @@ function OptionsMenu() {
               }}
               style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: "none", border: "none", borderTop: `1px solid ${PALETTE.line}`, fontSize: 13.5, color: PALETTE.danger, fontWeight: 700, cursor: "pointer" }}
             >Se déconnecter</button>
+            </div>
           </div>
         </>
       )}
