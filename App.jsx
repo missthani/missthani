@@ -3124,11 +3124,11 @@ function AgentsProgressView({ items = [], programs = [], agentInfo = {} }) {
         <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", border: `1px solid ${PALETTE.line}`, borderRadius: 12, background: "#fff", fontWeight: 700, color: PALETTE.cream, fontSize: 14 }}>📅 {monthLabel}</div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "nowrap", overflowX: "auto", WebkitOverflowScrolling: "touch", marginBottom: 18, paddingBottom: 6 }}>
         {progList.map((pl) => {
           const on = sel === pl;
           return (
-            <button key={pl} onClick={() => setSel(pl)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 14, cursor: "pointer", border: `2px solid ${on ? PALETTE.blush : PALETTE.line}`, background: on ? "rgba(229,36,126,.06)" : "#fff", textAlign: "left" }}>
+            <button key={pl} onClick={() => setSel(pl)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 14, cursor: "pointer", border: `2px solid ${on ? PALETTE.blush : PALETTE.line}`, background: on ? "rgba(229,36,126,.06)" : "#fff", textAlign: "left", flexShrink: 0, whiteSpace: "nowrap" }}>
               <span style={{ fontSize: 20 }}>{progIcon(pl)}</span>
               <span>
                 <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: on ? PALETTE.blush : PALETTE.cream }}>{pl}</span>
