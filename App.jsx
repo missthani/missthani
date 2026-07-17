@@ -4476,11 +4476,13 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     if (tab === "students") return items.filter((p) => p.followup === "vini");
     if (tab === "lwen") return items.filter((p) => p.followup === "lwen");
     if (tab === "pa_enterese") return items.filter((p) => p.followup === "pa_enterese");
-    return items.filter((p) => p.followup !== "vini" && p.followup !== "lwen" && p.followup !== "pa_enterese");
+    if (tab === "inscrit") return items.filter((p) => p.enrolled && p.followup !== "vini" && p.followup !== "lwen" && p.followup !== "pa_enterese");
+    return items.filter((p) => p.followup !== "vini" && p.followup !== "lwen" && p.followup !== "pa_enterese" && !p.enrolled);
   }, [items, tab]);
   const isStudents = tab === "students";
   const isLwen = tab === "lwen";
   const isPaEnterese = tab === "pa_enterese";
+  const isInscrit = tab === "inscrit";
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -5000,7 +5002,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   };
   const computeTaches = () => {
     const all = items || [];
-    const list = all.filter((p) => p.followup !== "vini" && p.followup !== "lwen" && p.followup !== "pa_enterese"); // menm lis ak "Nouvo Prospè"
+    const list = all.filter((p) => p.followup !== "vini" && p.followup !== "lwen" && p.followup !== "pa_enterese" && !p.enrolled); // menm lis ak "Nouvo Prospè"
     const today = todayStr();
     const withStep = list.map((p) => ({ p, step: stepOfProspect(p) }));
     const s1 = withStep.filter((x) => x.step === 1).map((x) => x.p);
@@ -5238,7 +5240,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   }, [viewItems, pdfFilter, pdfEtq, pdfProgram, pdfMonth, selWeek]);
 
   // Opsyon pou jenere PDF a
-  const pdfTitleTxt = isStudents ? "Lis Nouvo Etidyan" : isLwen ? "Lis Lwen" : "Lis Nouvo Prospect";
+  const pdfTitleTxt = isStudents ? "Lis Nouvo Etidyan" : isLwen ? "Lis Lwen" : isPaEnterese ? "Lis Pa Enterese" : isInscrit ? "Lis Nouveau Inscrit" : "Lis Nouvo Prospect";
   const pdfOpts = {
     groupBy: "none",
     title:
@@ -5405,6 +5407,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
         >
           Pa enterese
         </button>
+        <button
+          onClick={() => { setTab("inscrit"); setMode("list"); }}
+          style={tab === "inscrit" ? goldBtn : ghostBtn}
+        >
+          Nouveau inscrit
+        </button>
       </div>
 
       {saveErr && (
@@ -5501,7 +5509,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
         <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, margin: 0, display: "inline-flex", alignItems: "center", gap: 10 }}>
-          <span>{isStudents ? "Nouvo Etidyan" : isLwen ? "Lwen" : "Nouvo Prospè"} {viewItems ? `(${viewItems.length})` : ""}</span>
+          <span>{isStudents ? "Nouvo Etidyan" : isLwen ? "Lwen" : isPaEnterese ? "Pa enterese" : isInscrit ? "Nouveau inscrit" : "Nouvo Prospè"} {viewItems ? `(${viewItems.length})` : ""}</span>
           {(() => { const nt = (viewItems || []).filter(isNew).length; return nt > 0 ? (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: PALETTE.blush, color: "#fff", fontSize: 12.5, fontWeight: 800, padding: "3px 11px", borderRadius: 999 }}>🔔 {nt} nouvo moun</span>
           ) : null; })()}
