@@ -1386,6 +1386,126 @@ function saveVisit(data) {
   } catch (e) {}
 }
 
+/* Entèfas chat "Carla" — style WhatsApp, pale ak /api/chat (sèvo AI a) */
+function CarlaChat({ config, initialProgram, onClose }) {
+  const [convo, setConvo] = useState([]); // mesaj pou API a [{role, content}]
+  const [bubbles, setBubbles] = useState([]); // bul ki afiche [{role, text, buttons}]
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const program = initialProgram || "";
+  const endRef = useRef(null);
+  const started = useRef(false);
+
+  useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ behavior: "smooth" }); }, [bubbles, busy]);
+
+  const buildContext = () => {
+    const pr = (config.programs || []).find((p) => p.label === program);
+    const sd = pr ? currentResaBaseAll(pr.steps || []) : "";
+    let env = {};
+    try { env = import.meta.env || {}; } catch (e) { env = {}; }
+    return {
+      program: program || "",
+      sessionDate: sd ? formatHtDate(sd) : "",
+      reservationDate: (pr && pr.reservationDate) ? formatHtDate(pr.reservationDate) : "",
+      price: (pr && pr.price) || "",
+      materials: (pr && pr.materials) || "",
+      special: config.special || "",
+      today: todayStr(),
+      supabaseUrl: env.VITE_SUPABASE_URL || "",
+      supabaseKey: env.VITE_SUPABASE_ANON_KEY || "",
+      etiquette: getRefAgent(),
+    };
+  };
+
+  const parseBlocks = (text) => {
+    const parts = String(text || "").split(/\n?---+\n?/).map((s) => s.trim()).filter(Boolean);
+    return parts.map((part) => {
+      const lines = part.split("\n");
+      const buttons = lines.filter((l) => l.trim().startsWith("•")).map((l) => l.replace(/^\s*•\s*/, "").trim());
+      const txt = lines.filter((l) => !l.trim().startsWith("•")).join("\n").trim();
+      return { text: txt, buttons };
+    });
+  };
+
+  const send = async (userText, hidden) => {
+    if (busy) return;
+    const nextConvo = [...convo, { role: "user", content: userText }];
+    setConvo(nextConvo);
+    if (!hidden) setBubbles((b) => [...b, { role: "user", text: userText, buttons: [] }]);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: nextConvo, context: buildContext() }) });
+      const data = await res.json();
+      const reply = (data && data.text) || "Padon, gen yon ti pwoblèm teknik. Eseye ankò.";
+      setConvo((c) => [...c, { role: "assistant", content: reply }]);
+      const blocks = parseBlocks(reply);
+      for (let i = 0; i < blocks.length; i++) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, i === 0 ? 300 : 750));
+        setBubbles((b) => [...b, { role: "assistant", text: blocks[i].text, buttons: blocks[i].buttons }]);
+      }
+    } catch (e) {
+      setBubbles((b) => [...b, { role: "assistant", text: "Koneksyon an echwe. Tanpri eseye ankò.", buttons: [] }]);
+    }
+    setBusy(false);
+  };
+
+  useEffect(() => {
+    if (started.current) return; started.current = true;
+    send(`(Sistèm: moun nan fèk louvri chat la sou pwogram "${program || "?"}". Akèyi l epi kòmanse.)`, true);
+  }, []);
+
+  const submit = () => { const v = input.trim(); if (!v) return; setInput(""); send(v); };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 2000, display: "flex", flexDirection: "column", background: "#ECE5DD" }}>
+      {/* Antèt */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: PALETTE.cream, color: "#fff" }}>
+        <div style={{ width: 38, height: 38, borderRadius: "50%", background: PALETTE.goldSoft, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16, color: "#fff" }}>C</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>Carla — Miss Thani</div>
+          <div style={{ fontSize: 11.5, opacity: 0.8 }}>{busy ? "k ap ekri…" : "an ligne"}</div>
+        </div>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: "#fff", fontSize: 24, cursor: "pointer", lineHeight: 1, padding: 4 }}>×</button>
+      </div>
+
+      {/* Konvèsasyon */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+        {bubbles.map((b, i) => (
+          <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: b.role === "user" ? "flex-end" : "flex-start", gap: 6 }}>
+            {b.text ? (
+              <div style={{ maxWidth: "82%", padding: "9px 12px", borderRadius: 14, fontSize: 14.5, lineHeight: 1.45, whiteSpace: "pre-wrap", background: b.role === "user" ? "#DCF8C6" : "#fff", color: "#111", boxShadow: "0 1px 1px rgba(0,0,0,.08)", borderTopRightRadius: b.role === "user" ? 4 : 14, borderTopLeftRadius: b.role === "user" ? 14 : 4 }}>{b.text}</div>
+            ) : null}
+            {b.buttons && b.buttons.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "82%" }}>
+                {b.buttons.map((bt, j) => (
+                  <button key={j} onClick={() => send(bt)} disabled={busy} style={{ textAlign: "left", padding: "10px 12px", borderRadius: 12, border: `1px solid ${PALETTE.goldSoft}`, background: "#fff", color: PALETTE.cream, fontSize: 14, fontWeight: 600, cursor: busy ? "default" : "pointer" }}>{bt}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+        {busy && (
+          <div style={{ alignSelf: "flex-start", padding: "9px 14px", borderRadius: 14, background: "#fff", fontSize: 18, color: "#999", boxShadow: "0 1px 1px rgba(0,0,0,.08)" }}>…</div>
+        )}
+        <div ref={endRef} />
+      </div>
+
+      {/* Antre tèks */}
+      <div style={{ display: "flex", gap: 8, padding: "10px 12px", background: "#F0F0F0" }}>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+          placeholder="Ekri yon mesaj…"
+          style={{ flex: 1, padding: "11px 14px", borderRadius: 999, border: "1px solid #ddd", fontSize: 16, outline: "none", background: "#fff" }}
+        />
+        <button onClick={submit} disabled={busy} style={{ width: 46, height: 46, borderRadius: "50%", border: "none", background: PALETTE.blush, color: "#fff", fontSize: 20, cursor: "pointer", flexShrink: 0 }}>➤</button>
+      </div>
+    </div>
+  );
+}
+
 function PublicSpace({ config, onAdmin }) {
   const refAgent = getRefAgent();
   // Pou routing Bouste: sèlman si ?ref= nan URL la kounye a (pa yon ansyen ref ki estoke). Lien dirèk = paj piblik.
@@ -1404,6 +1524,7 @@ function PublicSpace({ config, onAdmin }) {
   const [screenIndex, setScreenIndex] = useState(() => (saved0 && saved0.screenIndex) || 0);
   const [subId, setSubId] = useState(""); // sou-etap chwazi a (branch)
   const [chosenProgram, setChosenProgram] = useState(""); // programme vizitè a chwazi nan blòk "Lis programme"
+  const [carlaOpen, setCarlaOpen] = useState(false); // chat Carla
   const [formIdx, setFormIdx] = useState(0); // kesyon fòmilè aktyèl la (youn apre lòt)
   const [formError, setFormError] = useState(""); // mesaj erè fòmilè (nimewo pa bon, deja enskri…)
   const [checking, setChecking] = useState(false); // n ap tcheke nan Supabase
@@ -1909,6 +2030,12 @@ function PublicSpace({ config, onAdmin }) {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px 150px", position: "relative" }}>
+      {carlaOpen && <CarlaChat config={config} initialProgram={selected ? selected.label : chosenProgram} onClose={() => setCarlaOpen(false)} />}
+      <button
+        onClick={() => setCarlaOpen(true)}
+        title="Pale ak Carla, asistant nou an"
+        style={{ position: "fixed", bottom: 20, right: 20, zIndex: 1500, display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 18px", borderRadius: 999, border: "none", background: "#25D366", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 20px rgba(0,0,0,.25)" }}
+      >Pale ak Carla</button>
       <div aria-hidden style={{ position: "absolute", top: "-18%", left: "50%", transform: "translateX(-50%)", width: 520, height: 520, background: `radial-gradient(circle, ${PALETTE.blush}1f 0%, transparent 70%)`, pointerEvents: "none" }} />
 
       {followupBanner}
