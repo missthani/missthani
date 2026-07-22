@@ -2238,12 +2238,13 @@ function VideoBlock({ url, orient = "auto" }) {
     return () => clearTimeout(t);
   }, []);
   useEffect(() => {
-    if (autoStart && vidRef.current) { try { vidRef.current.play(); } catch (e) {} }
+    if (autoStart && vidRef.current) { try { vidRef.current.muted = true; vidRef.current.play(); } catch (e) {} }
   }, [autoStart]);
   const withAutoplay = (src) => {
     if (!src) return src;
     const sep = src.indexOf("?") !== -1 ? "&" : "?";
-    return `${src}${sep}autoplay=true&autoplay=1`;
+    // muted=true nesesè: navigatè yo bloke auto-play ak son. Moun nan ka tape ikòn son an pou tande.
+    return `${src}${sep}autoplay=true&muted=true&mute=1&autoplay=1&playsinline=1`;
   };
 
   // Pou "auto" san deteksyon: vètikal sou telefòn, orizontal sou òdinatè
