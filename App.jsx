@@ -1407,8 +1407,12 @@ function CarlaChat({ config, initialProgram, onClose }) {
       program: program || "",
       sessionDate: sd ? formatHtDate(sd) : "",
       reservationDate: (pr && pr.reservationDate) ? formatHtDate(pr.reservationDate) : "",
-      price: (pr && pr.price) || "",
-      materials: (pr && pr.materials) || "",
+      price: (pr && pr.prixInscription) || "",
+      prixMaillot: (pr && pr.prixMaillot) || "",
+      prixParticipation: (pr && pr.prixParticipation) || "",
+      horaires: (pr && pr.horaires) || "",
+      duree: (pr && pr.duree) || "",
+      materials: (pr && pr.materiel) || "",
       special: config.special || "",
       today: todayStr(),
       supabaseUrl: env.VITE_SUPABASE_URL || "",
@@ -2993,6 +2997,26 @@ function AdminSpace({ config, onSave, onExit }) {
         <button onClick={addBousteProgram} style={{ ...ghostBtn, width: "100%", borderColor: PALETTE.goldSoft, color: PALETTE.goldSoft, marginBottom: 12 }}>🚀 + Ajoute yon paj Bouste</button>
         {draft.programs.filter((p) => p.bouste).map((p) => progCard(p))}
         {draft.programs.filter((p) => p.bouste).length === 0 && <p style={{ fontSize: 12, color: `${PALETTE.cream}88` }}>Poko gen paj Bouste. Klike bouton anwo a pou kreye youn.</p>}
+      </Section>
+
+      <Section title="ℹ️ Info programme (pou Carla)">
+        <p style={{ fontSize: 12.5, color: `${PALETTE.cream}aa`, margin: "0 0 12px", lineHeight: 1.5 }}>
+          Ranpli enfòmasyon chak programme isit la. Se la <b>Carla (asistant AI a)</b> ap pran repons li yo (pri, orè, dire, materyèl). Si yon chan vid, Carla ap di l ap fè yon manm direksyon konfime l.
+        </p>
+        {(draft.programs || []).filter((p) => !p.bouste).map((p) => (
+          <div key={p.id} style={{ marginBottom: 14, border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 12, background: "#fff" }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: PALETTE.cream, marginBottom: 8 }}>{p.label}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
+              <div><label style={labelStyle}>Prix inscription</label><input className="mt-input" value={p.prixInscription || ""} onChange={(e) => updateProgram(p.id, { prixInscription: e.target.value })} placeholder="Egz: 5000 gdes" /></div>
+              <div><label style={labelStyle}>Prix maillot</label><input className="mt-input" value={p.prixMaillot || ""} onChange={(e) => updateProgram(p.id, { prixMaillot: e.target.value })} /></div>
+              <div><label style={labelStyle}>Frais participation</label><input className="mt-input" value={p.prixParticipation || ""} onChange={(e) => updateProgram(p.id, { prixParticipation: e.target.value })} /></div>
+              <div><label style={labelStyle}>Horaires</label><input className="mt-input" value={p.horaires || ""} onChange={(e) => updateProgram(p.id, { horaires: e.target.value })} placeholder="Egz: Lun-Ven 9h-12h" /></div>
+              <div><label style={labelStyle}>Durée programme</label><input className="mt-input" value={p.duree || ""} onChange={(e) => updateProgram(p.id, { duree: e.target.value })} placeholder="Egz: 3 mwa" /></div>
+            </div>
+            <div style={{ marginTop: 8 }}><label style={labelStyle}>Info materiel</label><textarea className="mt-input" value={p.materiel || ""} onChange={(e) => updateProgram(p.id, { materiel: e.target.value })} placeholder="Detay materyèl pou programme sa a" /></div>
+          </div>
+        ))}
+        {(draft.programs || []).filter((p) => !p.bouste).length === 0 && <p style={{ fontSize: 12, color: `${PALETTE.cream}88` }}>Poko gen programme.</p>}
       </Section>
 
       {/* Bar anrejistre */}

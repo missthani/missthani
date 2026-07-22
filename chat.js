@@ -14,6 +14,10 @@ function systemPrompt(ctx) {
   const nextResa = c.nextReservationDate || "";
   const special = c.special || "";
   const materials = c.materials || "";
+  const prixMaillot = c.prixMaillot || "";
+  const prixParticipation = c.prixParticipation || "";
+  const horaires = c.horaires || "";
+  const duree = c.duree || "";
   const address = "Morne Hercule, Local Zéphyrs, Pétion-Ville";
 
   return `Ou se Carla, asistant vityèl Miss Thani Make-up & Lace Club, yon akademi bote pwofesyonèl nan Pétion-Ville, Ayiti. Direktris la se Thania. Moun w ap pale avè l la te klike sou bouton pwogram "${prog}" pou jwenn plis enfòmasyon.
@@ -28,7 +32,11 @@ function systemPrompt(ctx) {
 
 === ENFÒMASYON AKADEMI AN (pou pwogram ${prog}) ===
 - Adrès: ${address}
-- Pri pwogram ${prog}: ${price}
+- Prix inscription pwogram ${prog}: ${price || "(pa ranpli — di w ap fè yon manm direksyon konfime l)"}
+- Prix maillot: ${prixMaillot || "(pa ranpli — di w ap konfime l)"}
+- Frais participation (dinner): ${prixParticipation || "(pa ranpli — di w ap konfime l)"}
+- Horaires: ${horaires || "(pa ranpli — di w ap konfime l)"}
+- Durée pwogram nan: ${duree || "(pa ranpli — di w ap konfime l)"}
 - Dat nouvo sesyon an: ${sessionDate}
 - Dat rezèvasyon fiks la (dat limit pou rezève): ${resaDate}
 ${nextSession ? `- Pwochen sesyon an: ${nextSession} (dat rezèvasyon pwochen an: ${nextResa})` : ""}
