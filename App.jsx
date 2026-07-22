@@ -2031,11 +2031,13 @@ function PublicSpace({ config, onAdmin }) {
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px 150px", position: "relative" }}>
       {carlaOpen && <CarlaChat config={config} initialProgram={selected ? selected.label : chosenProgram} onClose={() => setCarlaOpen(false)} />}
-      <button
-        onClick={() => setCarlaOpen(true)}
-        title="Pale ak Carla, asistant nou an"
-        style={{ position: "fixed", bottom: 20, right: 20, zIndex: 1500, display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 18px", borderRadius: 999, border: "none", background: "#25D366", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 20px rgba(0,0,0,.25)" }}
-      >Pale ak Carla</button>
+      {selected && (
+        <button
+          onClick={() => setCarlaOpen(true)}
+          title="Pale ak Carla, asistant nou an"
+          style={{ position: "fixed", bottom: 20, right: 20, zIndex: 1500, display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 18px", borderRadius: 999, border: "none", background: "#25D366", color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 20px rgba(0,0,0,.25)" }}
+        >Pale ak Carla</button>
+      )}
       <div aria-hidden style={{ position: "absolute", top: "-18%", left: "50%", transform: "translateX(-50%)", width: 520, height: 520, background: `radial-gradient(circle, ${PALETTE.blush}1f 0%, transparent 70%)`, pointerEvents: "none" }} />
 
       {followupBanner}
@@ -2228,6 +2230,21 @@ function ratioWH(orient) {
 /* Montre video a dirèkteman, gwo nan ekran an, adapte ak nenpòt fòma */
 function VideoBlock({ url, orient = "auto" }) {
   const v = getVideoEmbed(url);
+  const vidRef = useRef(null);
+  // Otomatikman jwe video a apre 3 segond sou paj la
+  const [autoStart, setAutoStart] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setAutoStart(true), 3000);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => {
+    if (autoStart && vidRef.current) { try { vidRef.current.play(); } catch (e) {} }
+  }, [autoStart]);
+  const withAutoplay = (src) => {
+    if (!src) return src;
+    const sep = src.indexOf("?") !== -1 ? "&" : "?";
+    return `${src}${sep}autoplay=true&autoplay=1`;
+  };
 
   // Pou "auto" san deteksyon: vètikal sou telefòn, orizontal sou òdinatè
   const [isNarrow, setIsNarrow] = useState(
@@ -2287,7 +2304,7 @@ function VideoBlock({ url, orient = "auto" }) {
   if (v.type === "video") {
     return (
       <div style={frameWrap}>
-        <video controls playsInline onLoadedMetadata={onMeta} style={fill}>
+        <video ref={vidRef} controls playsInline onLoadedMetadata={onMeta} style={fill}>
           <source src={v.src} />
         </video>
       </div>
@@ -2297,7 +2314,7 @@ function VideoBlock({ url, orient = "auto" }) {
   return (
     <div style={frameWrap}>
       <iframe
-        src={v.src}
+        src={autoStart ? withAutoplay(v.src) : v.src}
         title="Video"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
         allowFullScreen
