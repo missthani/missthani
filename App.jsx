@@ -2247,8 +2247,12 @@ function VideoBlock({ url, orient = "auto" }) {
   const withAutoplay = (src) => {
     if (!src) return src;
     const sep = src.indexOf("?") !== -1 ? "&" : "?";
-    // muted=true nesesè: navigatè yo bloke auto-play ak son. Moun nan ka tape ikòn son an pou tande.
-    return `${src}${sep}autoplay=true&muted=true&mute=1&autoplay=1&playsinline=1`;
+    // Chak platfòm gen pwòp paramèt pa l — Bunny vle "true", YouTube vle "1".
+    // (muted nesesè: navigatè yo bloke auto-play ak son.)
+    if (/mediadelivery\.net|bunnycdn|b-cdn\.net/i.test(src)) return `${src}${sep}autoplay=true&muted=true&preload=true`;
+    if (/youtube|youtu\.be/i.test(src)) return `${src}${sep}autoplay=1&mute=1&playsinline=1`;
+    if (/vimeo/i.test(src)) return `${src}${sep}autoplay=1&muted=1`;
+    return `${src}${sep}autoplay=1&muted=1`;
   };
 
   // Pou "auto" san deteksyon: vètikal sou telefòn, orizontal sou òdinatè
