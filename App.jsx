@@ -1415,16 +1415,27 @@ function CarlaChat({ config, initialProgram, onClose }) {
     const sd = pr ? currentResaBaseAll(pr.steps || []) : "";
     let env = {};
     try { env = import.meta.env || {}; } catch (e) { env = {}; }
+    const priceLines = [
+      pr && pr.prixInscription ? `Inscription: ${pr.prixInscription}` : "",
+      pr && pr.prixMaillot ? `Maillot: ${pr.prixMaillot}` : "",
+      pr && pr.prixParticipation ? `Frais participation: ${pr.prixParticipation}` : "",
+    ].filter(Boolean);
+    const priceText = priceLines.length ? priceLines.join(" | ") + " (BAY TOUT PRI SA YO ANSANM lè moun nan mande pri)" : "";
+    const matLines = [
+      pr && pr.materiel ? `Materyèl: ${pr.materiel}` : "",
+      pr && pr.horaires ? `Horaires: ${pr.horaires}` : "",
+      pr && pr.duree ? `Durée pwogram nan: ${pr.duree}` : "",
+    ].filter(Boolean);
     return {
       program: program || "",
       sessionDate: sd ? formatHtDate(sd) : "",
       reservationDate: (pr && pr.reservationDate) ? formatHtDate(pr.reservationDate) : "",
-      price: (pr && pr.prixInscription) || "",
+      price: priceText,
       prixMaillot: (pr && pr.prixMaillot) || "",
       prixParticipation: (pr && pr.prixParticipation) || "",
       horaires: (pr && pr.horaires) || "",
       duree: (pr && pr.duree) || "",
-      materials: (pr && pr.materiel) || "",
+      materials: matLines.join(" · "),
       special: config.special || "",
       today: todayStr(),
       supabaseUrl: env.VITE_SUPABASE_URL || "",
