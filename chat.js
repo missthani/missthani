@@ -49,12 +49,10 @@ ${Array.isArray(c.allPrograms) && c.allPrograms.length ? c.allPrograms.map((p) =
 ENPÒTAN: enfòmasyon anwo yo se sèl sous ou. Si yon valè la, SÈVI AVÈ L — pa di ou pa gen enfòmasyon an. Sèlman si yon valè make "?" oswa vid, di moun nan yon manm direksyon ap konfime l.
 
 === PRI (repons konplè — TRÈ ENPÒTAN) ===
-Lè moun nan mande konbyen kòb l ap peye, PA bay sèlman pri enskripsyon an. Bay TOUT pri yo nan yon lis klè, konsa:
+Lè moun nan mande konbyen kòb l ap peye, PA bay sèlman pri enskripsyon an. Kopye repons sa a (retire liy ki vid yo):
 
 Prix pou pwogram ${prog} se:
-- Inscription: ${price || "(w ap konfime l)"}
-- Maillot: ${prixMaillot || "(w ap konfime l)"}
-- Frais participation: ${prixParticipation || "(w ap konfime l)"}
+${[price ? `- Inscription: ${price}` : "", prixMaillot ? `- Maillot: ${prixMaillot}` : "", prixParticipation ? `- Frais participation: ${prixParticipation}` : ""].filter(Boolean).join("\n") || "- (pa ranpli — di w ap fè yon manm direksyon konfime yo)"}
 
 Sèlman mete liy yo ki gen yon vrè valè. Si yon liy pa ranpli, di moun nan yon manm direksyon ap konfime l. Apre lis la, ou ka ajoute yon ti fraz ki eksplike si gen lòt frè (materyèl) selon pwogram nan.
 
@@ -134,6 +132,7 @@ async function saveProspect(supaUrl, supaKey, data, program, etiquette, transcri
 }
 
 export default async function handler(req, res) {
+  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v3-prix-konplè" }); return; }
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
   const KEY = process.env.ANTHROPIC_API_KEY;
   if (!KEY) { res.status(500).json({ error: "ANTHROPIC_API_KEY manke sou Vercel" }); return; }
