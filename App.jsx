@@ -1407,7 +1407,11 @@ function CarlaChat({ config, initialProgram, onClose }) {
   useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ behavior: "smooth" }); }, [bubbles, busy]);
 
   const buildContext = () => {
-    const pr = (config.programs || []).find((p) => p.label === program);
+    const norm = (s) => String(s || "").trim().toLowerCase();
+    const all = config.programs || [];
+    // Chèche programme reyèl la (pa yon paj Bouste). Si pa jwenn pa non, eseye chosen an.
+    let pr = all.find((p) => !p.bouste && norm(p.label) === norm(program));
+    if (!pr) pr = all.find((p) => norm(p.label) === norm(program));
     const sd = pr ? currentResaBaseAll(pr.steps || []) : "";
     let env = {};
     try { env = import.meta.env || {}; } catch (e) { env = {}; }
@@ -1426,6 +1430,16 @@ function CarlaChat({ config, initialProgram, onClose }) {
       supabaseUrl: env.VITE_SUPABASE_URL || "",
       supabaseKey: env.VITE_SUPABASE_ANON_KEY || "",
       etiquette: getRefAgent(),
+      allPrograms: all.filter((p) => !p.bouste).map((p) => ({
+        label: p.label,
+        prixInscription: p.prixInscription || "",
+        prixMaillot: p.prixMaillot || "",
+        prixParticipation: p.prixParticipation || "",
+        horaires: p.horaires || "",
+        duree: p.duree || "",
+        materiel: p.materiel || "",
+        sessionDate: (() => { const d = currentResaBaseAll(p.steps || []); return d ? formatHtDate(d) : ""; })(),
+      })),
       transcript: (convo || []).filter((m) => !String(m.content || "").startsWith("(Sistèm:")).map((m) => `${m.role === "user" ? "Moun nan" : "Carla"}: ${m.content}`).join("\n"),
     };
   };
@@ -2044,7 +2058,7 @@ function PublicSpace({ config, onAdmin }) {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px 150px", position: "relative" }}>
-      {carlaOpen && <CarlaChat config={config} initialProgram={selected ? selected.label : chosenProgram} onClose={() => setCarlaOpen(false)} />}
+      {carlaOpen && <CarlaChat config={config} initialProgram={chosenProgram || (selected && !selected.bouste ? selected.label : "")} onClose={() => setCarlaOpen(false)} />}
       {selected && (
         <button
           onClick={() => setCarlaOpen(true)}
