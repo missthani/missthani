@@ -91,7 +91,7 @@ Apre [SAVE], di moun nan: "Ebyen ok. Mwen deja rantre non w sou sistèm nan. Mwe
 Jodia se ${c.today || new Date().toISOString().slice(0, 10)}.`;
 }
 
-async function saveProspect(supaUrl, supaKey, data, program, etiquette) {
+async function saveProspect(supaUrl, supaKey, data, program, etiquette, transcript) {
   try {
     const id = Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
     const answers = [
@@ -101,6 +101,7 @@ async function saveProspect(supaUrl, supaKey, data, program, etiquette) {
       { question: "Zone", answer: data.zone || "" },
     ];
     const row = { id, program: program || "", answers, updated_at: new Date().toISOString() };
+    if (transcript) row.carla_chat = String(transcript).slice(0, 20000);
     if (etiquette) row.etiquette = etiquette;
     if (data.statut === "lwen") row.followup = "lwen";
     else if (data.statut === "pa_enterese") row.followup = "pa_enterese";
@@ -145,7 +146,8 @@ export default async function handler(req, res) {
       try {
         const info = JSON.parse(m[1].trim());
         if (ctx.supabaseUrl && ctx.supabaseKey) {
-          saved = await saveProspect(ctx.supabaseUrl, ctx.supabaseKey, info, ctx.program, ctx.etiquette);
+          const fullT = (ctx.transcript || "") + "\nCarla: " + text;
+          saved = await saveProspect(ctx.supabaseUrl, ctx.supabaseKey, info, ctx.program, ctx.etiquette, fullT);
         }
       } catch (e) {}
     }

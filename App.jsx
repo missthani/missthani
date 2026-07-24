@@ -655,6 +655,7 @@ async function loadProspects() {
       remindAt: r.remind_at || "",
       enrolled: !!r.enrolled,
       bouste: !!r.bouste,
+      carlaChat: r.carla_chat || "",
       enrollInfo: (() => { try { return r.enroll_info ? JSON.parse(r.enroll_info) : null; } catch (e) { return null; } })(),
       updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : 0,
     }));
@@ -1388,13 +1389,20 @@ function saveVisit(data) {
 
 /* Entèfas chat "Carla" — style WhatsApp, pale ak /api/chat (sèvo AI a) */
 function CarlaChat({ config, initialProgram, onClose }) {
-  const [convo, setConvo] = useState([]); // mesaj pou API a [{role, content}]
-  const [bubbles, setBubbles] = useState([]); // bul ki afiche [{role, text, buttons}]
+  const program = initialProgram || "";
+  const STORE_KEY = "missthani_carla_" + (program || "gen");
+  const saved0 = (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch (e) { return null; } })();
+  const [convo, setConvo] = useState((saved0 && saved0.convo) || []); // mesaj pou API a [{role, content}]
+  const [bubbles, setBubbles] = useState((saved0 && saved0.bubbles) || []); // bul ki afiche [{role, text, buttons}]
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const program = initialProgram || "";
   const endRef = useRef(null);
   const started = useRef(false);
+
+  // Sonje konvèsasyon an pou moun nan pa rekòmanse lè li tounen
+  useEffect(() => {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ convo, bubbles, ts: Date.now() })); } catch (e) {}
+  }, [convo, bubbles]);
 
   useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ behavior: "smooth" }); }, [bubbles, busy]);
 
@@ -1418,6 +1426,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
       supabaseUrl: env.VITE_SUPABASE_URL || "",
       supabaseKey: env.VITE_SUPABASE_ANON_KEY || "",
       etiquette: getRefAgent(),
+      transcript: (convo || []).filter((m) => !String(m.content || "").startsWith("(Sistèm:")).map((m) => `${m.role === "user" ? "Moun nan" : "Carla"}: ${m.content}`).join("\n"),
     };
   };
 
@@ -1456,6 +1465,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
 
   useEffect(() => {
     if (started.current) return; started.current = true;
+    if (convo.length > 0) return; // konvèsasyon an deja kòmanse — pa rekòmanse
     send(`(Sistèm: moun nan fèk louvri chat la sou pwogram "${program || "?"}". Akèyi l epi kòmanse.)`, true);
   }, []);
 
@@ -4535,6 +4545,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [etqFilter, setEtqFilter] = useState(""); // filtre pa etikèt (ajan)
   const [phoneSearch, setPhoneSearch] = useState(""); // rechèch pa nimewo telefòn
   const [progresOpen, setProgresOpen] = useState(false); // seksyon "Évaluation des progrès"
+  const [carlaView, setCarlaView] = useState(null); // prospè ki gen konvèsasyon Carla n ap gade
   const [taskFilter, setTaskFilter] = useState(() => { try { return new URLSearchParams(window.location.search).get("task") || ""; } catch (e) { return ""; } });
   const [msgDraft, setMsgDraft] = useState(waMessages || []);
   const [activeDraft, setActiveDraft] = useState(activeWaMessage || "");
@@ -4836,6 +4847,13 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           {idx + 1}
           {p.enrolled && <span style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: "#1E8449", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap" }} title={p.enrollInfo ? `Peye: ${p.enrollInfo.paid || 0} · Balans: ${p.enrollInfo.balance || 0}` : "Enskri"}>ENSKRI</span>}
           {p.bouste && <span style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: "#E0A50A", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap" }} title="Moun sa te pase pa paj Bouste a">BOUSTE</span>}
+          {p.carlaChat && (
+            <button
+              onClick={() => setCarlaView(p)}
+              title="Wè konvèsasyon an ak Carla"
+              style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: "#25D366", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap", border: "none", cursor: "pointer" }}
+            >Carla ▾</button>
+          )}
         </span>
       </td>
       {priorityCols.map((q) => (
@@ -6029,6 +6047,19 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               </span>
             ))}
           </div>
+          {carlaView && (
+            <div onClick={() => setCarlaView(null)} style={{ position: "fixed", inset: 0, zIndex: 3000, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+              <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, maxWidth: 560, width: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: "#25D366", color: "#fff" }}>
+                  <strong style={{ fontSize: 14 }}>Konvèsasyon ak Carla — {prospectName(carlaView) || "prospè"}</strong>
+                  <button onClick={() => setCarlaView(null)} style={{ background: "none", border: "none", color: "#fff", fontSize: 24, cursor: "pointer", lineHeight: 1 }}>×</button>
+                </div>
+                <div style={{ padding: 14, overflowY: "auto", fontSize: 13.5, lineHeight: 1.6, color: PALETTE.cream, whiteSpace: "pre-wrap" }}>
+                  {carlaView.carlaChat || "Pa gen konvèsasyon."}
+                </div>
+              </div>
+            </div>
+          )}
           {taskFilter && (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 12, padding: "8px 14px", borderRadius: 10, background: "rgba(224,165,10,.12)", border: `1px solid ${PALETTE.goldSoft}` }}>
               <span style={{ fontSize: 12.5, fontWeight: 700, color: PALETTE.cream }}>Filtre tâche aktif — sèlman moun ki konsène yo</span>
