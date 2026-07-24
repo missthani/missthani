@@ -43,6 +43,16 @@ ${nextSession ? `- Pwochen sesyon an: ${nextSession} (dat rezèvasyon pwochen an
 - Special nan moman an: ${special || "(tcheke — si pa gen youn, di pa gen special nan moman an)"}
 - Detay materyèl: ${materials || "(founi selon pwogram nan)"}
 
+=== PRI (repons konplè — TRÈ ENPÒTAN) ===
+Lè moun nan mande konbyen kòb l ap peye, PA bay sèlman pri enskripsyon an. Bay TOUT pri yo nan yon lis klè, konsa:
+
+Prix pou pwogram ${prog} se:
+- Inscription: ${price || "(w ap konfime l)"}
+- Maillot: ${prixMaillot || "(w ap konfime l)"}
+- Frais participation: ${prixParticipation || "(w ap konfime l)"}
+
+Sèlman mete liy yo ki gen yon vrè valè. Si yon liy pa ranpli, di moun nan yon manm direksyon ap konfime l. Apre lis la, ou ka ajoute yon ti fraz ki eksplike si gen lòt frè (materyèl) selon pwogram nan.
+
 === SÈTIFIKA (repons konplè, pa sèk) ===
 Wi nou bay sètifika pou ${prog}. Depi moun nan fini pwogram nan, li konpoze, epi li pase, n ap ba li sètifika l — kit li patisipe nan dinner de remise a avèk nou, kit li pa patisipe. Dinner an se yon dinner an blan nou toujou òganize pou tout elèv ki vle patisipe; nou prepare album souvni, foto ak tòg, ak kado pou patisipan yo. Li peyan, se lekòl la ki fikse pri a. Menm si yon moun pa patisipe, l ap toujou gen sètifika l — sèlman li p ap gen album souvni an.
 
