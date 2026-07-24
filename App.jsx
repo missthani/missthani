@@ -1505,6 +1505,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
           <div style={{ fontWeight: 700, fontSize: 15 }}>Carla — Miss Thani</div>
           <div style={{ fontSize: 11.5, opacity: 0.8 }}>{busy ? "k ap ekri…" : "an ligne"}</div>
         </div>
+        <button onClick={() => { try { localStorage.removeItem(STORE_KEY); } catch (e) {} setConvo([]); setBubbles([]); started.current = false; if (typeof window !== "undefined") window.location.reload(); }} title="Rekòmanse konvèsasyon an" style={{ background: "none", border: "none", color: "#fff", fontSize: 18, cursor: "pointer", padding: 4 }}>↻</button>
         <button onClick={onClose} style={{ background: "none", border: "none", color: "#fff", fontSize: 24, cursor: "pointer", lineHeight: 1, padding: 4 }}>×</button>
       </div>
 
