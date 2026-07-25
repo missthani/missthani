@@ -642,7 +642,7 @@ async function loadProspects() {
   try {
     const { data, error } = await supabase.from("prospects").select("*").order("updated_at", { ascending: false });
     if (error) throw error;
-    return (data || []).map((r) => ({
+    const mapped = (data || []).map((r) => ({
       id: r.id,
       program: r.program,
       answers: r.answers || [],
@@ -656,9 +656,46 @@ async function loadProspects() {
       enrolled: !!r.enrolled,
       bouste: !!r.bouste,
       carlaChat: r.carla_chat || "",
+      otherPrograms: r.other_programs || "",
       enrollInfo: (() => { try { return r.enroll_info ? JSON.parse(r.enroll_info) : null; } catch (e) { return null; } })(),
       updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : 0,
     }));
+    // Rasanble menm moun nan (menm non + menm telefòn) — evite doub, mete lòt programme yo ansanm
+    const nameOf = (p) => {
+      for (const a of (p.answers || [])) {
+        const val = String(a.answer || "").trim();
+        if (!val || /\S+@\S+\.\S+/.test(val) || /^\+?\d[\d\s-]{6,}$/.test(val)) continue;
+        return val.toLowerCase().replace(/^\(ai\)\s*/, "").trim();
+      }
+      return "";
+    };
+    const phoneOf = (p) => {
+      for (const a of (p.answers || [])) {
+        const v = String(a.answer || "").replace(/[\s-]/g, "");
+        if (/^\+?\d{7,}$/.test(v)) return v.replace(/^\+509/, "");
+      }
+      return "";
+    };
+    const byKey = {}; const result = [];
+    for (const p of mapped) {
+      const key = nameOf(p) + "|" + phoneOf(p);
+      if (nameOf(p) && byKey[key]) {
+        const main = byKey[key];
+        const existing = new Set([main.program, ...String(main.otherPrograms || "").split(",").map((s) => s.trim()).filter(Boolean)]);
+        if (p.program && !existing.has(p.program)) {
+          const list = String(main.otherPrograms || "").split(",").map((s) => s.trim()).filter(Boolean);
+          list.push(p.program);
+          main.otherPrograms = list.join(", ");
+        }
+        if (p.carlaChat && !main.carlaChat) main.carlaChat = p.carlaChat;
+        if (p.enrolled) main.enrolled = true;
+        main.mergedIds = [...(main.mergedIds || []), p.id];
+      } else {
+        if (nameOf(p)) byKey[key] = p;
+        result.push(p);
+      }
+    }
+    return result;
   } catch (e) {
     return [];
   }
@@ -4784,6 +4821,21 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     await setProspectRemind(p.id, nd);
   };
 
+  // Ajoute yon lòt programme sou yon prospè ki deja egziste (evite dwoublon)
+  const addOtherProgram = async (p, prog) => {
+    if (!prog) return;
+    const existing = (p.otherPrograms || "").split(",").map((s) => s.trim()).filter(Boolean);
+    if (prog === p.program || existing.includes(prog)) return; // deja la
+    const next = [...existing, prog].join(", ");
+    setItems((prev) => (prev || []).map((x) => (x.id === p.id ? { ...x, otherPrograms: next } : x)));
+    try { await supabase.from("prospects").update({ other_programs: next }).eq("id", p.id); } catch (e) {}
+  };
+  const removeOtherProgram = async (p, prog) => {
+    const next = (p.otherPrograms || "").split(",").map((s) => s.trim()).filter((x) => x && x !== prog).join(", ");
+    setItems((prev) => (prev || []).map((x) => (x.id === p.id ? { ...x, otherPrograms: next } : x)));
+    try { await supabase.from("prospects").update({ other_programs: next }).eq("id", p.id); } catch (e) {}
+  };
+
   // Reset tout pwosesis bwat mesaj la pou yon prospè (admin sèlman)
   const resetProcess = async (p) => {
     if (typeof window !== "undefined" && !window.confirm(`Reset pwosesis mesaj la pou ${prospectName(p) || "moun sa"}? Sa ap remete swivi a, estati kontak la (boul vèt), ak etap la nan kòmansman. (Etikèt la ap rete.)`)) return;
@@ -4878,6 +4930,27 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           {idx + 1}
           {p.enrolled && <span style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: "#1E8449", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap" }} title={p.enrollInfo ? `Peye: ${p.enrollInfo.paid || 0} · Balans: ${p.enrollInfo.balance || 0}` : "Enskri"}>ENSKRI</span>}
           {p.bouste && <span style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: "#E0A50A", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap" }} title="Moun sa te pase pa paj Bouste a">BOUSTE</span>}
+          {isAdmin && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+              {(p.otherPrograms || "").split(",").map((s) => s.trim()).filter(Boolean).map((op) => (
+                <span key={op} style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: PALETTE.goldSoft, padding: "2px 6px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  + {op}
+                  <button onClick={() => removeOtherProgram(p, op)} title="Retire" style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: 11, lineHeight: 1, padding: 0 }}>×</button>
+                </span>
+              ))}
+              <select
+                value=""
+                onChange={(e) => { if (e.target.value) addOtherProgram(p, e.target.value); e.target.value = ""; }}
+                title="Ajoute yon lòt programme moun sa vle"
+                style={{ fontSize: 10.5, padding: "2px 4px", borderRadius: 8, border: `1px dashed ${PALETTE.goldSoft}`, background: "#fff", color: PALETTE.goldSoft, cursor: "pointer", maxWidth: 120 }}
+              >
+                <option value="">+ Lòt programme</option>
+                {(programs || []).filter((pr) => !pr.bouste && pr.label !== p.program && !(p.otherPrograms || "").includes(pr.label)).map((pr) => (
+                  <option key={pr.id} value={pr.label}>{pr.label}</option>
+                ))}
+              </select>
+            </span>
+          )}
           {p.carlaChat && (
             <button
               onClick={() => setCarlaView(p)}
@@ -4885,6 +4958,23 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: "#25D366", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap", border: "none", cursor: "pointer" }}
             >Carla ▾</button>
           )}
+          {(p.otherPrograms || "").split(",").map((s) => s.trim()).filter(Boolean).map((op) => (
+            <span key={op} style={{ fontSize: 9.5, fontWeight: 800, color: PALETTE.cream, background: "#EED9EC", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap" }} title="Lòt programme moun sa vle tou">
+              + {op}
+              <button onClick={() => removeOtherProgram(p, op)} title="Retire" style={{ marginLeft: 4, border: "none", background: "none", color: PALETTE.danger, cursor: "pointer", fontWeight: 800, padding: 0 }}>×</button>
+            </span>
+          ))}
+          <select
+            value=""
+            onChange={(e) => { addOtherProgram(p, e.target.value); e.target.value = ""; }}
+            title="Ajoute yon lòt programme moun sa vle tou"
+            style={{ fontSize: 9.5, fontWeight: 700, color: PALETTE.goldSoft, background: "#fff", border: `1px dashed ${PALETTE.goldSoft}`, borderRadius: 999, padding: "2px 4px", cursor: "pointer" }}
+          >
+            <option value="">+ Programme</option>
+            {(config.programs || []).filter((pr) => !pr.bouste && pr.label !== p.program && !(p.otherPrograms || "").includes(pr.label)).map((pr) => (
+              <option key={pr.id} value={pr.label}>{pr.label}</option>
+            ))}
+          </select>
         </span>
       </td>
       {priorityCols.map((q) => (
