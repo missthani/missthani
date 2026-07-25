@@ -66,12 +66,12 @@ RÈG STRIK SOU LÒT ENFÒMASYON: pou horaires, durée, ak materyèl — si valè
 Wi nou bay sètifika pou ${prog}. Depi moun nan fini pwogram nan, li konpoze, epi li pase, n ap ba li sètifika l — kit li patisipe nan dinner de remise a avèk nou, kit li pa patisipe. Dinner an se yon dinner an blan nou toujou òganize pou tout elèv ki vle patisipe; nou prepare album souvni, foto ak tòg, ak kado pou patisipan yo. Li peyan, se lekòl la ki fikse pri a. Menm si yon moun pa patisipe, l ap toujou gen sètifika l — sèlman li p ap gen album souvni an.
 
 === KESYON YO (an 2 lis) ===
-Lè ou akèyi moun nan (prezante w, remèsye l, mansyone pwogram ${prog}), envite l chwazi kesyon. Ou dwe voye kesyon yo kòm yon LIS BOUTON, konsa: nan yon ti mesaj apa, mete chak kesyon sou yon liy ki kòmanse ak "•". App la ap tounen liy sa yo an bouton moun nan ka klike.
+Lè ou akèyi moun nan (prezante w, remèsye l, mansyone pwogram ${prog}), envite l chwazi kesyon. Ou dwe voye kesyon yo kòm yon LIS BOUTON, konsa: nan yon ti mesaj apa, mete chak kesyon sou yon liy ki kòmanse ak "•". App la ap tounen liy sa yo an bouton moun nan ka klike. (Pa chanje anyen nan pwosesis kesyon 2 lis yo — li rete menm jan.)
 
-ENPÒTAN: nan premye lis bouton an, AJOUTE toujou yon dènye opsyon: "• Mwen vle jis ranpli fòm preskripsyon an". Si moun nan klike sou opsyon sa a, sa vle di li vle SOTE etap kesyon yo epi ale dirèk nan preskripsyon an. Nan ka sa:
-1. Di l: "Pa gen pwoblèm! Piske ou vle enskri dirèk, m ap ba w yon ti rezime enfòmasyon enpòtan yo, epi n ap ranpli fòm ou an."
-2. Voye yon ti rezime kout (nan yon oswa de bul mesaj) ak enfòmasyon esansyèl yo malgre li pa mande yo: pri yo (3 pri yo ansanm), dat sesyon an, dat rezèvasyon an, ak yon ti mo sou sètifika/materyèl.
-3. Answit kòmanse dirèk kolekte enfo pèsonèl li pou fòm nan: non, zòn, WhatsApp, apèl (chak nan yon bul apa), epi kontinye ak preskripsyon an.
+BOUTON ANPLIS (nan CHAK lis kesyon): nan chak lis bouton kesyon ou voye (ni premye lis la, ni dezyèm lis la), toujou mete kòm DÈNYE opsyon nan lis la: "• Mwen vle ranpli fòm preskripsyon an". Se yon bouton anplis moun nan ka chwazi menm jan ak nenpòt lòt kesyon.
+Si moun nan klike sou opsyon sa a (nenpòt kilè), sa vle di li vle ale dirèk nan preskripsyon an. Nan ka sa:
+1. Voye yon ti rezime kout (nan yon oswa de bul mesaj) ak enfòmasyon global esansyèl yo malgre li pa mande yo: 3 pri yo ansanm, dat sesyon an, dat rezèvasyon an, ak yon ti mo sou sètifika/materyèl.
+2. Answit kòmanse dirèk kolekte enfo pèsonèl li pou fòm nan: non, zòn, WhatsApp, apèl (chak nan yon bul apa), epi kontinye ak preskripsyon an.
 PREMYE LIS (4-5 kesyon):
 • Ki adrès nou
 • Konbyen kòb m ap peye
@@ -146,7 +146,7 @@ async function saveProspect(supaUrl, supaKey, data, program, etiquette, transcri
 }
 
 export default async function handler(req, res) {
-  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v6-rakousi-fom" }); return; }
+  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v7-bouton-fom-chak-lis" }); return; }
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
   const KEY = process.env.ANTHROPIC_API_KEY;
   if (!KEY) { res.status(500).json({ error: "ANTHROPIC_API_KEY manke sou Vercel" }); return; }
