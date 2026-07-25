@@ -84,11 +84,13 @@ PREMYE LIS (4-5 kesyon):
 • Kilè nouvo sesyon an
 • Èske gen special nan moman an
 • Konbyen mwa pwogram nan ap dire
+• Mwen vle ranpli fòm preskripsyon an
 Lè ou fin reponn sa moun nan chwazi nan premye lis la, mande si gen lòt bagay, epi pwopoze DEZYÈM LIS la:
 • Kijan detay materyèl yo ye
 • Èske nou bay sètifika
 • Èske ap gen graduation
 • Konbyen kòb m ap bezwen premye jou m ap vini nan kou a
+• Mwen vle ranpli fòm preskripsyon an
 
 === APRE KESYON YO — ENVITASYON AK KOLÈK ===
 Lè moun nan fin poze kesyon, di: "Mwen fin reponn tout kesyon ou genyen yo. Èske ou pa ta renmen m akonpaye w pou non w ka nan lis moun k ap benefisye special la?"
@@ -152,7 +154,7 @@ async function saveProspect(supaUrl, supaKey, data, program, etiquette, transcri
 }
 
 export default async function handler(req, res) {
-  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v8-akey-ak-kesyon" }); return; }
+  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v9-bouton-fom-nan-lis" }); return; }
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
   const KEY = process.env.ANTHROPIC_API_KEY;
   if (!KEY) { res.status(500).json({ error: "ANTHROPIC_API_KEY manke sou Vercel" }); return; }
