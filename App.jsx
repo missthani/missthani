@@ -1426,7 +1426,7 @@ function saveVisit(data) {
 
 /* Entèfas chat "Carla" — style WhatsApp, pale ak /api/chat (sèvo AI a) */
 function CarlaChat({ config, initialProgram, onClose }) {
-  const BEHAVIOR_VERSION = 7; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
+  const BEHAVIOR_VERSION = 8; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
   const program = initialProgram || "";
   const STORE_KEY = "missthani_carla_" + (program || "gen");
   const saved0 = (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch (e) { return null; } })();

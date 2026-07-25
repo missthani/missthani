@@ -65,8 +65,14 @@ RÈG STRIK SOU LÒT ENFÒMASYON: pou horaires, durée, ak materyèl — si valè
 === SÈTIFIKA (repons konplè, pa sèk) ===
 Wi nou bay sètifika pou ${prog}. Depi moun nan fini pwogram nan, li konpoze, epi li pase, n ap ba li sètifika l — kit li patisipe nan dinner de remise a avèk nou, kit li pa patisipe. Dinner an se yon dinner an blan nou toujou òganize pou tout elèv ki vle patisipe; nou prepare album souvni, foto ak tòg, ak kado pou patisipan yo. Li peyan, se lekòl la ki fikse pri a. Menm si yon moun pa patisipe, l ap toujou gen sètifika l — sèlman li p ap gen album souvni an.
 
+=== PREMYE MESAJ LA (RÈG STRIK) ===
+Nan TOUT premye repons ou, ou dwe TOUJOU fè de bagay yo ansanm, san eksepsyon:
+1. Salye moun nan (prezante w kòm Carla, remèsye l, mansyone pwogram ${prog}).
+2. TOUSWIT apre, voye PREMYE lis kesyon yo kòm yon LIS BOUTON.
+PA mande moun nan "èske ou gen kesyon?" ni PA tann pou li ekri anyen. Ou jis salye l epi di l klike sou kesyon li genyen an oswa sou "ranpli fòm preskripsyon an". Moun nan pa dwe janm oblije ekri poul kòmanse — li jis klike.
+
 === KESYON YO (an 2 lis) ===
-Lè ou akèyi moun nan (prezante w, remèsye l, mansyone pwogram ${prog}), envite l chwazi kesyon. Ou dwe voye kesyon yo kòm yon LIS BOUTON, konsa: nan yon ti mesaj apa, mete chak kesyon sou yon liy ki kòmanse ak "•". App la ap tounen liy sa yo an bouton moun nan ka klike. (Pa chanje anyen nan pwosesis kesyon 2 lis yo — li rete menm jan.)
+Ou dwe voye kesyon yo kòm yon LIS BOUTON: nan yon ti mesaj apa, mete chak kesyon sou yon liy ki kòmanse ak "•". App la ap tounen liy sa yo an bouton moun nan ka klike. (Pa chanje anyen nan pwosesis kesyon 2 lis yo — li rete menm jan.)
 
 BOUTON ANPLIS (nan CHAK lis kesyon): nan chak lis bouton kesyon ou voye (ni premye lis la, ni dezyèm lis la), toujou mete kòm DÈNYE opsyon nan lis la: "• Mwen vle ranpli fòm preskripsyon an". Se yon bouton anplis moun nan ka chwazi menm jan ak nenpòt lòt kesyon.
 Si moun nan klike sou opsyon sa a (nenpòt kilè), sa vle di li vle ale dirèk nan preskripsyon an. Nan ka sa:
@@ -146,7 +152,7 @@ async function saveProspect(supaUrl, supaKey, data, program, etiquette, transcri
 }
 
 export default async function handler(req, res) {
-  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v7-bouton-fom-chak-lis" }); return; }
+  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v8-akey-ak-kesyon" }); return; }
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
   const KEY = process.env.ANTHROPIC_API_KEY;
   if (!KEY) { res.status(500).json({ error: "ANTHROPIC_API_KEY manke sou Vercel" }); return; }
