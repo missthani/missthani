@@ -1426,6 +1426,11 @@ function CarlaChat({ config, initialProgram, onClose }) {
       pr && pr.horaires ? `Horaires: ${pr.horaires}` : "",
       pr && pr.duree ? `Durée pwogram nan: ${pr.duree}` : "",
     ].filter(Boolean);
+    const allProgLines = all.filter((p) => !p.bouste).map((p) => {
+      const d = currentResaBaseAll(p.steps || []);
+      return `${p.label} => Inscription: ${p.prixInscription || "?"}, Maillot: ${p.prixMaillot || "?"}, Participation: ${p.prixParticipation || "?"}, Horaires: ${p.horaires || "?"}, Durée: ${p.duree || "?"}, Sesyon: ${d ? formatHtDate(d) : "?"}, Materyèl: ${p.materiel || "?"}`;
+    });
+    const matBlock = matLines.join(" · ") + (allProgLines.length ? "\n\nENFO TOUT PWOGRAM YO (sèvi ak sa a pou nenpòt pwogram moun nan mande; si yon valè se '?', di w ap konfime l): \n" + allProgLines.join("\n") : "");
     return {
       program: program || "",
       sessionDate: sd ? formatHtDate(sd) : "",
@@ -1435,7 +1440,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
       prixParticipation: (pr && pr.prixParticipation) || "",
       horaires: (pr && pr.horaires) || "",
       duree: (pr && pr.duree) || "",
-      materials: matLines.join(" · "),
+      materials: matBlock,
       special: config.special || "",
       today: todayStr(),
       supabaseUrl: env.VITE_SUPABASE_URL || "",
