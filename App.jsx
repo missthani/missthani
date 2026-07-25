@@ -4940,27 +4940,6 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           {idx + 1}
           {p.enrolled && <span style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: "#1E8449", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap" }} title={p.enrollInfo ? `Peye: ${p.enrollInfo.paid || 0} · Balans: ${p.enrollInfo.balance || 0}` : "Enskri"}>ENSKRI</span>}
           {p.bouste && <span style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: "#E0A50A", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap" }} title="Moun sa te pase pa paj Bouste a">BOUSTE</span>}
-          {isAdmin && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-              {(p.otherPrograms || "").split(",").map((s) => s.trim()).filter(Boolean).map((op) => (
-                <span key={op} style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: PALETTE.goldSoft, padding: "2px 6px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  + {op}
-                  <button onClick={() => removeOtherProgram(p, op)} title="Retire" style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: 11, lineHeight: 1, padding: 0 }}>×</button>
-                </span>
-              ))}
-              <select
-                value=""
-                onChange={(e) => { if (e.target.value) addOtherProgram(p, e.target.value); e.target.value = ""; }}
-                title="Ajoute yon lòt programme moun sa vle"
-                style={{ fontSize: 10.5, padding: "2px 4px", borderRadius: 8, border: `1px dashed ${PALETTE.goldSoft}`, background: "#fff", color: PALETTE.goldSoft, cursor: "pointer", maxWidth: 120 }}
-              >
-                <option value="">+ Lòt programme</option>
-                {(programs || []).filter((pr) => !pr.bouste && pr.label !== p.program && !(p.otherPrograms || "").includes(pr.label)).map((pr) => (
-                  <option key={pr.id} value={pr.label}>{pr.label}</option>
-                ))}
-              </select>
-            </span>
-          )}
           {p.carlaChat && (
             <button
               onClick={() => setCarlaView(p)}
