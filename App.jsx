@@ -1435,6 +1435,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
   const [busy, setBusy] = useState(false);
   const endRef = useRef(null);
   const started = useRef(false);
+  const savedRef = useRef(false);
 
   // Sonje konvèsasyon an pou moun nan pa rekòmanse lè li tounen
   useEffect(() => {
@@ -1494,6 +1495,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
         sessionDate: (() => { const d = currentResaBaseAll(p.steps || []); return d ? formatHtDate(d) : ""; })(),
       })),
       transcript: (convo || []).filter((m) => !String(m.content || "").startsWith("(Sistèm:")).map((m) => `${m.role === "user" ? "Moun nan" : "Carla"}: ${m.content}`).join("\n"),
+      alreadySaved: savedRef.current,
     };
   };
 
@@ -1517,6 +1519,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
       const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: nextConvo, context: buildContext() }) });
       const data = await res.json();
       const reply = (data && data.text) || "Padon, gen yon ti pwoblèm teknik. Eseye ankò.";
+      if (data && data.saved) savedRef.current = true;
       setConvo((c) => [...c, { role: "assistant", content: reply }]);
       const blocks = parseBlocks(reply);
       for (let i = 0; i < blocks.length; i++) {

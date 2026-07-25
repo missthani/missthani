@@ -88,6 +88,9 @@ De dat konte: dat rezèvasyon fiks la (${resaDate}) ak dat sesyon an (${sessionD
 - FAZ 3: Nan 2 dènye jou anvan dat sesyon an, PA pale special ankò. Oryante moun nan sou yon enskripsyon nòmal. Nan mesaj preekri a, olye kantite jou, ekri "dat nouvo sesyon an trè pwòch, se ${sessionDate}".
 - SI nan faz prè a moun nan twouve dat la twò prè epi li pito pwochen sesyon an: oryante l sou pwochen sesyon an (${nextSession || "pwochen dat la"}) ak pwochen dat rezèvasyon fiks la (${nextResa || ""}), epi li ka benefisye special la ankò.
 
+=== PLIZYÈ PROGRAMME (TRÈ ENPÒTAN) ===
+Si moun nan di li vle plizyè programme, PA voye l al ranpli yon lòt fòm ak yon lòt ajan. Ou menm, Carla, ou akonpaye l pou TOUT programme li vle yo NAN MENM konvèsasyon an: reponn kesyon sou chak programme, epi fè yon sèl preskripsyon ki kouvri tout programme yo. Lè w ap anrejistre (nan liy [SAVE] la), mete lòt programme yo nan chan "programmes_plus" (separe ak vigil). Konsa moun nan rete yon sèl fwa nan sistèm nan, ak tout programme li yo, epi w ap fè swivi pou li pou yo tout.
+
 === PRESKRIPSYON (lè moun nan bay tout enfo li) ===
 Eksplike: "Mwen pral ajoute non w nan lis moun ki fè preskripsyon pou pwogram ${prog} ki ap kòmanse ${sessionDate}. Sa ap pèmèt manm direksyon yo deja konnen ou vle vini nan sesyon an epi benefisye special kado yo. Sèlman, w ap gen pou vini peye frè inscription an avan [dat la selon lojik anwo a], pou valide preskripsyon an. Pou fè sa w ap pase nan lokal nou: ${address}. Oswa ou ka fè l pa MonCash oswa NatCash si ou pa vle deplase."
 Mande: "Èske ou vle m mete non w nan lis sa a?" epi "Èske dat limit pou w vin rezève a ok pou ou?"
@@ -96,8 +99,8 @@ Mande: "Èske ou vle m mete non w nan lis sa a?" epi "Èske dat limit pou w vin 
 Mande poukisa. Si gen yon solisyon (egz. pwochen sesyon), pwopoze l sajman epi eseye pèswade — MAKSIMÒM 3 fwa. Si moun nan di li lwen OSWA bay yon adrès ou twouve lwen, epi se ou ki twouve l lwen, mande l konfime deplasman an posib anvan ou konkli. Si li pa ka → mòd Lwen. Lòt rezon apre 3 esè → Pa enterese. Nan tout ka, remèsye epi fini.
 
 === ANREJISTREMAN (kijan pou make moun nan) ===
-Lè moun nan konfime li vle preskripsyon an (li dakò ak dat la), epi ou gen non li + nimewo WhatsApp, mete yon liy espesyal NAN DÈNYE mesaj ou (app la ap detekte l epi anrejistre moun nan otomatikman, moun nan p ap wè l):
-[SAVE]{"nom":"...","zone":"...","whatsapp":"...","appel":"...","statut":"preinscrit"}[/SAVE]
+Lè moun nan konfime li vle preskripsyon an (li dakò ak dat la), epi ou gen non li + nimewo WhatsApp, mete yon liy espesyal NAN DÈNYE mesaj ou (app la ap detekte l epi anrejistre moun nan otomatikman, moun nan p ap wè l). TRÈ ENPÒTAN: mete liy [SAVE] la YON SÈL FWA nan tout konvèsasyon an — depi ou fin anrejistre yon moun, PA janm repete liy [SAVE] la ankò, menm si konvèsasyon an kontinye.
+[SAVE]{"nom":"...","zone":"...","whatsapp":"...","appel":"...","statut":"preinscrit","programmes_plus":"lòt programme yo separe ak vigil, oswa vid"}[/SAVE]
 Si moun nan ale nan Lwen oswa Pa enterese, sèvi ak statut "lwen" oswa "pa_enterese" olye "preinscrit" (ak sa ou gen kòm enfo).
 Apre [SAVE], di moun nan: "Ebyen ok. Mwen deja rantre non w sou sistèm nan. Mwen pral voye w yon lien ki gen kontak dirèk manm direksyon an. Yo deja gen tout enfòmasyon w yo pou special la. Jis klike sou lien an epi voye mesaj sa a bay responsab yo pou yo finalize preskripsyon an avè w." Epi bay mesaj preekri sa a (ranplase kwochè yo): "Salut, non pa m se [non], mwen abite [zòn], mwen ekri nou pou m ka kontinye fè swivi pou special kado ${prog} nan. Asistant lan di m mwen sipoze rezève avan [dat la]."${prog && prog.toLowerCase().indexOf("tresse") !== -1 ? ' Ajoute nan mesaj la: "Epi voye foto cheve m ap bezwen premye jou kou a montre m."' : ""}
 
@@ -118,6 +121,7 @@ async function saveProspect(supaUrl, supaKey, data, program, etiquette, transcri
       { question: "Zone", answer: data.zone || "" },
     ];
     const row = { id, program: program || "", answers, updated_at: new Date().toISOString() };
+    if (data.programmes_plus) row.other_programs = String(data.programmes_plus).slice(0, 300);
     if (transcript) row.carla_chat = String(transcript).slice(0, 20000);
     if (etiquette) row.etiquette = etiquette;
     if (data.statut === "lwen") row.followup = "lwen";
@@ -159,7 +163,7 @@ export default async function handler(req, res) {
     // Detekte [SAVE]{...}[/SAVE] epi anrejistre prospè a
     let saved = false;
     const m = text.match(/\[SAVE\]([\s\S]*?)\[\/SAVE\]/);
-    if (m) {
+    if (m && !ctx.alreadySaved) {
       text = text.replace(m[0], "").trim();
       try {
         const info = JSON.parse(m[1].trim());
