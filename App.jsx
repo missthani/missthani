@@ -4960,7 +4960,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             style={{ fontSize: 9.5, fontWeight: 700, color: PALETTE.goldSoft, background: "#fff", border: `1px dashed ${PALETTE.goldSoft}`, borderRadius: 999, padding: "2px 4px", cursor: "pointer" }}
           >
             <option value="">+ Programme</option>
-            {(config.programs || []).filter((pr) => !pr.bouste && pr.label !== p.program && !(p.otherPrograms || "").includes(pr.label)).map((pr) => (
+            {(programs || []).filter((pr) => !pr.bouste && pr.label !== p.program && !(p.otherPrograms || "").includes(pr.label)).map((pr) => (
               <option key={pr.id} value={pr.label}>{pr.label}</option>
             ))}
           </select>
