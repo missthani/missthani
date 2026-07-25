@@ -1426,6 +1426,7 @@ function saveVisit(data) {
 
 /* Entèfas chat "Carla" — style WhatsApp, pale ak /api/chat (sèvo AI a) */
 function CarlaChat({ config, initialProgram, onClose }) {
+  const BEHAVIOR_VERSION = 7; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
   const program = initialProgram || "";
   const STORE_KEY = "missthani_carla_" + (program || "gen");
   const saved0 = (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch (e) { return null; } })();
@@ -1439,7 +1440,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
 
   // Sonje konvèsasyon an pou moun nan pa rekòmanse lè li tounen
   useEffect(() => {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify({ convo, bubbles, ts: Date.now() })); } catch (e) {}
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ convo, bubbles, bv: BEHAVIOR_VERSION, ts: Date.now() })); } catch (e) {}
   }, [convo, bubbles]);
 
   useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ behavior: "smooth" }); }, [bubbles, busy]);
@@ -1535,7 +1536,13 @@ function CarlaChat({ config, initialProgram, onClose }) {
 
   useEffect(() => {
     if (started.current) return; started.current = true;
-    if (convo.length > 0) return; // konvèsasyon an deja kòmanse — pa rekòmanse
+    if (convo.length > 0) {
+      // Tchat la deja la — pa efase l. Si konpòtman Carla amelyore (nouvo vèsyon), fè l kontinye ak nouvo konpòtman an.
+      if (!saved0 || saved0.bv !== BEHAVIOR_VERSION) {
+        send("(Sistèm: konvèsasyon sa a te kòmanse ak yon ansyen vèsyon. Kontinye kote nou te ye a ak nouvo amelyorasyon yo, san rekòmanse. Pa reprezante tèt ou ankò si ou te deja fè l.)", true);
+      }
+      return;
+    }
     send(`(Sistèm: moun nan fèk louvri chat la sou pwogram "${program || "?"}". Akèyi l epi kòmanse.)`, true);
   }, []);
 
