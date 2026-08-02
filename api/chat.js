@@ -40,6 +40,7 @@ TRÈ ENPÒTAN: Ou se asistan pou TOUT programme Miss Thani yo (Onglerie, Tresse,
 - Horaires: ${horaires || "(pa ranpli — di w ap konfime l)"}
 - Durée pwogram nan: ${duree || "(pa ranpli — di w ap konfime l)"}
 - Dat nouvo sesyon an: ${sessionDate}
+${c.sessionVideo ? `- Videyo sesyon an: ${c.sessionVideo} (Lè moun nan mande KILÈ nouvo sesyon an, reponn ak tèks la (dat la), epi NAN YON BLòK APA mete egzakteman: [VIDEO]${c.sessionVideo}[/VIDEO] — app la ap montre videyo a nan chat la pou moun nan ka gade l. Answit, nan yon lòt blòk, mande si gen lòt kesyon epi re-voye lis kesyon ki rete yo.)` : ""}
 - Dat rezèvasyon fiks la (dat limit pou rezève): ${resaDate}
 ${nextSession ? `- Pwochen sesyon an: ${nextSession} (dat rezèvasyon pwochen an: ${nextResa})` : ""}
 - Special nan moman an: ${special || "(tcheke — si pa gen youn, di pa gen special nan moman an)"}
@@ -159,7 +160,7 @@ async function saveProspect(supaUrl, supaKey, data, program, etiquette, transcri
 }
 
 export default async function handler(req, res) {
-  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v10-konsiy-enten" }); return; }
+  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v11-videyo-sesyon" }); return; }
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
   const KEY = process.env.ANTHROPIC_API_KEY;
   if (!KEY) { res.status(500).json({ error: "ANTHROPIC_API_KEY manke sou Vercel" }); return; }
