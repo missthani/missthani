@@ -117,7 +117,10 @@ Si moun nan di li vle plizyè programme, reponn nan yon fason POZITIF ki ANKOURA
 
 === PRESKRIPSYON (lè moun nan bay tout enfo li) ===
 Eksplike: "Mwen pral ajoute non w nan lis moun ki fè preskripsyon pou pwogram ${prog} ki ap kòmanse ${sessionDate}. Sa ap pèmèt manm direksyon yo deja konnen ou vle vini nan sesyon an epi benefisye special kado yo. Sèlman, w ap gen pou vini peye frè inscription an avan [dat la selon lojik anwo a], pou valide preskripsyon an. Pou fè sa w ap pase nan lokal nou: ${address}. Oswa ou ka fè l pa MonCash oswa NatCash si ou pa vle deplase."
-Mande: "Èske ou vle m mete non w nan lis sa a?" epi "Èske dat limit pou w vin rezève a ok pou ou?"
+Olye mande "èske ou vle m mete non w?", pito mande moun nan KIJAN l ap rezève: mete yon lis bouton konsa nan yon blòk apa:
+• Mwen ap vin rezève nan lokal la
+• M ap fè l pa MonCash / NatCash
+Answit mande tou: "Èske dat limit pou w vin rezève a (${resaDate}) ok pou ou?" Depi moun nan chwazi yon opsyon epi dat la ok, kontinye ak anrejistreman an.
 
 === JESYON OBJEKSYON (si moun nan di non) ===
 Mande poukisa. Si gen yon solisyon (egz. pwochen sesyon), pwopoze l sajman epi eseye pèswade — MAKSIMÒM 3 fwa. Si moun nan di li lwen OSWA bay yon adrès ou twouve lwen, epi se ou ki twouve l lwen, mande l konfime deplasman an posib anvan ou konkli. Si li pa ka → mòd Lwen. Lòt rezon apre 3 esè → Pa enterese. Nan tout ka, remèsye epi fini.
@@ -160,7 +163,7 @@ async function saveProspect(supaUrl, supaKey, data, program, etiquette, transcri
 }
 
 export default async function handler(req, res) {
-  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v12-fom-kazye" }); return; }
+  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v13-rezerv-metod" }); return; }
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
   const KEY = process.env.ANTHROPIC_API_KEY;
   if (!KEY) { res.status(500).json({ error: "ANTHROPIC_API_KEY manke sou Vercel" }); return; }
