@@ -1567,7 +1567,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
       const blocks = parseBlocks(reply);
       for (let i = 0; i < blocks.length; i++) {
         // eslint-disable-next-line no-await-in-loop
-        await new Promise((r) => setTimeout(r, i === 0 ? 300 : 750));
+        await new Promise((r) => setTimeout(r, i === 0 ? 0 : 350));
         setBubbles((b) => [...b, { role: "assistant", text: blocks[i].text, buttons: blocks[i].buttons, video: blocks[i].video, form: blocks[i].form }]);
       }
     } catch (e) {
@@ -1887,6 +1887,7 @@ function PublicSpace({ config, onAdmin }) {
     } else if (!sessionRef.current) {
       sessionRef.current = uid() + Date.now().toString(36);
     }
+    setCarlaOpen(true); // louvri tchat Carla dirèkteman lè moun nan klike yon programme
   };
   const reset = () => {
     setSelected(null);
@@ -2170,7 +2171,7 @@ function PublicSpace({ config, onAdmin }) {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px 150px", position: "relative" }}>
-      {carlaOpen && <CarlaChat config={config} initialProgram={chosenProgram || (selected && !selected.bouste ? selected.label : "")} onClose={() => setCarlaOpen(false)} />}
+      {carlaOpen && <CarlaChat config={config} initialProgram={chosenProgram || (selected && !selected.bouste ? selected.label : "")} onClose={() => { setCarlaOpen(false); reset(); }} />}
       {selected && (
         <button
           onClick={() => setCarlaOpen(true)}
