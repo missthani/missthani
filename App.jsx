@@ -1425,8 +1425,28 @@ function saveVisit(data) {
 }
 
 /* Entèfas chat "Carla" — style WhatsApp, pale ak /api/chat (sèvo AI a) */
+function CarlaMiniForm({ fields, onSubmit, disabled }) {
+  const [vals, setVals] = useState({});
+  const [done, setDone] = useState(false);
+  if (done) return <div style={{ fontSize: 12.5, color: "#1E8449", fontWeight: 700, padding: "4px 2px" }}>✓ Enfòmasyon voye</div>;
+  return (
+    <div style={{ width: "82%", maxWidth: 320, background: "#fff", borderRadius: 12, padding: 12, boxShadow: "0 1px 1px rgba(0,0,0,.08)", display: "flex", flexDirection: "column", gap: 8 }}>
+      {fields.map((f, i) => (
+        <div key={i}>
+          <label style={{ fontSize: 11.5, fontWeight: 700, color: PALETTE.cream, display: "block", marginBottom: 3 }}>{f}</label>
+          <input value={vals[f] || ""} onChange={(e) => setVals((v) => ({ ...v, [f]: e.target.value }))} style={{ width: "100%", padding: "9px 10px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, fontSize: 16, outline: "none" }} />
+        </div>
+      ))}
+      <button
+        onClick={() => { const txt = fields.map((f) => `${f}: ${vals[f] || ""}`).join(", "); setDone(true); onSubmit(txt); }}
+        disabled={disabled}
+        style={{ padding: "10px", borderRadius: 10, border: "none", background: PALETTE.blush, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}
+      >Voye</button>
+    </div>
+  );
+}
 function CarlaChat({ config, initialProgram, onClose }) {
-  const BEHAVIOR_VERSION = 11; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
+  const BEHAVIOR_VERSION = 12; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
   const program = initialProgram || "";
   const STORE_KEY = "missthani_carla_" + (program || "gen");
   const saved0 = (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch (e) { return null; } })();
@@ -1522,10 +1542,13 @@ function CarlaChat({ config, initialProgram, onClose }) {
       let vid = "";
       const vm = part.match(/\[VIDEO\]([\s\S]*?)\[\/VIDEO\]/);
       if (vm) { vid = vm[1].trim(); part = part.replace(vm[0], "").trim(); }
+      let form = null;
+      const fm = part.match(/\[FORM\]([\s\S]*?)\[\/FORM\]/);
+      if (fm) { form = fm[1].split(",").map((s) => s.trim()).filter(Boolean); part = part.replace(fm[0], "").trim(); }
       const lines = part.split("\n");
       const buttons = lines.filter((l) => l.trim().startsWith("•")).map((l) => l.replace(/^\s*•\s*/, "").trim());
       const txt = lines.filter((l) => !l.trim().startsWith("•")).join("\n").trim();
-      return { text: txt, buttons, video: vid };
+      return { text: txt, buttons, video: vid, form };
     });
   };
 
@@ -1545,7 +1568,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
       for (let i = 0; i < blocks.length; i++) {
         // eslint-disable-next-line no-await-in-loop
         await new Promise((r) => setTimeout(r, i === 0 ? 300 : 750));
-        setBubbles((b) => [...b, { role: "assistant", text: blocks[i].text, buttons: blocks[i].buttons, video: blocks[i].video }]);
+        setBubbles((b) => [...b, { role: "assistant", text: blocks[i].text, buttons: blocks[i].buttons, video: blocks[i].video, form: blocks[i].form }]);
       }
     } catch (e) {
       setBubbles((b) => [...b, { role: "assistant", text: "Koneksyon an echwe. Tanpri eseye ankò.", buttons: [] }]);
@@ -1590,6 +1613,9 @@ function CarlaChat({ config, initialProgram, onClose }) {
             {b.video ? (
               <div style={{ width: "82%", maxWidth: 320 }}><VideoBlock url={b.video} orient="auto" /></div>
             ) : null}
+            {b.form && b.form.length > 0 && (
+              <CarlaMiniForm fields={b.form} disabled={busy} onSubmit={(txt) => send(txt)} />
+            )}
             {b.buttons && b.buttons.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "82%" }}>
                 {b.buttons.map((bt, j) => (
