@@ -4980,112 +4980,80 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     </>
   );
 
-  // Yon ranje prospè
-  const renderRow = (p, idx) => (
-    <tr key={p.id} style={{ background: rowTint((rowTicker(p) || {}).tone) }}>
-      <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 700, whiteSpace: "nowrap" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          {!nameCol && contactDot(p)}
-          {idx + 1}
-          {p.enrolled && <span style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: "#1E8449", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap" }} title={p.enrollInfo ? `Peye: ${p.enrollInfo.paid || 0} · Balans: ${p.enrollInfo.balance || 0}` : "Enskri"}>ENSKRI</span>}
-          {p.bouste && <span style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: "#E0A50A", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap" }} title="Moun sa te pase pa paj Bouste a">BOUSTE</span>}
-          {p.carlaChat && (
-            <button
-              onClick={() => setCarlaView(p)}
-              title="Wè konvèsasyon an ak Carla"
-              style={{ fontSize: 9.5, fontWeight: 800, color: "#fff", background: "#25D366", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap", border: "none", cursor: "pointer" }}
-            >Carla ▾</button>
-          )}
-          {(p.otherPrograms || "").split(",").map((s) => s.trim()).filter(Boolean).map((op) => (
-            <span key={op} style={{ fontSize: 9.5, fontWeight: 800, color: PALETTE.cream, background: "#EED9EC", padding: "2px 6px", borderRadius: 999, whiteSpace: "nowrap" }} title="Lòt programme moun sa vle tou">
-              + {op}
-              <button onClick={() => removeOtherProgram(p, op)} title="Retire" style={{ marginLeft: 4, border: "none", background: "none", color: PALETTE.danger, cursor: "pointer", fontWeight: 800, padding: 0 }}>×</button>
-            </span>
-          ))}
-          <select
-            value=""
-            onChange={(e) => { addOtherProgram(p, e.target.value); e.target.value = ""; }}
-            title="Ajoute yon lòt programme moun sa vle tou"
-            style={{ fontSize: 9.5, fontWeight: 700, color: PALETTE.goldSoft, background: "#fff", border: `1px dashed ${PALETTE.goldSoft}`, borderRadius: 999, padding: "2px 4px", cursor: "pointer" }}
-          >
-            <option value="">+ Programme</option>
-            {(programs || []).filter((pr) => !pr.bouste && pr.label !== p.program && !(p.otherPrograms || "").includes(pr.label)).map((pr) => (
-              <option key={pr.id} value={pr.label}>{pr.label}</option>
-            ))}
-          </select>
-        </span>
-      </td>
-      {priorityCols.map((q) => (
-        <td key={q} style={{ ...tdDark, whiteSpace: "nowrap" }}>
-          {q === nameCol ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+  // Yon ranje prospè — fòma KAT (antèt ak bouton + blòk enfòmasyon)
+  const infoRow = { display: "flex", justifyContent: "space-between", gap: 8 };
+  const infoLabel = { fontSize: 12, color: `${PALETTE.cream}77`, flexShrink: 0 };
+  const infoVal = { fontSize: 13, color: PALETTE.cream, textAlign: "right", wordBreak: "break-word" };
+  const hdrBtn = { display: "inline-flex", alignItems: "center", gap: 4, height: 26, padding: "0 9px", borderRadius: 999, border: "none", color: "#fff", textDecoration: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" };
+  const renderRow = (p, idx) => {
+    const tick = rowTicker(p) || {};
+    let phone = "";
+    for (const q of [...priorityCols, ...restCols]) {
+      const v = validateHaitiPhone(answerFor(p, q));
+      if (v.ok) { phone = v.e164; break; }
+    }
+    return (
+      <div key={p.id} style={{ background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 12, overflow: "hidden", marginBottom: 12 }}>
+        <div style={{ padding: "8px 12px", background: rowTint(tick.tone) || "#FBF3F9", borderBottom: `1px solid ${PALETTE.line}` }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#F6E4F1", color: PALETTE.blush, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>{idx + 1}</span>
+              {p.enrolled && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: "#1E8449", padding: "2px 7px", borderRadius: 999 }}>ENSKRI</span>}
+              {p.bouste && <span style={{ fontSize: 10, fontWeight: 800, color: "#7a5600", background: "#F5C775", padding: "2px 7px", borderRadius: 999 }}>BOUSTE</span>}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               {contactDot(p)}
-              {renderAnswer(p, q)}
-            </span>
-          ) : (
-            renderAnswer(p, q)
-          )}
-        </td>
-      ))}
-      <td style={{ ...tdDark, color: `${PALETTE.cream}88`, whiteSpace: "nowrap" }}>{shortDate(p.updatedAt)}</td>
-      <td style={{ ...tdDark, color: PALETTE.gold, fontWeight: 600, whiteSpace: "nowrap" }}>{resaDate(p)}</td>
-      <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
-        {canChangeSuivi(p) ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <select
-              value={p.followup || ""}
-              onChange={(e) => setSwivi(p.id, e.target.value)}
-              style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.followup ? "#FBE9F4" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 150 }}
-            >
-              <option value="">Swivi…</option>
-              <option value="done">Suivi fèt</option>
-              <option value="noanswer">Sone san repons</option>
-              <option value="wrong">Pa sone ditou</option>
-              <option value="vini">Vini (nouvo etidyan)</option>
-              <option value="lwen">Lwen</option>
-              <option value="pa_enterese">Pa enterese</option>
-            </select>
-            {(p.followup === "done" || p.followup === "noanswer" || p.followup === "wrong") && (
-              <button
-                onClick={() => snoozeProspect(p)}
-                title="Mwen refè swivi a jodia — dat yo ak tache a ap update"
-                style={{ width: 16, height: 16, borderRadius: "50%", border: "none", cursor: "pointer", padding: 0, flexShrink: 0, background: "#1E8449", boxShadow: "0 0 0 2px rgba(30,132,73,.2)" }}
-              />
-            )}
-          </span>
-        ) : (
-          <span style={{ fontSize: 11.5, color: `${PALETTE.cream}88` }} title="Sèl responsab etikèt la ka chanje swivi a">🔒</span>
-        )}
-      </td>
-      <td style={{ ...tdDark, textAlign: "center", whiteSpace: "nowrap" }}>
-        {canEditEtiquette(p) ? (
-          <select
-            value={p.etiquette || ""}
-            onChange={(e) => setEtiquette(p.id, e.target.value)}
-            style={{ fontSize: 12.5, padding: "6px 8px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, background: p.etiquette ? "#EEE3F7" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer", maxWidth: 150 }}
-          >
-            <option value="">Ajoute etikèt…</option>
-            {agentNames.map((n) => (
-              <option key={n} value={n}>{n}</option>
+              {phone && <a href={`https://wa.me/${phone}?text=${encodeURIComponent(waMessage(p))}`} target="_blank" rel="noopener noreferrer" onClick={() => markContacted(p, true)} title="WhatsApp" style={{ ...hdrBtn, background: "#25D366" }}>WhatsApp</a>}
+              {phone && <a href={`sms:${phone}`} onClick={() => markContacted(p, true)} title="SMS" style={{ ...hdrBtn, background: "#2E86C1" }}>SMS</a>}
+              {p.carlaChat && <button onClick={() => setCarlaView(p)} title="Konvèsasyon Carla" style={{ ...hdrBtn, background: "#128C7E" }}>Carla ▾</button>}
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, color: `${PALETTE.cream}88` }}>Etikèt:</span>
+            {canEditEtiquette(p) ? (
+              <select value={p.etiquette || ""} onChange={(e) => setEtiquette(p.id, e.target.value)} style={{ fontSize: 11.5, padding: "3px 6px", borderRadius: 999, border: `1px solid ${PALETTE.line}`, background: p.etiquette ? "#EEE3F7" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer" }}>
+                <option value="">Chwazi etikèt</option>
+                {agentNames.map((n) => (<option key={n} value={n}>{n}</option>))}
+                {p.etiquette && !agentNames.includes(p.etiquette) && <option value={p.etiquette}>{p.etiquette}</option>}
+              </select>
+            ) : (<span style={{ fontSize: 11.5, color: "#7B2D8E", fontWeight: 600 }}>{p.etiquette}</span>)}
+            {(p.otherPrograms || "").split(",").map((s) => s.trim()).filter(Boolean).map((op) => (
+              <span key={op} style={{ fontSize: 10, fontWeight: 700, color: PALETTE.cream, background: "#EED9EC", padding: "2px 6px", borderRadius: 999 }}>+ {op}<button onClick={() => removeOtherProgram(p, op)} style={{ marginLeft: 3, border: "none", background: "none", color: PALETTE.danger, cursor: "pointer", fontWeight: 800, padding: 0 }}>×</button></span>
             ))}
-            {p.etiquette && !agentNames.includes(p.etiquette) && (
-              <option value={p.etiquette}>{p.etiquette}</option>
-            )}
-          </select>
-        ) : (
-          <span style={{ fontSize: 13, color: "#7B2D8E", fontWeight: 600 }}>{p.etiquette}</span>
-        )}
-      </td>
-      {restCols.map((q) => (
-        <td key={q} style={tdDark}>{renderAnswer(p, q)}</td>
-      ))}
-      {isAdmin && (
-        <td style={{ ...tdDark, textAlign: "center" }}>
-          <button onClick={() => remove(p.id)} style={miniDanger} aria-label="Efase prospè">✕</button>
-        </td>
-      )}
-    </tr>
-  );
+            <select value="" onChange={(e) => { if (e.target.value) addOtherProgram(p, e.target.value); e.target.value = ""; }} style={{ fontSize: 10.5, color: PALETTE.goldSoft, background: "#fff", border: `1px dashed ${PALETTE.goldSoft}`, borderRadius: 999, padding: "3px 5px", cursor: "pointer" }}>
+              <option value="">+ Lòt programme</option>
+              {(programs || []).filter((pr) => !pr.bouste && pr.label !== p.program && !(p.otherPrograms || "").includes(pr.label)).map((pr) => (<option key={pr.id} value={pr.label}>{pr.label}</option>))}
+            </select>
+          </div>
+        </div>
+        <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 7 }}>
+          <div style={infoRow}><span style={infoLabel}>Programme</span><span style={{ ...infoVal, color: PALETTE.blush, fontWeight: 700 }}>{p.program || "—"}</span></div>
+          {[...priorityCols, ...restCols].map((q) => (
+            <div key={q} style={infoRow}><span style={infoLabel}>{q}</span><span style={infoVal}>{answerFor(p, q) || "—"}</span></div>
+          ))}
+          <div style={infoRow}><span style={infoLabel}>Réservation</span><span style={{ ...infoVal, color: PALETTE.gold, fontWeight: 600 }}>{resaDate(p)}</span></div>
+          <div style={{ ...infoRow, alignItems: "center" }}>
+            <span style={infoLabel}>Suivi</span>
+            {canChangeSuivi(p) ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                {(p.followup === "done" || p.followup === "noanswer" || p.followup === "wrong") && <button onClick={() => snoozeProspect(p)} title="Refè swivi jodia — dat yo ak tache a ap update" style={{ width: 13, height: 13, borderRadius: "50%", border: "none", cursor: "pointer", padding: 0, background: "#1E8449", boxShadow: "0 0 0 2px rgba(30,132,73,.2)" }} />}
+                <select value={p.followup || ""} onChange={(e) => setSwivi(p.id, e.target.value)} style={{ fontSize: 12, padding: "5px 8px", borderRadius: 999, border: "none", background: p.followup ? "#FBE9F4" : "#F1EFE8", color: "#3A0E33", colorScheme: "light", cursor: "pointer" }}>
+                  <option value="">Swivi…</option>
+                  <option value="done">Suivi fèt</option>
+                  <option value="noanswer">Sone san repons</option>
+                  <option value="wrong">Pa sone ditou</option>
+                  <option value="vini">Vini (nouvo etidyan)</option>
+                  <option value="lwen">Lwen</option>
+                  <option value="pa_enterese">Pa enterese</option>
+                </select>
+              </span>
+            ) : (<span style={{ fontSize: 11.5, color: `${PALETTE.cream}88` }} title="Sèl responsab etikèt la ka chanje swivi a">🔒</span>)}
+          </div>
+          {isAdmin && <button onClick={() => remove(p.id)} style={{ ...miniDanger, alignSelf: "flex-end", marginTop: 2 }}>✕ Efase</button>}
+        </div>
+      </div>
+    );
+  };
 
   const fmtDate = (ts) => {
     if (!ts) return "";
@@ -6309,15 +6277,8 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                   );
                 })()}
                 {open && (
-                  <div style={{ overflowX: "auto", borderTop: `1px solid ${PALETTE.line}` }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
-                      <thead>
-                        <tr>{headCells()}</tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((p, idx) => renderRow(p, idx))}
-                      </tbody>
-                    </table>
+                  <div style={{ padding: "10px 12px", borderTop: `1px solid ${PALETTE.line}` }}>
+                    {rows.map((p, idx) => renderRow(p, idx))}
                   </div>
                 )}
               </div>
