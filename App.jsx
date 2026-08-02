@@ -1446,7 +1446,7 @@ function CarlaMiniForm({ fields, onSubmit, disabled }) {
   );
 }
 function CarlaChat({ config, initialProgram, onClose }) {
-  const BEHAVIOR_VERSION = 12; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
+  const BEHAVIOR_VERSION = 13; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
   const program = initialProgram || "";
   const STORE_KEY = "missthani_carla_" + (program || "gen");
   const saved0 = (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch (e) { return null; } })();
@@ -1516,6 +1516,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
       duree: (pr && pr.duree) || "",
       materials: matBlock,
       sessionVideo: sessionVideo || "",
+      formFields: (config.formFields || []).map((f) => ({ label: f.label || "", type: f.fieldType || "text" })),
       special: config.special || "",
       today: todayStr(),
       supabaseUrl: env.VITE_SUPABASE_URL || "",
