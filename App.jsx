@@ -4983,8 +4983,8 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
   // Yon ranje prospè — fòma KAT (antèt ak bouton + blòk enfòmasyon)
   const infoRow = { display: "flex", justifyContent: "space-between", gap: 8 };
-  const infoLabel = { fontSize: 12, color: "#B98FB0", flexShrink: 0 };
-  const infoVal = { fontSize: 13, color: "#F3E6EF", textAlign: "right", wordBreak: "break-word" };
+  const infoLabel = { fontSize: 12, color: "#9A99A3", flexShrink: 0 };
+  const infoVal = { fontSize: 13, color: "#ECEAF0", textAlign: "right", wordBreak: "break-word" };
   const hdrBtn = { display: "inline-flex", alignItems: "center", gap: 4, height: 26, padding: "0 9px", borderRadius: 999, border: "none", color: "#fff", textDecoration: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" };
   const renderRow = (p, idx) => {
     const tick = rowTicker(p) || {};
@@ -4997,11 +4997,11 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const stStep = tk ? ((TICKER_STATES.find((s) => s.key === stageKeyOf(p)) || {}).step || 0) : 0;
     const bc = STEP_COLORS[stStep] || (tk ? tickerColor(tk.tone) : PALETTE.goldSoft);
     return (
-      <div key={p.id} style={{ background: "#2B1028", border: `1px solid #48203F`, borderRadius: 12, overflow: "hidden", marginBottom: 12, color: "#F3E6EF" }}>
-        <div style={{ padding: "8px 12px", background: "#3A0E33", borderBottom: `1px solid #562049` }}>
+      <div key={p.id} style={{ background: "#26262B", border: "1px solid #3A3A40", borderRadius: 12, overflow: "hidden", marginBottom: 12, color: "#ECEAF0" }}>
+        <div style={{ padding: "8px 12px", background: "#1E1E22", borderBottom: "1px solid #3A3A40" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#5A2450", color: "#FBD6EE", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>{idx + 1}</span>
+              <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#33445E", color: "#AFCBF2", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>{idx + 1}</span>
               {p.enrolled && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: "#1E8449", padding: "2px 7px", borderRadius: 999 }}>ENSKRI</span>}
               {p.bouste && <span style={{ fontSize: 10, fontWeight: 800, color: "#3A0E33", background: "#E0A50A", padding: "2px 7px", borderRadius: 999 }}>BOUSTE</span>}
             </div>
@@ -5014,22 +5014,22 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           </div>
           {tk && tk.text ? (
             <div style={{ overflow: "hidden", height: 22, display: "flex", alignItems: "center", background: `${bc}22`, border: `1px solid ${bc}66`, borderRadius: 6, marginBottom: 8, padding: "0 8px" }} title="Chèn pwosesis mesaj la">
-              <span className="mt-marquee" style={{ fontSize: 11, color: "#F3E6EF", fontWeight: 600, whiteSpace: "nowrap" }}>{tk.text}</span>
+              <span className="mt-marquee" style={{ fontSize: 11, color: "#ECEAF0", fontWeight: 600, whiteSpace: "nowrap" }}>{tk.text}</span>
             </div>
           ) : null}
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10, color: "#C8A9C0" }}>Etikèt:</span>
+            <span style={{ fontSize: 10, color: "#9A99A3" }}>Etikèt:</span>
             {canEditEtiquette(p) ? (
-              <select value={p.etiquette || ""} onChange={(e) => setEtiquette(p.id, e.target.value)} style={{ fontSize: 11.5, padding: "3px 6px", borderRadius: 999, border: "none", background: p.etiquette ? "#5A2450" : "#48203F", color: "#FBD6EE", colorScheme: "dark", cursor: "pointer" }}>
+              <select value={p.etiquette || ""} onChange={(e) => setEtiquette(p.id, e.target.value)} style={{ fontSize: 11.5, padding: "3px 6px", borderRadius: 999, border: "none", background: p.etiquette ? "#33445E" : "#2E2E34", color: "#CFE0F8", colorScheme: "dark", cursor: "pointer" }}>
                 <option value="">Chwazi etikèt</option>
                 {agentNames.map((n) => (<option key={n} value={n}>{n}</option>))}
                 {p.etiquette && !agentNames.includes(p.etiquette) && <option value={p.etiquette}>{p.etiquette}</option>}
               </select>
-            ) : (<span style={{ fontSize: 11.5, color: "#E9B8DD", fontWeight: 600 }}>{p.etiquette}</span>)}
+            ) : (<span style={{ fontSize: 11.5, color: "#AFCBF2", fontWeight: 600 }}>{p.etiquette}</span>)}
             {(p.otherPrograms || "").split(",").map((s) => s.trim()).filter(Boolean).map((op) => (
-              <span key={op} style={{ fontSize: 10, fontWeight: 700, color: "#FBD6EE", background: "#5A2450", padding: "2px 6px", borderRadius: 999 }}>+ {op}<button onClick={() => removeOtherProgram(p, op)} style={{ marginLeft: 3, border: "none", background: "none", color: "#F0999B", cursor: "pointer", fontWeight: 800, padding: 0 }}>×</button></span>
+              <span key={op} style={{ fontSize: 10, fontWeight: 700, color: "#CFE0F8", background: "#33445E", padding: "2px 6px", borderRadius: 999 }}>+ {op}<button onClick={() => removeOtherProgram(p, op)} style={{ marginLeft: 3, border: "none", background: "none", color: "#F0999B", cursor: "pointer", fontWeight: 800, padding: 0 }}>×</button></span>
             ))}
-            <select value="" onChange={(e) => { if (e.target.value) addOtherProgram(p, e.target.value); e.target.value = ""; }} style={{ fontSize: 10.5, color: "#F0C36A", background: "#3A0E33", border: `1px dashed #C2238E`, borderRadius: 999, padding: "3px 5px", cursor: "pointer", colorScheme: "dark" }}>
+            <select value="" onChange={(e) => { if (e.target.value) addOtherProgram(p, e.target.value); e.target.value = ""; }} style={{ fontSize: 10.5, color: "#F0C36A", background: "#2E2E34", border: "1px dashed #C2238E", borderRadius: 999, padding: "3px 5px", cursor: "pointer", colorScheme: "dark" }}>
               <option value="">+ Lòt programme</option>
               {(programs || []).filter((pr) => !pr.bouste && pr.label !== p.program && !(p.otherPrograms || "").includes(pr.label)).map((pr) => (<option key={pr.id} value={pr.label}>{pr.label}</option>))}
             </select>
@@ -5050,7 +5050,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             const apV = val(/apèl|apel|appel|call/) || phoneN("apel");
             const line = (lab, v, extra) => (<div style={infoRow}><span style={infoLabel}>{lab}</span><span style={{ ...infoVal, ...(extra || {}) }}>{v || "—"}</span></div>);
             return (<>
-              {line("Programme", p.program, { color: "#F5A0D6", fontWeight: 700 })}
+              {line("Programme", p.program, { color: "#AFCBF2", fontWeight: 700 })}
               {line("Non", nonV)}
               {line("Adrès", adrV)}
               {line("WhatsApp", waV)}
@@ -5063,7 +5063,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             {canChangeSuivi(p) ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                 {(p.followup === "done" || p.followup === "noanswer" || p.followup === "wrong") && <button onClick={() => snoozeProspect(p)} title="Refè swivi jodia — dat yo ak tache a ap update" style={{ width: 13, height: 13, borderRadius: "50%", border: "none", cursor: "pointer", padding: 0, background: "#25D366", boxShadow: "0 0 0 2px rgba(37,211,102,.25)" }} />}
-                <select value={p.followup || ""} onChange={(e) => setSwivi(p.id, e.target.value)} style={{ fontSize: 12, padding: "5px 8px", borderRadius: 999, border: "none", background: p.followup ? "#5A2450" : "#48203F", color: "#FBD6EE", colorScheme: "dark", cursor: "pointer" }}>
+                <select value={p.followup || ""} onChange={(e) => setSwivi(p.id, e.target.value)} style={{ fontSize: 12, padding: "5px 8px", borderRadius: 999, border: "none", background: p.followup ? "#33445E" : "#2E2E34", color: "#CFE0F8", colorScheme: "dark", cursor: "pointer" }}>
                   <option value="">Swivi…</option>
                   <option value="done">Suivi fèt</option>
                   <option value="noanswer">Sone san repons</option>
@@ -5073,7 +5073,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                   <option value="pa_enterese">Pa enterese</option>
                 </select>
               </span>
-            ) : (<span style={{ fontSize: 11.5, color: "#B98FB0" }} title="Sèl responsab etikèt la ka chanje swivi a">🔒</span>)}
+            ) : (<span style={{ fontSize: 11.5, color: "#9A99A3" }} title="Sèl responsab etikèt la ka chanje swivi a">🔒</span>)}
           </div>
           {isAdmin && <button onClick={() => remove(p.id)} style={{ ...miniDanger, alignSelf: "flex-end", marginTop: 2 }}>✕ Efase</button>}
         </div>
