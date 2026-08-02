@@ -4983,8 +4983,8 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
 
   // Yon ranje prospè — fòma KAT (antèt ak bouton + blòk enfòmasyon)
   const infoRow = { display: "flex", justifyContent: "space-between", gap: 8 };
-  const infoLabel = { fontSize: 12, color: `${PALETTE.cream}77`, flexShrink: 0 };
-  const infoVal = { fontSize: 13, color: PALETTE.cream, textAlign: "right", wordBreak: "break-word" };
+  const infoLabel = { fontSize: 12, color: "#B98FB0", flexShrink: 0 };
+  const infoVal = { fontSize: 13, color: "#F3E6EF", textAlign: "right", wordBreak: "break-word" };
   const hdrBtn = { display: "inline-flex", alignItems: "center", gap: 4, height: 26, padding: "0 9px", borderRadius: 999, border: "none", color: "#fff", textDecoration: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" };
   const renderRow = (p, idx) => {
     const tick = rowTicker(p) || {};
@@ -4993,14 +4993,17 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       const v = validateHaitiPhone(answerFor(p, q));
       if (v.ok) { phone = v.e164; break; }
     }
+    const tk = rowTicker(p);
+    const stStep = tk ? ((TICKER_STATES.find((s) => s.key === stageKeyOf(p)) || {}).step || 0) : 0;
+    const bc = STEP_COLORS[stStep] || (tk ? tickerColor(tk.tone) : PALETTE.goldSoft);
     return (
-      <div key={p.id} style={{ background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 12, overflow: "hidden", marginBottom: 12 }}>
-        <div style={{ padding: "8px 12px", background: rowTint(tick.tone) || "#FBF3F9", borderBottom: `1px solid ${PALETTE.line}` }}>
+      <div key={p.id} style={{ background: "#2B1028", border: `1px solid #48203F`, borderRadius: 12, overflow: "hidden", marginBottom: 12, color: "#F3E6EF" }}>
+        <div style={{ padding: "8px 12px", background: "#3A0E33", borderBottom: `1px solid #562049` }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#F6E4F1", color: PALETTE.blush, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>{idx + 1}</span>
+              <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#5A2450", color: "#FBD6EE", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>{idx + 1}</span>
               {p.enrolled && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: "#1E8449", padding: "2px 7px", borderRadius: 999 }}>ENSKRI</span>}
-              {p.bouste && <span style={{ fontSize: 10, fontWeight: 800, color: "#7a5600", background: "#F5C775", padding: "2px 7px", borderRadius: 999 }}>BOUSTE</span>}
+              {p.bouste && <span style={{ fontSize: 10, fontWeight: 800, color: "#3A0E33", background: "#E0A50A", padding: "2px 7px", borderRadius: 999 }}>BOUSTE</span>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               {contactDot(p)}
@@ -5009,19 +5012,24 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               {p.carlaChat && <button onClick={() => setCarlaView(p)} title="Konvèsasyon Carla" style={{ ...hdrBtn, background: "#128C7E" }}>Carla ▾</button>}
             </div>
           </div>
+          {tk && tk.text ? (
+            <div style={{ overflow: "hidden", height: 22, display: "flex", alignItems: "center", background: `${bc}22`, border: `1px solid ${bc}66`, borderRadius: 6, marginBottom: 8, padding: "0 8px" }} title="Chèn pwosesis mesaj la">
+              <span className="mt-marquee" style={{ fontSize: 11, color: "#F3E6EF", fontWeight: 600, whiteSpace: "nowrap" }}>{tk.text}</span>
+            </div>
+          ) : null}
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10, color: `${PALETTE.cream}88` }}>Etikèt:</span>
+            <span style={{ fontSize: 10, color: "#C8A9C0" }}>Etikèt:</span>
             {canEditEtiquette(p) ? (
-              <select value={p.etiquette || ""} onChange={(e) => setEtiquette(p.id, e.target.value)} style={{ fontSize: 11.5, padding: "3px 6px", borderRadius: 999, border: `1px solid ${PALETTE.line}`, background: p.etiquette ? "#EEE3F7" : "#fff", color: "#3A0E33", colorScheme: "light", cursor: "pointer" }}>
+              <select value={p.etiquette || ""} onChange={(e) => setEtiquette(p.id, e.target.value)} style={{ fontSize: 11.5, padding: "3px 6px", borderRadius: 999, border: "none", background: p.etiquette ? "#5A2450" : "#48203F", color: "#FBD6EE", colorScheme: "dark", cursor: "pointer" }}>
                 <option value="">Chwazi etikèt</option>
                 {agentNames.map((n) => (<option key={n} value={n}>{n}</option>))}
                 {p.etiquette && !agentNames.includes(p.etiquette) && <option value={p.etiquette}>{p.etiquette}</option>}
               </select>
-            ) : (<span style={{ fontSize: 11.5, color: "#7B2D8E", fontWeight: 600 }}>{p.etiquette}</span>)}
+            ) : (<span style={{ fontSize: 11.5, color: "#E9B8DD", fontWeight: 600 }}>{p.etiquette}</span>)}
             {(p.otherPrograms || "").split(",").map((s) => s.trim()).filter(Boolean).map((op) => (
-              <span key={op} style={{ fontSize: 10, fontWeight: 700, color: PALETTE.cream, background: "#EED9EC", padding: "2px 6px", borderRadius: 999 }}>+ {op}<button onClick={() => removeOtherProgram(p, op)} style={{ marginLeft: 3, border: "none", background: "none", color: PALETTE.danger, cursor: "pointer", fontWeight: 800, padding: 0 }}>×</button></span>
+              <span key={op} style={{ fontSize: 10, fontWeight: 700, color: "#FBD6EE", background: "#5A2450", padding: "2px 6px", borderRadius: 999 }}>+ {op}<button onClick={() => removeOtherProgram(p, op)} style={{ marginLeft: 3, border: "none", background: "none", color: "#F0999B", cursor: "pointer", fontWeight: 800, padding: 0 }}>×</button></span>
             ))}
-            <select value="" onChange={(e) => { if (e.target.value) addOtherProgram(p, e.target.value); e.target.value = ""; }} style={{ fontSize: 10.5, color: PALETTE.goldSoft, background: "#fff", border: `1px dashed ${PALETTE.goldSoft}`, borderRadius: 999, padding: "3px 5px", cursor: "pointer" }}>
+            <select value="" onChange={(e) => { if (e.target.value) addOtherProgram(p, e.target.value); e.target.value = ""; }} style={{ fontSize: 10.5, color: "#F0C36A", background: "#3A0E33", border: `1px dashed #C2238E`, borderRadius: 999, padding: "3px 5px", cursor: "pointer", colorScheme: "dark" }}>
               <option value="">+ Lòt programme</option>
               {(programs || []).filter((pr) => !pr.bouste && pr.label !== p.program && !(p.otherPrograms || "").includes(pr.label)).map((pr) => (<option key={pr.id} value={pr.label}>{pr.label}</option>))}
             </select>
@@ -5031,31 +5039,31 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           {(() => {
             const cols = [...priorityCols, ...restCols];
             const val = (rx) => { for (const q of cols) { if (rx.test((q || "").toLowerCase())) { const a = answerFor(p, q); if (a) return a; } } return ""; };
-            const phone = (want) => {
+            const phoneN = (want) => {
               const found = [];
               for (const q of cols) { const a = answerFor(p, q); if (validateHaitiPhone(a).ok) found.push(a); }
               return want === "wa" ? (found[0] || "") : (found[1] || found[0] || "");
             };
             const nonV = val(/non|nom|name|prenon|prénom|prenom/) || answerFor(p, nameCol) || "";
             const adrV = val(/adrès|adres|address|kote|abite|habite|zòn|zon|zone/);
-            const waV = val(/whatsapp/) || phone("wa");
-            const apV = val(/apèl|apel|appel|call/) || phone("apel");
+            const waV = val(/whatsapp/) || phoneN("wa");
+            const apV = val(/apèl|apel|appel|call/) || phoneN("apel");
             const line = (lab, v, extra) => (<div style={infoRow}><span style={infoLabel}>{lab}</span><span style={{ ...infoVal, ...(extra || {}) }}>{v || "—"}</span></div>);
             return (<>
-              {line("Programme", p.program, { color: PALETTE.blush, fontWeight: 700 })}
+              {line("Programme", p.program, { color: "#F5A0D6", fontWeight: 700 })}
               {line("Non", nonV)}
               {line("Adrès", adrV)}
               {line("WhatsApp", waV)}
               {line("Apèl dirèk", apV)}
             </>);
           })()}
-          <div style={infoRow}><span style={infoLabel}>Réservation</span><span style={{ ...infoVal, color: PALETTE.gold, fontWeight: 600 }}>{resaDate(p)}</span></div>
+          <div style={infoRow}><span style={infoLabel}>Réservation</span><span style={{ ...infoVal, color: "#F0C36A", fontWeight: 600 }}>{resaDate(p)}</span></div>
           <div style={{ ...infoRow, alignItems: "center" }}>
             <span style={infoLabel}>Suivi</span>
             {canChangeSuivi(p) ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                {(p.followup === "done" || p.followup === "noanswer" || p.followup === "wrong") && <button onClick={() => snoozeProspect(p)} title="Refè swivi jodia — dat yo ak tache a ap update" style={{ width: 13, height: 13, borderRadius: "50%", border: "none", cursor: "pointer", padding: 0, background: "#1E8449", boxShadow: "0 0 0 2px rgba(30,132,73,.2)" }} />}
-                <select value={p.followup || ""} onChange={(e) => setSwivi(p.id, e.target.value)} style={{ fontSize: 12, padding: "5px 8px", borderRadius: 999, border: "none", background: p.followup ? "#FBE9F4" : "#F1EFE8", color: "#3A0E33", colorScheme: "light", cursor: "pointer" }}>
+                {(p.followup === "done" || p.followup === "noanswer" || p.followup === "wrong") && <button onClick={() => snoozeProspect(p)} title="Refè swivi jodia — dat yo ak tache a ap update" style={{ width: 13, height: 13, borderRadius: "50%", border: "none", cursor: "pointer", padding: 0, background: "#25D366", boxShadow: "0 0 0 2px rgba(37,211,102,.25)" }} />}
+                <select value={p.followup || ""} onChange={(e) => setSwivi(p.id, e.target.value)} style={{ fontSize: 12, padding: "5px 8px", borderRadius: 999, border: "none", background: p.followup ? "#5A2450" : "#48203F", color: "#FBD6EE", colorScheme: "dark", cursor: "pointer" }}>
                   <option value="">Swivi…</option>
                   <option value="done">Suivi fèt</option>
                   <option value="noanswer">Sone san repons</option>
@@ -5065,7 +5073,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
                   <option value="pa_enterese">Pa enterese</option>
                 </select>
               </span>
-            ) : (<span style={{ fontSize: 11.5, color: `${PALETTE.cream}88` }} title="Sèl responsab etikèt la ka chanje swivi a">🔒</span>)}
+            ) : (<span style={{ fontSize: 11.5, color: "#B98FB0" }} title="Sèl responsab etikèt la ka chanje swivi a">🔒</span>)}
           </div>
           {isAdmin && <button onClick={() => remove(p.id)} style={{ ...miniDanger, alignSelf: "flex-end", marginTop: 2 }}>✕ Efase</button>}
         </div>
