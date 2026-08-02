@@ -5028,10 +5028,27 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           </div>
         </div>
         <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 7 }}>
-          <div style={infoRow}><span style={infoLabel}>Programme</span><span style={{ ...infoVal, color: PALETTE.blush, fontWeight: 700 }}>{p.program || "—"}</span></div>
-          {[...priorityCols, ...restCols].map((q) => (
-            <div key={q} style={infoRow}><span style={infoLabel}>{q}</span><span style={infoVal}>{answerFor(p, q) || "—"}</span></div>
-          ))}
+          {(() => {
+            const cols = [...priorityCols, ...restCols];
+            const val = (rx) => { for (const q of cols) { if (rx.test((q || "").toLowerCase())) { const a = answerFor(p, q); if (a) return a; } } return ""; };
+            const phone = (want) => {
+              const found = [];
+              for (const q of cols) { const a = answerFor(p, q); if (validateHaitiPhone(a).ok) found.push(a); }
+              return want === "wa" ? (found[0] || "") : (found[1] || found[0] || "");
+            };
+            const nonV = val(/non|nom|name|prenon|prénom|prenom/) || answerFor(p, nameCol) || "";
+            const adrV = val(/adrès|adres|address|kote|abite|habite|zòn|zon|zone/);
+            const waV = val(/whatsapp/) || phone("wa");
+            const apV = val(/apèl|apel|appel|call/) || phone("apel");
+            const line = (lab, v, extra) => (<div style={infoRow}><span style={infoLabel}>{lab}</span><span style={{ ...infoVal, ...(extra || {}) }}>{v || "—"}</span></div>);
+            return (<>
+              {line("Programme", p.program, { color: PALETTE.blush, fontWeight: 700 })}
+              {line("Non", nonV)}
+              {line("Adrès", adrV)}
+              {line("WhatsApp", waV)}
+              {line("Apèl dirèk", apV)}
+            </>);
+          })()}
           <div style={infoRow}><span style={infoLabel}>Réservation</span><span style={{ ...infoVal, color: PALETTE.gold, fontWeight: 600 }}>{resaDate(p)}</span></div>
           <div style={{ ...infoRow, alignItems: "center" }}>
             <span style={infoLabel}>Suivi</span>
