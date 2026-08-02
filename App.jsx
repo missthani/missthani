@@ -1426,7 +1426,7 @@ function saveVisit(data) {
 
 /* Entèfas chat "Carla" — style WhatsApp, pale ak /api/chat (sèvo AI a) */
 function CarlaChat({ config, initialProgram, onClose }) {
-  const BEHAVIOR_VERSION = 8; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
+  const BEHAVIOR_VERSION = 11; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
   const program = initialProgram || "";
   const STORE_KEY = "missthani_carla_" + (program || "gen");
   const saved0 = (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch (e) { return null; } })();
@@ -1452,6 +1452,21 @@ function CarlaChat({ config, initialProgram, onClose }) {
     let pr = all.find((p) => !p.bouste && norm(p.label) === norm(program));
     if (!pr) pr = all.find((p) => norm(p.label) === norm(program));
     const sd = pr ? currentResaBaseAll(pr.steps || []) : "";
+    // Jwenn videyo sesyon aktyèl la (slot ki kòresponn ak jodi a)
+    const sessionVideoOf = (steps) => {
+      const td = todayStr();
+      for (const sc of steps || []) {
+        for (const b of getStepBlocks(sc)) {
+          if (b.kind !== "video") continue;
+          for (const s of (b.schedule || [])) {
+            if (!s.start || !(s.url || "").trim()) continue;
+            if (s.start <= td && (!s.end || td <= s.end)) return s.url;
+          }
+        }
+      }
+      return "";
+    };
+    const sessionVideo = pr ? sessionVideoOf(pr.steps || []) : "";
     let env = {};
     try { env = import.meta.env || {}; } catch (e) { env = {}; }
     const priceLines = [
@@ -1480,6 +1495,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
       horaires: (pr && pr.horaires) || "",
       duree: (pr && pr.duree) || "",
       materials: matBlock,
+      sessionVideo: sessionVideo || "",
       special: config.special || "",
       today: todayStr(),
       supabaseUrl: env.VITE_SUPABASE_URL || "",
@@ -1503,10 +1519,13 @@ function CarlaChat({ config, initialProgram, onClose }) {
   const parseBlocks = (text) => {
     const parts = String(text || "").split(/\n?---+\n?/).map((s) => s.trim()).filter(Boolean);
     return parts.map((part) => {
+      let vid = "";
+      const vm = part.match(/\[VIDEO\]([\s\S]*?)\[\/VIDEO\]/);
+      if (vm) { vid = vm[1].trim(); part = part.replace(vm[0], "").trim(); }
       const lines = part.split("\n");
       const buttons = lines.filter((l) => l.trim().startsWith("•")).map((l) => l.replace(/^\s*•\s*/, "").trim());
       const txt = lines.filter((l) => !l.trim().startsWith("•")).join("\n").trim();
-      return { text: txt, buttons };
+      return { text: txt, buttons, video: vid };
     });
   };
 
@@ -1526,7 +1545,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
       for (let i = 0; i < blocks.length; i++) {
         // eslint-disable-next-line no-await-in-loop
         await new Promise((r) => setTimeout(r, i === 0 ? 300 : 750));
-        setBubbles((b) => [...b, { role: "assistant", text: blocks[i].text, buttons: blocks[i].buttons }]);
+        setBubbles((b) => [...b, { role: "assistant", text: blocks[i].text, buttons: blocks[i].buttons, video: blocks[i].video }]);
       }
     } catch (e) {
       setBubbles((b) => [...b, { role: "assistant", text: "Koneksyon an echwe. Tanpri eseye ankò.", buttons: [] }]);
@@ -1567,6 +1586,9 @@ function CarlaChat({ config, initialProgram, onClose }) {
           <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: b.role === "user" ? "flex-end" : "flex-start", gap: 6 }}>
             {b.text ? (
               <div style={{ maxWidth: "82%", padding: "9px 12px", borderRadius: 14, fontSize: 14.5, lineHeight: 1.45, whiteSpace: "pre-wrap", background: b.role === "user" ? "#DCF8C6" : "#fff", color: "#111", boxShadow: "0 1px 1px rgba(0,0,0,.08)", borderTopRightRadius: b.role === "user" ? 4 : 14, borderTopLeftRadius: b.role === "user" ? 14 : 4 }}>{b.text}</div>
+            ) : null}
+            {b.video ? (
+              <div style={{ width: "82%", maxWidth: 320 }}><VideoBlock url={b.video} orient="auto" /></div>
             ) : null}
             {b.buttons && b.buttons.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "82%" }}>
