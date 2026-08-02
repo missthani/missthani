@@ -2171,7 +2171,7 @@ function PublicSpace({ config, onAdmin }) {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px 150px", position: "relative" }}>
-      {carlaOpen && <CarlaChat config={config} initialProgram={chosenProgram || (selected && !selected.bouste ? selected.label : "")} onClose={() => { setCarlaOpen(false); reset(); }} />}
+      {carlaOpen && <CarlaChat config={config} initialProgram={chosenProgram || (selected && !selected.bouste ? selected.label : "")} onClose={() => { setCarlaOpen(false); setScreenIndex(0); setSubId(""); }} />}
       {selected && (
         <button
           onClick={() => setCarlaOpen(true)}
