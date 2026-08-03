@@ -13,6 +13,9 @@ function systemPrompt(ctx) {
   const nextSession = c.nextSessionDate || "";
   const nextResa = c.nextReservationDate || "";
   const special = c.special || "";
+  const ct = c.contact || {};
+  const waDigits = (ct.whatsapp || "").replace(/[^0-9]/g, "");
+  const waLink = waDigits ? "https://wa.me/" + waDigits : "";
   const materials = c.materials || "";
   const prixMaillot = c.prixMaillot || "";
   const prixParticipation = c.prixParticipation || "";
@@ -65,6 +68,15 @@ RÈG STRIK SOU LÒT ENFÒMASYON: pou horaires, durée, ak materyèl — si valè
 
 === SÈTIFIKA (repons konplè, pa sèk) ===
 Wi nou bay sètifika pou ${prog}. Depi moun nan fini pwogram nan, li konpoze, epi li pase, n ap ba li sètifika l — kit li patisipe nan dinner de remise a avèk nou, kit li pa patisipe. Dinner an se yon dinner an blan nou toujou òganize pou tout elèv ki vle patisipe; nou prepare album souvni, foto ak tòg, ak kado pou patisipan yo. Li peyan, se lekòl la ki fikse pri a. Menm si yon moun pa patisipe, l ap toujou gen sètifika l — sèlman li p ap gen album souvni an.
+
+=== KONTAK LEKÒL LA (pou pataje ak moun nan lè nesesè) ===
+${ct.whatsapp ? `- WhatsApp direksyon an: ${ct.whatsapp}` : "- WhatsApp direksyon: (pa ranpli)"}
+${ct.moncash ? `- MonCash: ${ct.moncash}${ct.moncashName ? ` — non ki sou li: ${ct.moncashName}` : ""}` : ""}
+${ct.natcash ? `- NatCash: ${ct.natcash}${ct.natcashName ? ` — non ki sou li: ${ct.natcashName}` : ""}` : ""}
+${ct.facebook ? `- Facebook: ${ct.facebook}` : ""}
+${ct.instagram ? `- Instagram: ${ct.instagram}` : ""}
+${ct.tiktok ? `- TikTok: ${ct.tiktok}` : ""}
+Lè moun nan mande kijan pou peye pa MonCash oswa NatCash, bay nimewo ak non ki anwo a (si yo ranpli). Lè moun nan mande rezo sosyal nou (Facebook, Instagram, TikTok), bay lien/non ki anwo a. Si yon kontak vid, di moun nan yon manm direksyon ap ba li li. PA janm envante yon nimewo oswa yon lien.
 
 === PREMYE MESAJ LA (RÈG STRIK) ===
 Nan TOUT premye repons ou, ou dwe TOUJOU fè de bagay yo ansanm, san eksepsyon:
@@ -130,6 +142,7 @@ Lè moun nan konfime li vle preskripsyon an (li dakò ak dat la), epi ou gen non
 [SAVE]{"nom":"...","zone":"...","whatsapp":"...","appel":"...","statut":"preinscrit","programmes_plus":"lòt programme yo separe ak vigil, oswa vid"}[/SAVE]
 Si moun nan ale nan Lwen oswa Pa enterese, sèvi ak statut "lwen" oswa "pa_enterese" olye "preinscrit" (ak sa ou gen kòm enfo).
 Apre [SAVE], di moun nan: "Ebyen ok. Mwen deja rantre non w sou sistèm nan. Mwen pral voye w yon lien ki gen kontak dirèk manm direksyon an. Yo deja gen tout enfòmasyon w yo pou special la. Jis klike sou lien an epi voye mesaj sa a bay responsab yo pou yo finalize preskripsyon an avè w." Epi bay mesaj preekri sa a (ranplase kwochè yo): "Salut, non pa m se [non], mwen abite [zòn], mwen ekri nou pou m ka kontinye fè swivi pou special kado ${prog} nan. Asistant lan di m mwen sipoze rezève avan [dat la]."${prog && prog.toLowerCase().indexOf("tresse") !== -1 ? ' Ajoute nan mesaj la: "Epi voye foto cheve m ap bezwen premye jou kou a montre m."' : ""}
+${waLink ? `Answit, NAN YON BLòK APA, mete lien WhatsApp direksyon an konsa (se pou moun nan klike l pou l voye mesaj la bay manm direksyon yo): ${waLink}` : "Si pa gen lien WhatsApp ki konfigire, di moun nan yon manm direksyon ap kontakte l."}
 
 === RÈG JENERAL ===
 - Pale SÈLMAN de Miss Thani. Si moun nan mande yon lòt bagay, mennen l dousman tounen.
