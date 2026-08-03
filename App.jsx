@@ -3220,6 +3220,7 @@ function StatsView() {
   const [events, setEvents] = useState(null);
   const [stats, setStats] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [pagePeriod, setPagePeriod] = useState("month"); // week | month | all
 
   const load = async () => {
     setBusy(true);
@@ -3239,13 +3240,17 @@ function StatsView() {
   }, [events]);
 
   const pageViews = useMemo(() => {
+    const now = new Date();
+    let since = 0;
+    if (pagePeriod === "week") { const d = new Date(now.getTime() - 6 * 864e5); d.setHours(0, 0, 0, 0); since = d.getTime(); }
+    else if (pagePeriod === "month") { since = new Date(now.getFullYear(), now.getMonth(), 1).getTime(); }
     const m = {};
-    (events || []).filter((e) => e.type === "page").forEach((e) => {
+    (events || []).filter((e) => e.type === "page" && (!since || (e.at || 0) >= since)).forEach((e) => {
       const lbl = e.label || "—";
       m[lbl] = (m[lbl] || 0) + 1;
     });
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
-  }, [events]);
+  }, [events, pagePeriod]);
 
   const totalVisits = (events || []).filter((e) => e.type === "visit").length;
   const maxPage = Math.max(1, ...pageViews.map((d) => d[1]));
@@ -3312,9 +3317,16 @@ function StatsView() {
           </div>
 
           <div style={{ background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Programme ki pi vizite</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Programme ki pi vizite</div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[["week", "Semèn"], ["month", "Mwa"], ["all", "Tout"]].map(([k, lbl]) => (
+                  <button key={k} onClick={() => setPagePeriod(k)} style={{ fontSize: 11.5, padding: "4px 10px", borderRadius: 999, border: `1px solid ${PALETTE.line}`, background: pagePeriod === k ? PALETTE.blush : "#fff", color: pagePeriod === k ? "#fff" : PALETTE.cream, fontWeight: pagePeriod === k ? 700 : 500, cursor: "pointer" }}>{lbl}</button>
+                ))}
+              </div>
+            </div>
             {pageViews.length === 0 ? (
-              <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: 0 }}>Poko gen done paj.</p>
+              <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: 0 }}>Poko gen done pou peryòd sa a.</p>
             ) : (
               <div>
                 {pageViews.map(([lbl, n]) => (
