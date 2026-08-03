@@ -347,7 +347,7 @@ const TICKER_STATES = [
     dropdown: "Eske {non} vini nan kou?",
     flow: ["Vini → « Nouvo Etidyan »", "Recycler → etap « Recycle »"],
     def: "Eske {non} vini nan kou? (Session an se {dat_session}.)" },
-  { key: "special_passed", label: "Dat special pase — poko reserve", step: 3, vars: ["{etiket}", "{non}"],
+  { key: "special_passed", label: "Dat special pase — poko reserve", step: 2, vars: ["{etiket}", "{non}"],
     cond: "Etap = « Special pase »",
     dateRule: "", dropdown: "Aksyon pou {non}",
     flow: ["Enskri → etap « Li reserve »", "Recycler → etap « Recycle »"],
