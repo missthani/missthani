@@ -5126,8 +5126,11 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             </div>
           </div>
           {tk && tk.text ? (
-            <div style={{ overflow: "hidden", height: 22, display: "flex", alignItems: "center", background: `${bc}22`, border: `1px solid ${bc}66`, borderRadius: 6, marginBottom: 8, padding: "0 8px" }} title="Chèn pwosesis mesaj la">
-              <span className="mt-marquee" style={{ fontSize: 11, color: "#ECEAF0", fontWeight: 600, whiteSpace: "nowrap" }}>{tk.text}</span>
+            <div style={{ marginBottom: 8 }}>
+              {stStep > 0 && <div style={{ fontSize: 10, fontWeight: 700, color: bc, marginBottom: 3 }}>Moun sa nan etap {stStep} nan stratégie a</div>}
+              <div style={{ overflow: "hidden", height: 22, display: "flex", alignItems: "center", background: `${bc}22`, border: `1px solid ${bc}66`, borderRadius: 6, padding: "0 8px" }} title="Chèn pwosesis mesaj la">
+                <span className="mt-marquee" style={{ fontSize: 11, color: "#ECEAF0", fontWeight: 600, whiteSpace: "nowrap" }}>{tk.text}</span>
+              </div>
             </div>
           ) : null}
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -5234,12 +5237,13 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     const today = todayStr();
     const dnum = (a, b) => Math.round((new Date(a + "T00:00:00") - new Date(b + "T00:00:00")) / 86400000);
     const header = `Nouvèl session an kou — dat la se ${formatHtDate(session)}`;
-    let msg;
-    if (today < resa) msg = `Dat rezèvasyon an se ${formatHtDate(resa)}. Rete ${dnum(resa, today)} jou anvan dat sa rive.`;
-    else if (today === resa) msg = `Dat rezèvasyon an se JODIA.`;
-    else if (today < session) msg = `Dat rezèvasyon an pase sa gen ${dnum(today, resa)} jou, men n ap kontinye pwolonje special la pou n jwenn plis moun.`;
-    else msg = `Dat special yo pase, men n ap kontinye fè enskripsyon — objektif la se chofe gwoup la.`;
-    return { header, msg };
+    let msg, step;
+    if (today < resa) { step = 1; msg = `Dat rezèvasyon an se ${formatHtDate(resa)}. Rete ${dnum(resa, today)} jou anvan dat sa rive.`; }
+    else if (today === resa) { step = 2; msg = `Dat rezèvasyon an se JODIA.`; }
+    else if (today < session) { step = 3; msg = `Dat rezèvasyon an pase sa gen ${dnum(today, resa)} jou, men n ap kontinye pwolonje special la pou n jwenn plis moun.`; }
+    else { step = 4; msg = `Dat special yo pase, men n ap kontinye fè enskripsyon — objektif la se chofe gwoup la.`; }
+    msg = `Nou nan etap ${step} nan stratégie marketing nou an ki se: ${msg}`;
+    return { header, msg, step };
   };
 
   // Mesaj ki defile nan kazye chak moun (selon kontak, etikèt, swivi, stage, ak dat yo)
