@@ -3226,13 +3226,17 @@ function StatsView() {
   }, [events]);
 
   const totalVisits = (events || []).filter((e) => e.type === "visit").length;
-  const maxDay = Math.max(1, ...visitsByDay.map((d) => d[1]));
   const maxPage = Math.max(1, ...pageViews.map((d) => d[1]));
 
-  const fmtIso = (iso) => {
-    try { return new Date(iso + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }); }
-    catch (e) { return iso; }
-  };
+  const visitDates = (events || []).filter((e) => e.type === "visit").map((e) => (e.at ? new Date(e.at).toISOString().slice(0, 10) : ""));
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const nowMonth = todayIso.slice(0, 7);
+  const d7iso = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10);
+  const todayCount = visitDates.filter((d) => d === todayIso).length;
+  const last7 = visitDates.filter((d) => d && d >= d7iso).length;
+  const monthCount = visitDates.filter((d) => d.slice(0, 7) === nowMonth).length;
+  const daily14 = (() => { const out = []; for (let i = 13; i >= 0; i--) { const iso = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10); out.push([iso, visitDates.filter((d) => d === iso).length]); } return out; })();
+  const max14 = Math.max(1, ...daily14.map((d) => d[1]));
 
   const bar = (n, max, grad) => (
     <div style={{ flex: 1, background: "rgba(123,45,142,.10)", borderRadius: 6, overflow: "hidden" }}>
@@ -3240,10 +3244,20 @@ function StatsView() {
     </div>
   );
 
+  const metric = (label, val, color) => (
+    <div style={{ background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: "12px 14px" }}>
+      <div style={{ fontSize: 12, color: `${PALETTE.cream}aa` }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 700, color, marginTop: 2 }}>{val}</div>
+    </div>
+  );
+
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, gap: 10, flexWrap: "wrap" }}>
-        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, margin: 0 }}>Estatistik vizit yo</h2>
+        <div>
+          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontWeight: 600, margin: 0 }}>Estatistik vizit yo</h2>
+          <div style={{ fontSize: 12.5, color: `${PALETTE.cream}99`, marginTop: 2 }}>Kantite moun ki vizite app la</div>
+        </div>
         <button onClick={load} style={ghostBtn} disabled={busy}>{busy ? "Ap chaje…" : "Aktyalize"}</button>
       </div>
 
@@ -3251,38 +3265,45 @@ function StatsView() {
         <p style={{ color: `${PALETTE.cream}99` }}>Ap chaje…</p>
       ) : (
         <>
-          <div style={{ marginBottom: 24, padding: "14px 18px", border: `1px solid ${PALETTE.line}`, borderRadius: 14, background: "rgba(194,35,142,.05)", display: "inline-block", minWidth: 160 }}>
-            <div style={{ fontSize: 13, color: `${PALETTE.cream}aa` }}>Total vizit</div>
-            <div style={{ fontSize: 32, fontWeight: 700, color: PALETTE.gold }}>{totalVisits}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 10, marginBottom: 22 }}>
+            {metric("Total vizit", totalVisits, PALETTE.cream)}
+            {metric("Jodi a", todayCount, PALETTE.blush)}
+            {metric("7 dènye jou", last7, PALETTE.cream)}
+            {metric("Mwa sa a", monthCount, PALETTE.cream)}
           </div>
 
-          <h3 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 12px" }}>Konbyen moun pa jou</h3>
-          {visitsByDay.length === 0 ? (
-            <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: "0 0 24px" }}>Poko gen done vizit. (L ap kòmanse konte apre w deplwaye.)</p>
-          ) : (
-            <div style={{ marginBottom: 28 }}>
-              {visitsByDay.map(([iso, n]) => (
-                <div key={iso} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                  <div style={{ width: 150, fontSize: 13, color: `${PALETTE.cream}cc`, whiteSpace: "nowrap" }}>{fmtIso(iso)}</div>
-                  {bar(n, maxDay, `linear-gradient(90deg, ${PALETTE.goldSoft}, ${PALETTE.blush})`)}
-                </div>
-              ))}
-            </div>
-          )}
+          <div style={{ background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 14, marginBottom: 18 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Konbyen moun pa jou (14 dènye jou)</div>
+            {totalVisits === 0 ? (
+              <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: 0 }}>Poko gen done vizit. (L ap kòmanse konte apre w deplwaye.)</p>
+            ) : (
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 120 }}>
+                {daily14.map(([iso, n]) => (
+                  <div key={iso} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, height: "100%", justifyContent: "flex-end" }}>
+                    <div style={{ fontSize: 9, color: `${PALETTE.cream}99`, fontWeight: 700 }}>{n > 0 ? n : ""}</div>
+                    <div style={{ width: "100%", height: `${(n / max14) * 100}%`, minHeight: n > 0 ? 4 : 0, background: `linear-gradient(180deg, ${PALETTE.blush}, ${PALETTE.goldSoft})`, borderRadius: "3px 3px 0 0" }} />
+                    <span style={{ fontSize: 8.5, color: `${PALETTE.cream}77` }}>{iso.slice(8, 10)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-          <h3 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 12px" }}>Paj ki pi vizite yo</h3>
-          {pageViews.length === 0 ? (
-            <p style={{ fontSize: 13, color: `${PALETTE.cream}88` }}>Poko gen done paj.</p>
-          ) : (
-            <div>
-              {pageViews.map(([lbl, n]) => (
-                <div key={lbl} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                  <div style={{ width: 200, fontSize: 13, color: `${PALETTE.cream}cc` }}>{lbl}</div>
-                  {bar(n, maxPage, `linear-gradient(90deg, #7B2D8E, ${PALETTE.goldSoft})`)}
-                </div>
-              ))}
-            </div>
-          )}
+          <div style={{ background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Programme ki pi vizite</div>
+            {pageViews.length === 0 ? (
+              <p style={{ fontSize: 13, color: `${PALETTE.cream}88`, margin: 0 }}>Poko gen done paj.</p>
+            ) : (
+              <div>
+                {pageViews.map(([lbl, n]) => (
+                  <div key={lbl} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <div style={{ width: 130, fontSize: 12.5, color: `${PALETTE.cream}cc`, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lbl}</div>
+                    {bar(n, maxPage, `linear-gradient(90deg, #7B2D8E, ${PALETTE.goldSoft})`)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>
