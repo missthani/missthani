@@ -1459,7 +1459,7 @@ function CarlaMiniForm({ fields, onSubmit, disabled }) {
         </div>
       ))}
       <button
-        onClick={() => { const txt = fields.map((f) => `${f}: ${vals[f] || ""}`).join(", "); setDone(true); onSubmit(txt); }}
+        onClick={() => { const txt = fields.map((f) => `${f}: ${vals[f] || ""}`).join(", "); setDone(true); onSubmit(txt, vals); }}
         disabled={disabled}
         style={{ padding: "10px", borderRadius: 10, border: "none", background: PALETTE.blush, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}
       >Voye</button>
@@ -1467,7 +1467,7 @@ function CarlaMiniForm({ fields, onSubmit, disabled }) {
   );
 }
 function CarlaChat({ config, initialProgram, onClose }) {
-  const BEHAVIOR_VERSION = 15; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
+  const BEHAVIOR_VERSION = 16; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
   const program = initialProgram || "";
   const STORE_KEY = "missthani_carla_" + (program || "gen");
   const saved0 = (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch (e) { return null; } })();
@@ -1485,6 +1485,21 @@ function CarlaChat({ config, initialProgram, onClose }) {
   }, [convo, bubbles]);
 
   useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ behavior: "smooth" }); }, [bubbles, busy]);
+
+  const PERSON_KEY = "missthani_carla_person";
+  const readPerson = () => { try { return JSON.parse(localStorage.getItem(PERSON_KEY) || "null"); } catch (e) { return null; } };
+  const savePersonProfile = (vals) => {
+    try {
+      const prof = readPerson() || { name: "", zone: "", whatsapp: "", appel: "", programs: [] };
+      const pick = (rx) => { for (const k of Object.keys(vals || {})) { if (rx.test(k.toLowerCase()) && vals[k]) return vals[k]; } return ""; };
+      const name = pick(/non|nom|name|prenon/); if (name) prof.name = name;
+      const zone = pick(/zòn|zon|adrès|adres|address|kote/); if (zone) prof.zone = zone;
+      const wa = pick(/whatsapp|telef|nimewo|numero/); if (wa) prof.whatsapp = wa;
+      const ap = pick(/apèl|apel|appel|call/); if (ap) prof.appel = ap;
+      if (program && !(prof.programs || []).includes(program)) prof.programs = [...(prof.programs || []), program];
+      localStorage.setItem(PERSON_KEY, JSON.stringify(prof));
+    } catch (e) {}
+  };
 
   const buildContext = () => {
     const norm = (s) => String(s || "").trim().toLowerCase();
@@ -1539,6 +1554,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
       sessionVideo: sessionVideo || "",
       formFields: (config.formFields || []).map((f) => ({ label: f.label || "", type: f.fieldType || "text" })),
       contact: config.contact || {},
+      knownPerson: (() => { const pr = readPerson(); if (!pr || !pr.name) return null; return { name: pr.name, zone: pr.zone || "", whatsapp: pr.whatsapp || "", appel: pr.appel || "", programs: (pr.programs || []).filter((x) => norm(x) !== norm(program)) }; })(),
       special: config.special || "",
       today: todayStr(),
       supabaseUrl: env.VITE_SUPABASE_URL || "",
@@ -1640,7 +1656,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
               <div style={{ width: "82%", maxWidth: 320 }}><VideoBlock url={b.video} orient="auto" /></div>
             ) : null}
             {b.form && b.form.length > 0 && (
-              <CarlaMiniForm fields={b.form} disabled={busy} onSubmit={(txt) => send(txt)} />
+              <CarlaMiniForm fields={b.form} disabled={busy} onSubmit={(txt, vals) => { savePersonProfile(vals); send(txt); }} />
             )}
             {b.wa && b.wa.num && (
               <a href={`https://wa.me/${b.wa.num}?text=${encodeURIComponent(b.wa.msg || "")}`} target="_blank" rel="noopener noreferrer" style={{ display: "block", width: "82%", maxWidth: 320, background: "#25D366", color: "#fff", borderRadius: 12, padding: "12px 14px", textDecoration: "none", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }}>
