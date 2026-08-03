@@ -5429,6 +5429,24 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
     if (!p.contacted && !p.followup && !p.stage) return "";
     if (matchConds(p, "reserved")) return "reserved";
     if (matchConds(p, "noshow")) return "noshow";
+    // Recycle dinamik: si yon dat session deja pase APRE dènye aksyon moun nan, epi li pa enskri/pa vini/pa rezève → Recycle.
+    // Sa rekalkile pou kont li chak fwa yon session chanje (san efase done).
+    if (!p.enrolled && p.followup !== "vini" && p.stage !== "reserved_special" && p.stage !== "reserved_after") {
+      const prog = (programs || []).find((pp) => pp.label === p.program);
+      if (prog) {
+        const today = todayStr();
+        let lastPassed = "";
+        for (const sc of prog.steps || []) {
+          for (const b of getStepBlocks(sc)) {
+            for (const s of (b.schedule || [])) {
+              if (s.start && s.start <= today && s.start > lastPassed) lastPassed = s.start;
+            }
+          }
+        }
+        const lastAct = p.updatedAt ? new Date(p.updatedAt).toISOString().slice(0, 10) : "";
+        if (lastPassed && lastAct && lastAct < lastPassed) return "recycle";
+      }
+    }
     if (matchConds(p, "special_passed")) return "special_passed";
     if (matchConds(p, "recycle")) return "recycle";
     if (matchConds(p, "no_tag_no_follow")) return "no_tag_no_follow";
