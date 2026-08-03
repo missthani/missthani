@@ -4784,6 +4784,8 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
   const [phoneSearch, setPhoneSearch] = useState(""); // rechèch pa nimewo telefòn
   const [progresOpen, setProgresOpen] = useState(false); // seksyon "Évaluation des progrès"
   const [carlaView, setCarlaView] = useState(null); // prospè ki gen konvèsasyon Carla n ap gade
+  const [openCards, setOpenCards] = useState({}); // ki kat ki dewoule (louvri)
+  const toggleCard = (id) => setOpenCards((o) => ({ ...o, [id]: !o[id] }));
   const [taskFilter, setTaskFilter] = useState(() => { try { return new URLSearchParams(window.location.search).get("task") || ""; } catch (e) { return ""; } });
   const [msgDraft, setMsgDraft] = useState(waMessages || []);
   const [activeDraft, setActiveDraft] = useState(activeWaMessage || "");
@@ -5110,7 +5112,8 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
       <div key={p.id} style={{ background: "#26262B", border: "1px solid #3A3A40", borderRadius: 12, overflow: "hidden", marginBottom: 12, color: "#ECEAF0" }}>
         <div style={{ padding: "8px 12px", background: "#1E1E22", borderBottom: "1px solid #3A3A40" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <div onClick={() => toggleCard(p.id)} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", cursor: "pointer" }} title="Klike pou louvri/fèmen">
+              <span style={{ fontSize: 12, color: "#9A99A3", width: 12, display: "inline-block" }}>{openCards[p.id] ? "▾" : "▸"}</span>
               <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#33445E", color: "#AFCBF2", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>{idx + 1}</span>
               {p.enrolled && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: "#1E8449", padding: "2px 7px", borderRadius: 999 }}>ENSKRI</span>}
               {p.bouste && <span style={{ fontSize: 10, fontWeight: 800, color: "#3A0E33", background: "#E0A50A", padding: "2px 7px", borderRadius: 999 }}>BOUSTE</span>}
@@ -5145,6 +5148,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
             </select>
           </div>
         </div>
+        {openCards[p.id] && (
         <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 7 }}>
           {(() => {
             const cols = [...priorityCols, ...restCols];
@@ -5187,6 +5191,7 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
           </div>
           {isAdmin && <button onClick={() => remove(p.id)} style={{ ...miniDanger, alignSelf: "flex-end", marginTop: 2 }}>✕ Efase</button>}
         </div>
+        )}
       </div>
     );
   };
