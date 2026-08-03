@@ -562,6 +562,7 @@ const DEFAULT_FORM_FIELDS = [
 const DEFAULT_CONFIG = {
   question: "A ki programme ou enterese?",
   revealDelay: 3, // segond ant chak opsyon
+  contact: { whatsapp: "", moncash: "", moncashName: "", natcash: "", natcashName: "", facebook: "", instagram: "", tiktok: "" }, // kontak pou Carla pataje
   formFields: DEFAULT_FORM_FIELDS, // kesyon fòmilè ki pataje pou tout programme
   agents: [], // non ajan yo pou etikèt yo (admin nan jere lis sa a)
   waMessages: [], // modèl mesaj WhatsApp yo (admin nan jere)
@@ -1466,7 +1467,7 @@ function CarlaMiniForm({ fields, onSubmit, disabled }) {
   );
 }
 function CarlaChat({ config, initialProgram, onClose }) {
-  const BEHAVIOR_VERSION = 13; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
+  const BEHAVIOR_VERSION = 14; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
   const program = initialProgram || "";
   const STORE_KEY = "missthani_carla_" + (program || "gen");
   const saved0 = (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch (e) { return null; } })();
@@ -1537,6 +1538,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
       materials: matBlock,
       sessionVideo: sessionVideo || "",
       formFields: (config.formFields || []).map((f) => ({ label: f.label || "", type: f.fieldType || "text" })),
+      contact: config.contact || {},
       special: config.special || "",
       today: todayStr(),
       supabaseUrl: env.VITE_SUPABASE_URL || "",
@@ -3159,6 +3161,47 @@ function AdminSpace({ config, onSave, onExit }) {
         <button onClick={addBousteProgram} style={{ ...ghostBtn, width: "100%", borderColor: PALETTE.goldSoft, color: PALETTE.goldSoft, marginBottom: 12 }}>🚀 + Ajoute yon paj Bouste</button>
         {draft.programs.filter((p) => p.bouste).map((p) => progCard(p))}
         {draft.programs.filter((p) => p.bouste).length === 0 && <p style={{ fontSize: 12, color: `${PALETTE.cream}88` }}>Poko gen paj Bouste. Klike bouton anwo a pou kreye youn.</p>}
+      </Section>
+
+      <Section title="📇 Kontak (pou Carla)">
+        <p style={{ fontSize: 12.5, color: `${PALETTE.cream}aa`, margin: "0 0 12px", lineHeight: 1.5 }}>
+          Ranpli kontak lekòl la isit la. <b>Carla</b> ap sèvi ak yo pou pataje ak moun yo lè nesesè. Nimewo WhatsApp la se sa Carla ap voye bay moun nan (ak lien an) lè li fin ranpli fòm nan, pou moun nan voye l bay manm direksyon yo.
+        </p>
+        {(() => {
+          const c = draft.contact || {};
+          const setC = (k, v) => setDraft((d) => ({ ...d, contact: { ...(d.contact || {}), [k]: v } }));
+          const fld = (label, k, ph) => (
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: PALETTE.cream, display: "block", marginBottom: 4 }}>{label}</label>
+              <input value={c[k] || ""} onChange={(e) => setC(k, e.target.value)} placeholder={ph || ""} style={{ width: "100%", padding: "9px 10px", borderRadius: 8, border: `1px solid ${PALETTE.line}`, fontSize: 14, boxSizing: "border-box" }} />
+            </div>
+          );
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 12, background: "#fff" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: PALETTE.blush, marginBottom: 10 }}>WhatsApp (pou moun nan kontakte direksyon an)</div>
+                {fld("Nimewo WhatsApp direksyon an", "whatsapp", "+509 ...")}
+              </div>
+              <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 12, background: "#fff" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: PALETTE.blush, marginBottom: 10 }}>Peman (MonCash / NatCash)</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+                  {fld("Nimewo MonCash", "moncash", "+509 ...")}
+                  {fld("Non ki sou MonCash", "moncashName")}
+                  {fld("Nimewo NatCash", "natcash", "+509 ...")}
+                  {fld("Non ki sou NatCash", "natcashName")}
+                </div>
+              </div>
+              <div style={{ border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 12, background: "#fff" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: PALETTE.blush, marginBottom: 10 }}>Rezo sosyal</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+                  {fld("Paj Facebook", "facebook", "lien oswa non")}
+                  {fld("Instagram", "instagram", "@ oswa lien")}
+                  {fld("TikTok", "tiktok", "@ oswa lien")}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </Section>
 
       <Section title="ℹ️ Info programme (pou Carla)">
