@@ -357,7 +357,7 @@ const TICKER_STATES = [
     dateRule: "", dropdown: "Aksyon pou {non}",
     flow: ["Li reserve → etap « Li reserve »", "Vini → « Nouvo Etidyan »"],
     def: "Hello {etiket}, sonje {non} enskri deja men li poko vini nan kou. Sonje rele l pou planifye avè l jiskaske l vini nan kou." },
-  { key: "noshow", label: "Reserve men pa vini", step: 1, vars: ["{etiket}", "{non}"],
+  { key: "noshow", label: "Reserve men pa vini", step: 4, vars: ["{etiket}", "{non}"],
     cond: "Etap = « Pa vini » (li te reserve men li pa t vini)",
     dateRule: "", dropdown: "Aksyon pou {non}",
     flow: ["Li reserve ankò → etap « Li reserve »", "Vini → « Nouvo Etidyan »"],
