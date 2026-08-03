@@ -717,6 +717,26 @@ async function logEvent(type, label, session) {
     await supabase.from("events").insert({ type, label: label || "", session: session || "" });
   } catch (e) {}
 }
+// Vre konte vizit yo — dirèk nan baz done a (egzat, kèlkeswa konbyen liy)
+async function countVisitsSince(sinceIso) {
+  try {
+    let q = supabase.from("events").select("*", { count: "exact", head: true }).eq("type", "visit");
+    if (sinceIso) q = q.gte("created_at", sinceIso);
+    const { count, error } = await q;
+    if (error) throw error;
+    return count || 0;
+  } catch (e) { return null; }
+}
+async function loadVisitStats() {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const start7 = new Date(now.getTime() - 6 * 864e5); start7.setHours(0, 0, 0, 0);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const [total, today, last7, month] = await Promise.all([
+    countVisitsSince(null), countVisitsSince(startOfToday), countVisitsSince(start7.toISOString()), countVisitsSince(startOfMonth),
+  ]);
+  return { total, today, last7, month };
+}
 async function loadEvents(limit = 5000) {
   try {
     const { data, error } = await supabase
@@ -3198,11 +3218,13 @@ function ProspectsGate({ config }) {
 /* Estatistik vizit yo (admin) */
 function StatsView() {
   const [events, setEvents] = useState(null);
+  const [stats, setStats] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
     setBusy(true);
-    setEvents(await loadEvents());
+    const [ev, st] = await Promise.all([loadEvents(), loadVisitStats()]);
+    setEvents(ev); setStats(st);
     setBusy(false);
   };
   useEffect(() => { load(); }, []);
@@ -3266,10 +3288,10 @@ function StatsView() {
       ) : (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 10, marginBottom: 22 }}>
-            {metric("Total vizit", totalVisits, PALETTE.cream)}
-            {metric("Jodi a", todayCount, PALETTE.blush)}
-            {metric("7 dènye jou", last7, PALETTE.cream)}
-            {metric("Mwa sa a", monthCount, PALETTE.cream)}
+            {metric("Total vizit", stats ? (stats.total ?? totalVisits) : totalVisits, PALETTE.cream)}
+            {metric("Jodi a", stats ? (stats.today ?? todayCount) : todayCount, PALETTE.blush)}
+            {metric("7 dènye jou", stats ? (stats.last7 ?? last7) : last7, PALETTE.cream)}
+            {metric("Mwa sa a", stats ? (stats.month ?? monthCount) : monthCount, PALETTE.cream)}
           </div>
 
           <div style={{ background: "#fff", border: `1px solid ${PALETTE.line}`, borderRadius: 12, padding: 14, marginBottom: 18 }}>
