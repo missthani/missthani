@@ -1467,7 +1467,7 @@ function CarlaMiniForm({ fields, onSubmit, disabled }) {
   );
 }
 function CarlaChat({ config, initialProgram, onClose }) {
-  const BEHAVIOR_VERSION = 14; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
+  const BEHAVIOR_VERSION = 15; // ogmante l chak fwa konpòtman Carla chanje — fè tchat ki deja la yo rafrechi
   const program = initialProgram || "";
   const STORE_KEY = "missthani_carla_" + (program || "gen");
   const saved0 = (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch (e) { return null; } })();
@@ -1568,10 +1568,13 @@ function CarlaChat({ config, initialProgram, onClose }) {
       let form = null;
       const fm = part.match(/\[FORM\]([\s\S]*?)\[\/FORM\]/);
       if (fm) { form = fm[1].split(",").map((s) => s.trim()).filter(Boolean); part = part.replace(fm[0], "").trim(); }
+      let wa = null;
+      const wm = part.match(/\[WA\]([\s\S]*?)\[\/WA\]/);
+      if (wm) { const raw = wm[1]; const pipe = raw.indexOf("|"); if (pipe > -1) { wa = { num: raw.slice(0, pipe).replace(/[^0-9]/g, ""), msg: raw.slice(pipe + 1).trim() }; } part = part.replace(wm[0], "").trim(); }
       const lines = part.split("\n");
       const buttons = lines.filter((l) => l.trim().startsWith("•")).map((l) => l.replace(/^\s*•\s*/, "").trim());
       const txt = lines.filter((l) => !l.trim().startsWith("•")).join("\n").trim();
-      return { text: txt, buttons, video: vid, form };
+      return { text: txt, buttons, video: vid, form, wa };
     });
   };
 
@@ -1591,7 +1594,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
       for (let i = 0; i < blocks.length; i++) {
         // eslint-disable-next-line no-await-in-loop
         await new Promise((r) => setTimeout(r, i === 0 ? 0 : 350));
-        setBubbles((b) => [...b, { role: "assistant", text: blocks[i].text, buttons: blocks[i].buttons, video: blocks[i].video, form: blocks[i].form }]);
+        setBubbles((b) => [...b, { role: "assistant", text: blocks[i].text, buttons: blocks[i].buttons, video: blocks[i].video, form: blocks[i].form, wa: blocks[i].wa }]);
       }
     } catch (e) {
       setBubbles((b) => [...b, { role: "assistant", text: "Koneksyon an echwe. Tanpri eseye ankò.", buttons: [] }]);
@@ -1638,6 +1641,15 @@ function CarlaChat({ config, initialProgram, onClose }) {
             ) : null}
             {b.form && b.form.length > 0 && (
               <CarlaMiniForm fields={b.form} disabled={busy} onSubmit={(txt) => send(txt)} />
+            )}
+            {b.wa && b.wa.num && (
+              <a href={`https://wa.me/${b.wa.num}?text=${encodeURIComponent(b.wa.msg || "")}`} target="_blank" rel="noopener noreferrer" style={{ display: "block", width: "82%", maxWidth: 320, background: "#25D366", color: "#fff", borderRadius: 12, padding: "12px 14px", textDecoration: "none", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 14, marginBottom: 6 }}>
+                  <span style={{ fontSize: 18 }}>✆</span> Voye bay direksyon an sou WhatsApp
+                </div>
+                <div style={{ fontSize: 12.5, lineHeight: 1.4, background: "rgba(255,255,255,.15)", borderRadius: 8, padding: "8px 10px", whiteSpace: "pre-wrap" }}>{b.wa.msg}</div>
+                <div style={{ fontSize: 11, marginTop: 6, opacity: .9 }}>Klike — WhatsApp ap louvri ak mesaj la deja ekri</div>
+              </a>
             )}
             {b.buttons && b.buttons.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "82%" }}>
