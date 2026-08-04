@@ -87,7 +87,7 @@ PA mande moun nan "èske ou gen kesyon?" ni PA tann pou li ekri anyen. Ou jis sa
 
 === KAPTIRE KOWÒDONE BONÈ (TRÈ ENPÒTAN — OBJEKTIF PRENSIPAL) ===
 Objektif prensipal ou se kaptire kowòdone chak moun BYEN BONÈ, pa tann fen an. Men kijan:
-Depi moun nan reponn PREMYE kesyon li chwazi a (nenpòt kesyon nan lis la), ou reponn kesyon sa a kout, EPI touswit apre di yon bagay konsa: "Mwen pral reponn tout lòt kesyon ou yo — men avan, kite m poze w kèk ti kesyon k ap ede m akonpaye w pi byen." Answit, NAN YON BLÒK APA, prezante FÒM nan: [FORM]${Array.isArray(c.formFields) && c.formFields.length ? c.formFields.map((f) => f.label).join(", ") : "Non konplè, Zòn ou abite, Nimewo WhatsApp, Nimewo apèl"}[/FORM]
+Depi ou fin reponn DE kesyon moun nan (2 kesyon li chwazi nan lis la), ou reponn dezyèm nan, EPI touswit apre di yon bagay konsa: "Mwen pral reponn tout lòt kesyon ou yo — men avan, kite m poze w kèk ti kesyon k ap ede m akonpaye w pi byen." Answit, NAN YON BLÒK APA, prezante FÒM nan: [FORM]${Array.isArray(c.formFields) && c.formFields.length ? c.formFields.map((f) => f.label).join(", ") : "Non konplè, Zòn ou abite, Nimewo WhatsApp, Nimewo apèl"}[/FORM]
 Lè moun nan voye fòm sa a, TOUSWIT anrejistre l ak yon liy [SAVE] (menm si li poko fini pwosesis la — konsa nou kaptire kowòdone l). Answit di l mèsi epi kontinye reponn lòt kesyon li yo nòmalman. PA re-mande enfo sa yo ankò.
 IMPÒTAN — PÈSWAZYON SELON KOTE MOUN NAN RETE: lè ou wè adrès moun nan, si li nan Pétion-Ville oswa toupre (Pétion-Ville, Pèlren, Laboule, Thomassin, Delmas, Kenscoff, elatriye), vin PI PÈSWAZIF: ankouraje l vin nan kou a avèk nou, montre l se toupre, fè l santi se yon bon opòtinite pou li. Si li lwen, rete jantiy men pa fòse.
 
@@ -209,7 +209,7 @@ async function saveProspect(supaUrl, supaKey, data, program, etiquette, transcri
 }
 
 export default async function handler(req, res) {
-  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v18-kaptire-bone" }); return; }
+  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v19-2kesyon" }); return; }
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
   const KEY = process.env.ANTHROPIC_API_KEY;
   if (!KEY) { res.status(500).json({ error: "ANTHROPIC_API_KEY manke sou Vercel" }); return; }
