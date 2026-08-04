@@ -3731,7 +3731,20 @@ function CarlaInboxSpace({ config }) {
   const [sel, setSel] = useState(null);
   const [q, setQ] = useState("");
 
-  useEffect(() => { (async () => { const all = await loadCarlaChats(); setItems(all || []); })(); }, []);
+  useEffect(() => { (async () => {
+    const [chats, prospects] = await Promise.all([loadCarlaChats(), loadProspects()]);
+    const nameFrom = (p) => { for (const a of (p.answers || [])) { if (/non|nom|name|prenon/i.test(a.question || "") && a.answer) return a.answer; } return ""; };
+    const fromProspects = (prospects || []).filter((p) => (p.carlaChat || "").trim()).map((p) => ({ id: "p_" + p.id, program: p.program || "", name: nameFrom(p), transcript: p.carlaChat, updatedAt: p.updatedAt || "" }));
+    const merged = [...(chats || []), ...fromProspects];
+    // Retire doub yo (menm moun/programme) — kenbe konvèsasyon ki pi long lan
+    const byKey = {};
+    for (const it of merged) {
+      const k = ((it.name || "").trim().toLowerCase() || it.id) + "|" + (it.program || "").toLowerCase();
+      if (!byKey[k] || (it.transcript || "").length > (byKey[k].transcript || "").length) byKey[k] = it;
+    }
+    const out = Object.values(byKey).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    setItems(out);
+  })(); }, []);
 
   const nameOf = (p) => p.name || (p.program ? `Moun — ${p.program}` : "Moun");
   const parseChat = (t) => {
@@ -4042,6 +4055,7 @@ const PAGES = [
   { path: "/inscription", label: "Inscription" },
   { path: "/eleves", label: "Élèves inscrits" },
   { path: "/sessions", label: "Liste des sessions" },
+  { path: "/carla", label: "Konvèsasyon Carla" },
   { path: "/agent", label: "Progression des agents" },
 ];
 function OptionsMenu() {
