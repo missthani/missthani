@@ -1286,6 +1286,7 @@ export default function MissThaniApp() {
   // Èske nou sou paj /eleves la? (lis elèv ki enskri yo pa programme)
   const isEleves = typeof window !== "undefined" && /^\/eleves\/?$/i.test(window.location.pathname || "");
   const isSessions = typeof window !== "undefined" && /^\/sessions\/?$/i.test(window.location.pathname || "");
+  const isCarla = typeof window !== "undefined" && /^\/carla\/?$/i.test(window.location.pathname || "");
 
   // Chaje konfigirasyon an o depa
   useEffect(() => {
@@ -1375,6 +1376,8 @@ export default function MissThaniApp() {
         <EnrolledListSpace config={config} />
       ) : isSessions ? (
         <SessionsListSpace config={config} />
+      ) : isCarla ? (
+        <CarlaInboxSpace config={config} />
       ) : isFormulaire ? (
         <ProspectsGate config={config} />
       ) : view === "admin" ? (
@@ -3704,6 +3707,85 @@ function AgentsProgressView({ items = [], programs = [], agentInfo = {} }) {
    recherche par nom OU téléphone; si trouvé, marque le prospect comme inscrit; sinon crée une nouvelle entrée. */
 /* Page /eleves — liste des élèves inscrits, regroupés par programme. */
 /* Page /sessions — liste des sessions par programme, avec les personnes qui sont venues (vini). */
+function CarlaInboxSpace({ config }) {
+  const [items, setItems] = useState(null);
+  const [sel, setSel] = useState(null);
+  const [q, setQ] = useState("");
+
+  useEffect(() => { (async () => { const all = await loadProspects(); setItems((all || []).filter((p) => (p.carlaChat || "").trim())); })(); }, []);
+
+  const nameOf = (p) => {
+    for (const a of (p.answers || [])) { if (/non|nom|name|prenon/i.test(a.question || "") && a.answer) return a.answer; }
+    return p.program ? `Moun — ${p.program}` : "Moun";
+  };
+  const parseChat = (t) => {
+    const out = []; let cur = null;
+    (t || "").split("\n").forEach((ln) => {
+      const mM = ln.match(/^Moun nan:\s?(.*)/); const mC = ln.match(/^Carla:\s?(.*)/);
+      if (mM) { if (cur) out.push(cur); cur = { role: "user", text: mM[1] }; }
+      else if (mC) { if (cur) out.push(cur); cur = { role: "assistant", text: mC[1] }; }
+      else if (cur) { cur.text += "\n" + ln; }
+    });
+    if (cur) out.push(cur);
+    return out.filter((b) => (b.text || "").trim() && !b.text.startsWith("(Sistèm:"));
+  };
+  const preview = (t) => { const b = parseChat(t); const last = b[b.length - 1]; return last ? last.text.replace(/\[[^\]]+\][\s\S]*?\[\/[^\]]+\]/g, "").replace(/•/g, "").slice(0, 48) : ""; };
+
+  const list = (items || []).filter((p) => !q || nameOf(p).toLowerCase().includes(q.toLowerCase()) || (p.program || "").toLowerCase().includes(q.toLowerCase()));
+
+  const HEADER = "#075E54", ACCENT = "#128C7E", BG = "#ECE5DD";
+
+  if (sel) {
+    const bubbles = parseChat(sel.carlaChat);
+    return (
+      <div style={{ maxWidth: 640, margin: "0 auto", minHeight: "100vh", background: BG, display: "flex", flexDirection: "column" }}>
+        <div style={{ background: HEADER, color: "#fff", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 2 }}>
+          <button onClick={() => setSel(null)} style={{ background: "none", border: "none", color: "#fff", fontSize: 22, cursor: "pointer", padding: 0 }}>‹</button>
+          <div style={{ width: 38, height: 38, borderRadius: "50%", background: ACCENT, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800 }}>{nameOf(sel).slice(0, 1).toUpperCase()}</div>
+          <div style={{ lineHeight: 1.2 }}>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{nameOf(sel)}</div>
+            <div style={{ fontSize: 11.5, opacity: .85 }}>{sel.program}{sel.otherPrograms ? ", " + sel.otherPrograms : ""}</div>
+          </div>
+        </div>
+        <div style={{ flex: 1, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
+          {bubbles.map((b, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: b.role === "user" ? "flex-end" : "flex-start" }}>
+              <div style={{ maxWidth: "80%", padding: "7px 10px", borderRadius: 8, fontSize: 14, lineHeight: 1.4, whiteSpace: "pre-wrap", background: b.role === "user" ? "#DCF8C6" : "#fff", color: "#111", boxShadow: "0 1px 1px rgba(0,0,0,.1)" }}>{b.text.replace(/\[VIDEO\][\s\S]*?\[\/VIDEO\]/g, "[videyo]").replace(/\[FORM\][\s\S]*?\[\/FORM\]/g, "[fòm preskripsyon]").replace(/\[WA\][\s\S]*?\[\/WA\]/g, "[bouton WhatsApp]")}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ maxWidth: 640, margin: "0 auto", minHeight: "100vh", background: "#fff" }}>
+      <div style={{ background: HEADER, color: "#fff", padding: "14px", position: "sticky", top: 0, zIndex: 2 }}>
+        <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 10 }}>Konvèsasyon Carla</div>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chèche yon moun oswa programme…" style={{ width: "100%", padding: "8px 12px", borderRadius: 20, border: "none", fontSize: 14, boxSizing: "border-box" }} />
+      </div>
+      {items === null ? (
+        <p style={{ padding: 20, color: "#666" }}>Ap chaje…</p>
+      ) : list.length === 0 ? (
+        <p style={{ padding: 20, color: "#666" }}>Pa gen konvèsasyon Carla pou kounya.</p>
+      ) : (
+        list.map((p) => (
+          <div key={p.id} onClick={() => setSel(p)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: "1px solid #eee", cursor: "pointer" }}>
+            <div style={{ width: 46, height: 46, borderRadius: "50%", background: ACCENT, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18, flexShrink: 0 }}>{nameOf(p).slice(0, 1).toUpperCase()}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <span style={{ fontWeight: 700, fontSize: 15, color: "#111", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nameOf(p)}</span>
+                <span style={{ fontSize: 11, color: ACCENT, fontWeight: 700, flexShrink: 0 }}>{p.program}</span>
+              </div>
+              <div style={{ fontSize: 13, color: "#667781", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{preview(p.carlaChat)}</div>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
 function SessionsListSpace({ config }) {
   const { authed, gate } = useInterfaceAuth(config, "sessions", "Liste des sessions");
   const [items, setItems] = useState(null);
