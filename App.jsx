@@ -1516,6 +1516,30 @@ function CarlaChat({ config, initialProgram, onClose }) {
     } catch (e) {}
   };
 
+  // Anrejistre prospè a DIRÈK lè fòm nan ranpli (garanti — san depann de Carla)
+  const savedProspectRef = useRef(false);
+  const saveProspectFromForm = async (vals) => {
+    if (savedProspectRef.current) return; // yon sèl fwa
+    try {
+      const fields = config.formFields || [];
+      const answers = fields.map((f) => {
+        const lbl = f.label || "Kesyon";
+        let v = vals[lbl] || "";
+        if (v && /non|nom|name|prenon/i.test(lbl)) v = "(AI) " + v;
+        return { question: lbl, answer: v };
+      });
+      const hasName = answers.some((a) => a.answer && a.answer.trim());
+      if (!hasName) return;
+      savedProspectRef.current = true;
+      const id = Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+      const row = { id, program: program || "", answers, updated_at: new Date().toISOString() };
+      const { error } = await supabase.from("prospects").insert(row);
+      if (error) { // reeseye san id si baz la jenere l poukont li
+        try { await supabase.from("prospects").insert({ program: program || "", answers, updated_at: new Date().toISOString() }); } catch (e) {}
+      }
+    } catch (e) {}
+  };
+
   const buildContext = () => {
     const norm = (s) => String(s || "").trim().toLowerCase();
     const all = config.programs || [];
@@ -1569,6 +1593,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
       sessionVideo: sessionVideo || "",
       formFields: (config.formFields || []).map((f) => ({ label: f.label || "", type: f.fieldType || "text" })),
       contact: config.contact || {},
+      sessionId: sessionIdRef.current,
       knownPerson: (() => { const pr = readPerson(); if (!pr || !pr.name) return null; return { name: pr.name, zone: pr.zone || "", whatsapp: pr.whatsapp || "", appel: pr.appel || "", programs: (pr.programs || []).filter((x) => norm(x) !== norm(program)) }; })(),
       special: config.special || "",
       today: todayStr(),
@@ -1677,7 +1702,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
               <div style={{ width: "82%", maxWidth: 320 }}><VideoBlock url={b.video} orient="auto" /></div>
             ) : null}
             {b.form && b.form.length > 0 && (
-              <CarlaMiniForm fields={b.form} disabled={busy} onSubmit={(txt, vals) => { savePersonProfile(vals); send(txt); }} />
+              <CarlaMiniForm fields={b.form} disabled={busy} onSubmit={(txt, vals) => { savePersonProfile(vals); saveProspectFromForm(vals); send(txt); }} />
             )}
             {b.wa && b.wa.num && (
               <a href={`https://wa.me/${b.wa.num}?text=${encodeURIComponent(b.wa.msg || "")}`} target="_blank" rel="noopener noreferrer" style={{ display: "block", width: "82%", maxWidth: 320, background: "#25D366", color: "#fff", borderRadius: 12, padding: "12px 14px", textDecoration: "none", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }}>
