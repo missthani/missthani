@@ -738,6 +738,17 @@ async function loadVisitStats() {
   ]);
   return { total, today, last7, month };
 }
+// Sove/chaje TOUT konvèsasyon Carla yo (menm sa ki pa enskri)
+async function upsertCarlaChat(row) {
+  try { await supabase.from("carla_chats").upsert(row, { onConflict: "id" }); } catch (e) {}
+}
+async function loadCarlaChats(limit = 2000) {
+  try {
+    const { data, error } = await supabase.from("carla_chats").select("*").order("updated_at", { ascending: false }).limit(limit);
+    if (error) throw error;
+    return (data || []).map((r) => ({ id: r.id, program: r.program || "", name: r.name || "", transcript: r.transcript || "", updatedAt: r.updated_at || "" }));
+  } catch (e) { return []; }
+}
 async function loadEvents(limit = 5000) {
   try {
     const { data, error } = await supabase
@@ -1481,10 +1492,11 @@ function CarlaChat({ config, initialProgram, onClose }) {
   const endRef = useRef(null);
   const started = useRef(false);
   const savedRef = useRef(false);
+  const sessionIdRef = useRef((saved0 && saved0.sid) || (Math.random().toString(36).slice(2, 9) + Date.now().toString(36)));
 
   // Sonje konvèsasyon an pou moun nan pa rekòmanse lè li tounen
   useEffect(() => {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify({ convo, bubbles, bv: BEHAVIOR_VERSION, ts: Date.now() })); } catch (e) {}
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ convo, bubbles, bv: BEHAVIOR_VERSION, sid: sessionIdRef.current, ts: Date.now() })); } catch (e) {}
   }, [convo, bubbles]);
 
   useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ behavior: "smooth" }); }, [bubbles, busy]);
@@ -1609,6 +1621,13 @@ function CarlaChat({ config, initialProgram, onClose }) {
       const reply = (data && data.text) || "Padon, gen yon ti pwoblèm teknik. Eseye ankò.";
       if (data && data.saved) savedRef.current = true;
       setConvo((c) => [...c, { role: "assistant", content: reply }]);
+      // Sove konvèsasyon an (menm si moun nan pa enskri) pou paj /carla a
+      try {
+        const fullConvo = [...nextConvo, { role: "assistant", content: reply }];
+        const transcript = fullConvo.filter((m) => !String(m.content || "").startsWith("(Sistèm:")).map((m) => `${m.role === "user" ? "Moun nan" : "Carla"}: ${m.content}`).join("\n");
+        const prof = readPerson();
+        upsertCarlaChat({ id: sessionIdRef.current, program: program || "", name: (prof && prof.name) || "", transcript, updated_at: new Date().toISOString() });
+      } catch (e) {}
       const blocks = parseBlocks(reply);
       for (let i = 0; i < blocks.length; i++) {
         // eslint-disable-next-line no-await-in-loop
@@ -3712,12 +3731,9 @@ function CarlaInboxSpace({ config }) {
   const [sel, setSel] = useState(null);
   const [q, setQ] = useState("");
 
-  useEffect(() => { (async () => { const all = await loadProspects(); setItems((all || []).filter((p) => (p.carlaChat || "").trim())); })(); }, []);
+  useEffect(() => { (async () => { const all = await loadCarlaChats(); setItems(all || []); })(); }, []);
 
-  const nameOf = (p) => {
-    for (const a of (p.answers || [])) { if (/non|nom|name|prenon/i.test(a.question || "") && a.answer) return a.answer; }
-    return p.program ? `Moun — ${p.program}` : "Moun";
-  };
+  const nameOf = (p) => p.name || (p.program ? `Moun — ${p.program}` : "Moun");
   const parseChat = (t) => {
     const out = []; let cur = null;
     (t || "").split("\n").forEach((ln) => {
@@ -3736,7 +3752,7 @@ function CarlaInboxSpace({ config }) {
   const HEADER = "#075E54", ACCENT = "#128C7E", BG = "#ECE5DD";
 
   if (sel) {
-    const bubbles = parseChat(sel.carlaChat);
+    const bubbles = parseChat(sel.transcript);
     return (
       <div style={{ maxWidth: 640, margin: "0 auto", minHeight: "100vh", background: BG, display: "flex", flexDirection: "column" }}>
         <div style={{ background: HEADER, color: "#fff", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 2 }}>
@@ -3744,7 +3760,7 @@ function CarlaInboxSpace({ config }) {
           <div style={{ width: 38, height: 38, borderRadius: "50%", background: ACCENT, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800 }}>{nameOf(sel).slice(0, 1).toUpperCase()}</div>
           <div style={{ lineHeight: 1.2 }}>
             <div style={{ fontWeight: 700, fontSize: 15 }}>{nameOf(sel)}</div>
-            <div style={{ fontSize: 11.5, opacity: .85 }}>{sel.program}{sel.otherPrograms ? ", " + sel.otherPrograms : ""}</div>
+            <div style={{ fontSize: 11.5, opacity: .85 }}>{sel.program}</div>
           </div>
         </div>
         <div style={{ flex: 1, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
@@ -3777,7 +3793,7 @@ function CarlaInboxSpace({ config }) {
                 <span style={{ fontWeight: 700, fontSize: 15, color: "#111", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nameOf(p)}</span>
                 <span style={{ fontSize: 11, color: ACCENT, fontWeight: 700, flexShrink: 0 }}>{p.program}</span>
               </div>
-              <div style={{ fontSize: 13, color: "#667781", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{preview(p.carlaChat)}</div>
+              <div style={{ fontSize: 13, color: "#667781", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{preview(p.transcript)}</div>
             </div>
           </div>
         ))
