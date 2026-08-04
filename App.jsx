@@ -1521,20 +1521,20 @@ function CarlaChat({ config, initialProgram, onClose }) {
   const saveProspectFromForm = async (vals) => {
     if (savedProspectRef.current) return; // yon sèl fwa
     try {
-      const fields = config.formFields || [];
-      const answers = fields.map((f) => {
-        const lbl = f.label || "Kesyon";
-        let v = vals[lbl] || "";
-        if (v && /non|nom|name|prenon/i.test(lbl)) v = "(AI) " + v;
-        return { question: lbl, answer: v };
-      });
-      const hasName = answers.some((a) => a.answer && a.answer.trim());
-      if (!hasName) return;
+      // Sèvi ak egzak etikèt moun nan ranpli yo (kle vals yo), pa config.formFields —
+      // konsa non an toujou kaptire menm si Carla itilize yon etikèt yon ti jan diferan.
+      const answers = Object.keys(vals || {}).map((k) => {
+        let v = (vals[k] || "").trim();
+        if (v && /non|nom|name|prenon|prénom/i.test(k)) v = "(AI) " + v;
+        return { question: k, answer: v };
+      }).filter((a) => a.answer);
+      const hasName = answers.some((a) => /non|nom|name|prenon|prénom/i.test(a.question) && a.answer.replace("(AI) ", "").trim());
+      if (!hasName && answers.length === 0) return;
       savedProspectRef.current = true;
       const id = Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
       const row = { id, program: program || "", answers, updated_at: new Date().toISOString() };
       const { error } = await supabase.from("prospects").insert(row);
-      if (error) { // reeseye san id si baz la jenere l poukont li
+      if (error) {
         try { await supabase.from("prospects").insert({ program: program || "", answers, updated_at: new Date().toISOString() }); } catch (e) {}
       }
     } catch (e) {}
