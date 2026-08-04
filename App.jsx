@@ -1562,6 +1562,18 @@ function CarlaChat({ config, initialProgram, onClose }) {
       return "";
     };
     const sessionVideo = pr ? sessionVideoOf(pr.steps || []) : "";
+    // Tout dat sesyon ki aktive yo (pou Carla ka pwopoze pwochen sesyon yo)
+    const upcomingSessions = (() => {
+      if (!pr) return [];
+      const td = todayStr();
+      const set = new Set();
+      for (const sc of pr.steps || []) {
+        for (const b of getStepBlocks(sc)) {
+          for (const s of (b.schedule || [])) { if (s.start && s.start >= td) set.add(s.start); }
+        }
+      }
+      return Array.from(set).sort();
+    })();
     let env = {};
     try { env = import.meta.env || {}; } catch (e) { env = {}; }
     const priceLines = [
@@ -1594,6 +1606,7 @@ function CarlaChat({ config, initialProgram, onClose }) {
       formFields: (config.formFields || []).map((f) => ({ label: f.label || "", type: f.fieldType || "text" })),
       contact: config.contact || {},
       sessionId: sessionIdRef.current,
+      upcomingSessions,
       knownPerson: (() => { const pr = readPerson(); if (!pr || !pr.name) return null; return { name: pr.name, zone: pr.zone || "", whatsapp: pr.whatsapp || "", appel: pr.appel || "", programs: (pr.programs || []).filter((x) => norm(x) !== norm(program)) }; })(),
       special: config.special || "",
       today: todayStr(),
