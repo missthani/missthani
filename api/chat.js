@@ -89,6 +89,10 @@ PA mande moun nan "èske ou gen kesyon?" ni PA tann pou li ekri anyen. Ou jis sa
 Objektif prensipal ou se kaptire kowòdone chak moun BYEN BONÈ, pa tann fen an. Men kijan:
 Depi ou fin reponn DE kesyon moun nan (2 kesyon li chwazi nan lis la), ou reponn dezyèm nan, EPI touswit apre di yon bagay konsa: "Mwen pral reponn tout lòt kesyon ou yo — men avan, kite m poze w kèk ti kesyon k ap ede m akonpaye w pi byen." Answit, NAN YON BLÒK APA, prezante FÒM nan: [FORM]${Array.isArray(c.formFields) && c.formFields.length ? c.formFields.map((f) => f.label).join(", ") : "Non konplè, Zòn ou abite, Nimewo WhatsApp, Nimewo apèl"}[/FORM]
 Lè moun nan voye fòm sa a, TOUSWIT anrejistre l ak yon liy [SAVE] (menm si li poko fini pwosesis la — konsa nou kaptire kowòdone l). Answit di l mèsi epi kontinye reponn lòt kesyon li yo nòmalman. PA re-mande enfo sa yo ankò.
+RÈG APRE FÒM NAN (TRÈ ENPÒTAN pou koyerans):
+- Depi moun nan fin voye fòm nan, PA janm montre bouton "• Mwen vle ranpli fòm preskripsyon an" ankò nan okenn lis kesyon — ou gen enfo l deja. Retire l nèt nan tout lis apre sa.
+- Lè ou wè adrès moun nan epi ou pale de kote l ye (egz. "ou pre nou, ou nan Pétion-Ville tou"), NAN MENM mesaj la ba li adrès lekòl la (repons kesyon "Ki adrès nou"). Konsa kesyon adrès la deja reponn — PA remete "• Ki adrès nou" nan lis kesyon yo ankò.
+- Chak fwa ou re-voye lis kesyon yo, montre SÈLMAN kesyon moun nan POKO reponn/poko konnen. PA repete okenn kesyon ou deja reponn.
 IMPÒTAN — PÈSWAZYON SELON KOTE MOUN NAN RETE: lè ou wè adrès moun nan, si li nan Pétion-Ville oswa toupre (Pétion-Ville, Pèlren, Laboule, Thomassin, Delmas, Kenscoff, elatriye), vin PI PÈSWAZIF: ankouraje l vin nan kou a avèk nou, montre l se toupre, fè l santi se yon bon opòtinite pou li. Si li lwen, rete jantiy men pa fòse.
 
 === KESYON YO (an 2 lis) ===
@@ -158,6 +162,17 @@ ${waLink ? `Answit, NAN YON BLòK APA, mete EGZAKTEMAN yon bouton konsa (ranplas
 Jodia se ${c.today || new Date().toISOString().slice(0, 10)}.`;
 }
 
+async function saveCarlaChat(supaUrl, supaKey, id, program, name, transcript) {
+  try {
+    if (!supaUrl || !supaKey || !id) return;
+    await fetch(`${supaUrl}/rest/v1/carla_chats?on_conflict=id`, {
+      method: "POST",
+      headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ id, program: program || "", name: name || "", transcript: String(transcript || "").slice(0, 20000), updated_at: new Date().toISOString() }),
+    });
+  } catch (e) {}
+}
+
 async function saveProspect(supaUrl, supaKey, data, program, etiquette, transcript, fields) {
   try {
     const id = Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
@@ -209,7 +224,7 @@ async function saveProspect(supaUrl, supaKey, data, program, etiquette, transcri
 }
 
 export default async function handler(req, res) {
-  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v19-2kesyon" }); return; }
+  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v21-koyerans-fom" }); return; }
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
   const KEY = process.env.ANTHROPIC_API_KEY;
   if (!KEY) { res.status(500).json({ error: "ANTHROPIC_API_KEY manke sou Vercel" }); return; }
@@ -246,6 +261,12 @@ export default async function handler(req, res) {
         }
       } catch (e) {}
     }
+    // Sove TOUT konvèsasyon an (menm ak yon sèl kesyon) pou paj /carla a — fèt sou serveur (pi fyab)
+    try {
+      const fullT = (ctx.transcript || "") + "\nCarla: " + text;
+      const nm = (m ? (() => { try { return JSON.parse(m[1].trim()).nom || ""; } catch (e) { return ""; } })() : "") || (ctx.knownPerson && ctx.knownPerson.name) || "";
+      await saveCarlaChat(ctx.supabaseUrl, ctx.supabaseKey, ctx.sessionId, ctx.program, nm, fullT);
+    } catch (e) {}
     res.status(200).json({ text, saved });
   } catch (e) {
     res.status(500).json({ error: "Erè serveur", detail: String(e).slice(0, 200) });
