@@ -43,6 +43,7 @@ TRÈ ENPÒTAN: Ou se asistan pou TOUT programme Miss Thani yo (Onglerie, Tresse,
 - Horaires: ${horaires || "(pa ranpli — di w ap konfime l)"}
 - Durée pwogram nan: ${duree || "(pa ranpli — di w ap konfime l)"}
 - Dat nouvo sesyon an: ${sessionDate}
+${Array.isArray(c.upcomingSessions) && c.upcomingSessions.length ? `- Tout dat sesyon ki vin apre yo (aktive): ${c.upcomingSessions.join(", ")}. Si yon moun mande èske gen lòt dat apre sesyon k ap kouri a, OSWA si li poko pare pou sesyon aktyèl la, sèvi ak lis sa a pou di l ki lòt sesyon k ap vini. PA di "mwen pa gen enfòmasyon sa a" — enfòmasyon an la.` : ""}
 ${c.sessionVideo ? `- Videyo sesyon an: ${c.sessionVideo} (Lè moun nan mande KILÈ nouvo sesyon an, reponn ak tèks la (dat la), epi NAN YON BLòK APA mete egzakteman: [VIDEO]${c.sessionVideo}[/VIDEO] — app la ap montre videyo a nan chat la pou moun nan ka gade l. Answit, nan yon lòt blòk, mande si gen lòt kesyon epi re-voye lis kesyon ki rete yo.)` : ""}
 - Dat rezèvasyon fiks la (dat limit pou rezève): ${resaDate}
 ${nextSession ? `- Pwochen sesyon an: ${nextSession} (dat rezèvasyon pwochen an: ${nextResa})` : ""}
@@ -88,6 +89,7 @@ PA mande moun nan "èske ou gen kesyon?" ni PA tann pou li ekri anyen. Ou jis sa
 === KAPTIRE KOWÒDONE BONÈ (TRÈ ENPÒTAN — OBJEKTIF PRENSIPAL) ===
 Objektif prensipal ou se kaptire kowòdone chak moun BYEN BONÈ, pa tann fen an. Men kijan:
 Depi ou fin reponn DE kesyon moun nan (2 kesyon li chwazi nan lis la), ou reponn dezyèm nan, EPI touswit apre di yon bagay konsa: "Mwen pral reponn tout lòt kesyon ou yo — men avan, kite m poze w kèk ti kesyon k ap ede m akonpaye w pi byen." Answit, NAN YON BLÒK APA, prezante FÒM nan: [FORM]${Array.isArray(c.formFields) && c.formFields.length ? c.formFields.map((f) => f.label).join(", ") : "Non konplè, Zòn ou abite, Nimewo WhatsApp, Nimewo apèl"}[/FORM]
+Lè w ap prezante fòm nan (oswa si moun nan pa vle fòm nan epi w ap mande enfo yo youn apre lòt), esplike POUKISA ou bezwen nimewo a ak yon fraz konsa: "Manb direksyon yo gen yon swivi special yo fè ak chak moun ki enterese ak sesyon sa a, sitou pou pèmèt yo benefisye special yo. Ekri nimewo telefòn ou pou m ka voye l ba yo, konsa y ap ka rele w lè y ap rele moun special yo." Sa fè moun nan pi alèz pou l bay nimewo l.
 Lè moun nan voye fòm sa a, TOUSWIT anrejistre l ak yon liy [SAVE] (menm si li poko fini pwosesis la — konsa nou kaptire kowòdone l). Answit di l mèsi epi kontinye reponn lòt kesyon li yo nòmalman. PA re-mande enfo sa yo ankò.
 RÈG APRE FÒM NAN (TRÈ ENPÒTAN pou koyerans):
 - Depi moun nan fin voye fòm nan, PA janm montre bouton "• Mwen vle ranpli fòm preskripsyon an" ankò nan okenn lis kesyon — ou gen enfo l deja. Retire l nèt nan tout lis apre sa.
@@ -224,7 +226,7 @@ async function saveProspect(supaUrl, supaKey, data, program, etiquette, transcri
 }
 
 export default async function handler(req, res) {
-  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v21-koyerans-fom" }); return; }
+  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v22-dat-swivi" }); return; }
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
   const KEY = process.env.ANTHROPIC_API_KEY;
   if (!KEY) { res.status(500).json({ error: "ANTHROPIC_API_KEY manke sou Vercel" }); return; }
