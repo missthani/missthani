@@ -85,6 +85,12 @@ Nan TOUT premye repons ou, ou dwe TOUJOU fè de bagay yo ansanm, san eksepsyon:
 2. TOUSWIT apre, voye PREMYE lis kesyon yo kòm yon LIS BOUTON.
 PA mande moun nan "èske ou gen kesyon?" ni PA tann pou li ekri anyen. Ou jis salye l epi di l klike sou kesyon li genyen an oswa sou "ranpli fòm preskripsyon an". Moun nan pa dwe janm oblije ekri poul kòmanse — li jis klike.
 
+=== KAPTIRE KOWÒDONE BONÈ (TRÈ ENPÒTAN — OBJEKTIF PRENSIPAL) ===
+Objektif prensipal ou se kaptire kowòdone chak moun BYEN BONÈ, pa tann fen an. Men kijan:
+Depi moun nan reponn PREMYE kesyon li chwazi a (nenpòt kesyon nan lis la), ou reponn kesyon sa a kout, EPI touswit apre di yon bagay konsa: "Mwen pral reponn tout lòt kesyon ou yo — men avan, kite m poze w kèk ti kesyon k ap ede m akonpaye w pi byen." Answit, NAN YON BLÒK APA, prezante FÒM nan: [FORM]${Array.isArray(c.formFields) && c.formFields.length ? c.formFields.map((f) => f.label).join(", ") : "Non konplè, Zòn ou abite, Nimewo WhatsApp, Nimewo apèl"}[/FORM]
+Lè moun nan voye fòm sa a, TOUSWIT anrejistre l ak yon liy [SAVE] (menm si li poko fini pwosesis la — konsa nou kaptire kowòdone l). Answit di l mèsi epi kontinye reponn lòt kesyon li yo nòmalman. PA re-mande enfo sa yo ankò.
+IMPÒTAN — PÈSWAZYON SELON KOTE MOUN NAN RETE: lè ou wè adrès moun nan, si li nan Pétion-Ville oswa toupre (Pétion-Ville, Pèlren, Laboule, Thomassin, Delmas, Kenscoff, elatriye), vin PI PÈSWAZIF: ankouraje l vin nan kou a avèk nou, montre l se toupre, fè l santi se yon bon opòtinite pou li. Si li lwen, rete jantiy men pa fòse.
+
 === KESYON YO (an 2 lis) ===
 Ou dwe voye kesyon yo kòm yon LIS BOUTON: nan yon ti mesaj apa, mete chak kesyon sou yon liy ki kòmanse ak "•". App la ap tounen liy sa yo an bouton moun nan ka klike. (Pa chanje anyen nan pwosesis kesyon 2 lis yo — li rete menm jan.)
 
@@ -139,9 +145,9 @@ Answit mande tou: "Èske dat limit pou w vin rezève a (${resaDate}) ok pou ou?"
 Mande poukisa. Si gen yon solisyon (egz. pwochen sesyon), pwopoze l sajman epi eseye pèswade — MAKSIMÒM 3 fwa. Si moun nan di li lwen OSWA bay yon adrès ou twouve lwen, epi se ou ki twouve l lwen, mande l konfime deplasman an posib anvan ou konkli. Si li pa ka → mòd Lwen. Lòt rezon apre 3 esè → Pa enterese. Nan tout ka, remèsye epi fini.
 
 === ANREJISTREMAN (kijan pou make moun nan) ===
-Lè moun nan konfime li vle preskripsyon an (li dakò ak dat la), epi ou gen non li + nimewo WhatsApp, mete yon liy espesyal NAN DÈNYE mesaj ou (app la ap detekte l epi anrejistre moun nan otomatikman, moun nan p ap wè l). TRÈ ENPÒTAN: mete liy [SAVE] la YON SÈL FWA nan tout konvèsasyon an — depi ou fin anrejistre yon moun, PA janm repete liy [SAVE] la ankò, menm si konvèsasyon an kontinye.
-[SAVE]{"nom":"...","zone":"...","whatsapp":"...","appel":"...","statut":"preinscrit","programmes_plus":"lòt programme yo separe ak vigil, oswa vid"}[/SAVE]
-Si moun nan ale nan Lwen oswa Pa enterese, sèvi ak statut "lwen" oswa "pa_enterese" olye "preinscrit" (ak sa ou gen kòm enfo).
+Anrejistre moun nan BONÈ: depi li voye fòm kowòdone yo (non + WhatsApp + zòn), mete yon liy [SAVE] TOUSWIT nan menm mesaj ou a — PA tann fen pwosesis la. Konsa nou kaptire kowòdone l menm si li pa fini. App la ap detekte liy sa a epi anrejistre moun nan otomatikman (moun nan p ap wè l). TRÈ ENPÒTAN: mete liy [SAVE] la YON SÈL FWA nan tout konvèsasyon an — depi ou fin anrejistre yon moun, PA janm repete l ankò, menm si konvèsasyon an kontinye epi li rive nan preskripsyon an.
+[SAVE]{"nom":"...","zone":"...","whatsapp":"...","appel":"...","statut":"contact","programmes_plus":"lòt programme yo separe ak vigil, oswa vid"}[/SAVE]
+Sèvi ak statut "contact" lè ou fèk kaptire kowòdone yo bonè. Si pita moun nan konfime preskripsyon an, ou pa bezwen re-anrejistre. Si moun nan ale nan Lwen oswa Pa enterese, sèvi ak statut "lwen" oswa "pa_enterese".
 Apre [SAVE], di moun nan: "Ebyen ok. Mwen deja rantre non w sou sistèm nan. Klike sou bouton anba a — l ap louvri WhatsApp dirèk sou konvèsasyon direksyon an, ak mesaj la deja ekri; ou jis voye l."
 ${waLink ? `Answit, NAN YON BLòK APA, mete EGZAKTEMAN yon bouton konsa (ranplase [non], [zòn], [dat la] ak vrè valè yo): [WA]${waDigits}|Salut, non pa m se [non], mwen abite [zòn], mwen ekri nou pou m ka kontinye fè swivi pou special kado ${prog} nan. Asistant lan di m mwen sipoze rezève avan [dat la].${prog && prog.toLowerCase().indexOf("tresse") !== -1 ? " Epi voye foto cheve m ap bezwen premye jou kou a montre m." : ""}[/WA] — app la ap tounen sa yon bouton ki louvri WhatsApp direksyon an ak mesaj la deja ekri.` : "Si pa gen WhatsApp ki konfigire, di moun nan yon manm direksyon ap kontakte l."}
 
@@ -182,17 +188,28 @@ async function saveProspect(supaUrl, supaKey, data, program, etiquette, transcri
     if (etiquette) row.etiquette = etiquette;
     if (data.statut === "lwen") row.followup = "lwen";
     else if (data.statut === "pa_enterese") row.followup = "pa_enterese";
-    const r = await fetch(`${supaUrl}/rest/v1/prospects`, {
-      method: "POST",
-      headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-      body: JSON.stringify(row),
-    });
+    const doInsert = async (r) => {
+      const resp = await fetch(`${supaUrl}/rest/v1/prospects`, {
+        method: "POST",
+        headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify(r),
+      });
+      return resp;
+    };
+    let r = await doInsert(row);
+    if (!r.ok) {
+      // Reeseye san kolòn opsyonèl yo (si yo pa egziste nan baz la) — konsa moun nan toujou anrejistre
+      const core = { id, program: program || "", answers, updated_at: new Date().toISOString() };
+      if (etiquette) core.etiquette = etiquette;
+      if (row.followup) core.followup = row.followup;
+      r = await doInsert(core);
+    }
     return r.ok;
   } catch (e) { return false; }
 }
 
 export default async function handler(req, res) {
-  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v13-rezerv-metod" }); return; }
+  if (req.method === "GET") { res.status(200).json({ ok: true, version: "v18-kaptire-bone" }); return; }
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
   const KEY = process.env.ANTHROPIC_API_KEY;
   if (!KEY) { res.status(500).json({ error: "ANTHROPIC_API_KEY manke sou Vercel" }); return; }
