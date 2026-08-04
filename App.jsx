@@ -5326,7 +5326,12 @@ function ProspectsView({ agents = [], isAdmin = false, onSaveAgents, programs = 
               for (const q of cols) { const a = answerFor(p, q); if (validateHaitiPhone(a).ok) found.push(a); }
               return want === "wa" ? (found[0] || "") : (found[1] || found[0] || "");
             };
-            const nonV = val(/non|nom|name|prenon|prénom|prenom/) || answerFor(p, nameCol) || "";
+            const phoneRx = /whatsapp|telef|telephone|nimewo|numero|numéro|tel\b|apèl|apel|appel/i;
+            const addrRx2 = /adrès|adres|address|kote|abite|habite|zòn|zon|zone|imèl|imel|email|mail/i;
+            let nonV = val(/non|nom|name|prenon|prénom|prenom/) || answerFor(p, nameCol) || "";
+            if (!nonV) { // sekirite: pran premye repons ki pa telefòn/adrès (souvan se non an)
+              for (const q of cols) { if (!phoneRx.test(q) && !addrRx2.test(q)) { const a = answerFor(p, q); if (a) { nonV = a; break; } } }
+            }
             const adrV = val(/adrès|adres|address|kote|abite|habite|zòn|zon|zone/);
             const waV = val(/whatsapp/) || phoneN("wa");
             const apV = val(/apèl|apel|appel|call/) || phoneN("apel");
